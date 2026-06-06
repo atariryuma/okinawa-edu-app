@@ -17,7 +17,7 @@
 - ※親フォルダ `../沖縄県_教育法規_学習アプリ.html` は同一物の旧コピー。**正本はこの `index.html`**。混乱を避けるなら親コピーは削除可。
 
 ## データモデル
-`QUESTIONS` は **`questions.json`（外部・正本）**。`REF/LOOKUP/RONBUN/COLORS` は `index.html` 内のJS配列リテラル（編集はそこ）。現状 Q110 / REF12 / LOOKUP14 / RONBUN8。
+`QUESTIONS` は **`questions.json`（外部・正本）**。`REF/LOOKUP/RONBUN/COLORS` は `index.html` 内のJS配列リテラル（編集はそこ）。現状 Q202（法規53/指導要領28/生徒指導25/危機管理20/自立15/時事15/計画7/服務6/学校経営6/働き方6/情報管理4/苦情対応3/学校運営3/ビジョン4/体系4/努力点3） / REF / LOOKUP / RONBUN8。**出典→公式ソース直リンク**（`srcChk`/`LAW_LINKS`=e-Gov・`DOC_LINKS`=文科省/県、法令優先・長い順照合）。
 - **問題の編集・追加** → `questions.json` を直接編集（JSON配列）。検証はリポジトリ同梱の手順 or `node -e`（下記「検証」）。編集後は `sw.js` の `CACHE` を上げる。
 - **ユーザー作成問題** … アプリ内「✍️ 問題の作成・共有」フォームで追加 → `store.userQuestions[]` に保存（Drive同期対象）。`mergeStore` が id で和集合。エクスポート(JSON DL)/インポート(file)で共有。
 - **みんなの問題（コミュニティ共有）** … `DEFAULT_COMMUNITY_URL`（GAS /exec）で有効。受け取り＝起動時 `fetchCommunity()` GET→`COMMUNITY_QUESTIONS`キャッシュ。投稿＝`submitCommunity()` が `{q,token,device}` を `text/plain` POST。**無意識共有モデル**：サインイン済みは既存アクセストークンを黙って同梱→GASが `aud`=`CLIENT_ID` を tokeninfo で検証し **trusted＝自動公開(approved)**、匿名は審査(pending)。裏でスパム対策（URL禁止/NGワード/端末レート制限/数式無害化/上限）。共有問題は出題時に「みんなの問題・未検証」バッジ（`COMMUNITY_IDS`）。GAS更新後は `setup` 再実行で `script.external_request` 承認が必要。契約: GET→`{ok,questions:[]}`／POST→`{ok,status}`。
@@ -106,7 +106,8 @@ node --check /tmp/app.js
 - 関係図に項目が出ない → REFに `map:1` があるか、`renderMap` の id 指定に含めたか。
 
 ## 既知のTODO / 伸びしろ
-- 問題量（受験者レビューは200問規模を要望。現110）。`QUESTIONS` 追記で拡張可。
+- 問題量：202問（200問規模を達成）。論文は「書く/自己添削」化済(`store.ronbunDrafts`)・模試モード(`mock`,時間計測)・苦手の分野別正答率可視化あり。`QUESTIONS`(questions.json)追記で拡張可。
+- 残課題：自己採点(qa)の客観化、共有投稿の認可をIDトークン(JWT)化（現在はアクセストークンの aud 検証＋privacy.htmlで開示）。
 - 模試モード（時間制限・本番形式）、論文の字数別モデル答案、年度バッジでの絞り込み。
 - 自己採点(qa/cloze)の客観化（テキスト入力照合）。
 - 進捗のエクスポート/インポート（Google未使用者向け）。
