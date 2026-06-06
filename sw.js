@@ -1,5 +1,5 @@
 // 沖縄県 教育法規アプリ — Service Worker（オフライン対応）
-const CACHE = 'okinawa-edu-v12';
+const CACHE = 'okinawa-edu-v13';
 const ASSETS = ['./', './index.html', './questions.json', './privacy.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
@@ -22,6 +22,11 @@ self.addEventListener('fetch', e => {
       const copy = res.clone();
       caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
       return res;
-    }).catch(() => caches.match('./index.html')))
+    }).catch(() => {
+      // オフライン時のフォールバックはページ遷移(ナビゲーション)のみ index.html を返す。
+      // questions.json 等のデータ取得失敗時に HTML を返さない（boot() の JSON パース誤動作を防ぐ）。
+      if (req.mode === 'navigate') return caches.match('./index.html');
+      return Response.error();
+    }))
   );
 });

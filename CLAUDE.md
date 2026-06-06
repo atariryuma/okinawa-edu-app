@@ -22,6 +22,7 @@
 - **ユーザー作成問題** … アプリ内「✍️ 問題の作成・共有」フォームで追加 → `store.userQuestions[]` に保存（Drive同期対象）。`mergeStore` が id で和集合。エクスポート(JSON DL)/インポート(file)で共有。
 - **みんなの問題（コミュニティ共有）** … `DEFAULT_COMMUNITY_URL`（GAS Web App の /exec）を埋めると有効。受け取り＝起動時 `fetchCommunity()` で GET→`COMMUNITY_QUESTIONS` にキャッシュ(`localStorage['okinawa_community_cache']`)。投稿＝`submitCommunity()` が `text/plain` で POST（CORSプリフライト回避）。承認制（GAS側 status=approved のみ配信）。バックエンドは `community-gas/`（`Code.gs`＋手順）。契約: GET→`{ok,questions:[]}`／POST→`{ok}`。
 - **合成順（dedup by id）**：`QUESTIONS = BASE_QUESTIONS(公式) ＞ COMMUNITY_QUESTIONS(共有) ＞ store.userQuestions(自作)`（`rebuildQuestions()`）。
+- **セキュリティ規約（重要・回帰厳禁）**：問題文は**第三者由来（共有/自作/インポート）**を含むため、**描画は必ず `esc()` でHTMLエスケープ**（`render*`/`srcLine`/`showQ`のmeta）。新しい描画コードを足す時も第三者フィールドは `esc()` 必須（公式 REF/RONBUN はHTML可で別扱い）。`rebuildQuestions`/import/fetchCommunity は `validQuestion()` で**型検証して不正は除外**（描画/採点クラッシュ防止）。GAS側は `deformula_`(数式インジェクション無害化)＋`pick_`(未知/プロト汚染キー除去)＋`ID_RE`(id形式)＋行/未承認上限。
 - **4択(mc)は出題時に選択肢をシャッフル**（`renderMC`：`{c,orig}` 配列＋`ansPos`で正答追跡）。データの `ans` は元の並びのindexのまま。
 
 - `REF[]` … 要点カード。`{id, cls, map?, name, tag, cat, points[](HTML可), src}`。

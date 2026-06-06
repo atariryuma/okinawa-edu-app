@@ -30,6 +30,10 @@ var MAX_FIELD_LEN   = 4000;             // 任意の文字列フィールド1個
 var MAX_ARRAY_LEN   = 50;               // choices/items/pairs/parts の要素数上限
 var MAX_ID_LEN      = 64;               // id の上限長
 var LOCK_WAIT_MS    = 10000;            // 追記時のロック待ち上限
+var MAX_ROWS        = 5000;             // データ総行数の上限（無認証POSTのスパム肥大対策）
+var MAX_PENDING     = 300;              // 未承認(pending)滞留の上限（承認で消化されるまで新規受付停止）
+var DOGET_CACHE_SEC = 45;              // doGet 応答のキャッシュ秒数（読み取り負荷の軽減）
+var ID_RE           = /^[A-Za-z0-9_\-]{1,64}$/; // id 許可形式（数式/制御文字/空白を排除）
 
 /* 列インデックス（0始まり）。HEADERS と一致させる */
 var COL = { ts:0, status:1, id:2, type:3, cat:4, json:5, q:6, src:7 };
@@ -61,6 +65,11 @@ function setup() {
  * ========================================================================== */
 function doGet(e) {
   try {
+    // 直近の応答をキャッシュして読み取り負荷を抑える（承認反映は最大 DOGET_CACHE_SEC 秒遅延）
+    var cache = null;
+    try { cache = CacheService.getScriptCache(); } catch (_c) {}
+    if (cache) { var hit = cache.get('doget'); if (hit) return ContentService.createTextOutput(hit).setMimeType(ContentService.MimeType.JSON); }
+
     var sh = getSheet_(false);
     if (!sh) return json_({ ok: true, questions: [] });
 
@@ -82,9 +91,11 @@ function doGet(e) {
         try { console.warn('doGet skip broken row ' + (r + 2)); } catch (_ig) {}
       }
     }
-    return json_({ ok: true, questions: out });
+    var payload = JSON.stringify({ ok: true, questions: out });
+    if (cache) { try { cache.put('doget', payload, DOGET_CACHE_SEC); } catch (_p) {} }
+    return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return json_({ ok: false, error: String(err && err.message || err) });
+    return json_({ ok: false, error: String(err && err.message || err), questions: [] });
   }
 }
 
@@ -120,26 +131,35 @@ function doPost(e) {
       var sh = getSheet_(true);
 
       var lastRow = sh.getLastRow();
+      // 総行数の上限（スパムによる無制限肥大の歯止め）
+      if (lastRow - 1 >= MAX_ROWS) {
+        return json_({ ok: false, error: 'storage full' });
+      }
       if (lastRow >= 2) {
-        var ids = sh.getRange(2, COL.id + 1, lastRow - 1, 1).getValues();
-        for (var i = 0; i < ids.length; i++) {
-          if (String(ids[i][0]) === q.id) {
-            return json_({ ok: false, error: 'duplicate id' });
-          }
+        // id 重複拒否 ＋ 未承認(pending)滞留数のカウント（必要2列だけ一括取得）
+        var idCol = sh.getRange(2, COL.id + 1, lastRow - 1, 1).getValues();
+        var stCol = sh.getRange(2, COL.status + 1, lastRow - 1, 1).getValues();
+        var pending = 0;
+        for (var i = 0; i < idCol.length; i++) {
+          if (String(idCol[i][0]) === q.id) return json_({ ok: false, error: 'duplicate id' });
+          if (String(stCol[i][0]).trim().toLowerCase() === 'pending') pending++;
         }
+        if (pending >= MAX_PENDING) return json_({ ok: false, error: 'too many pending' });
       }
 
-      var summary = summarize_(q);
+      // 未知キー/プロトタイプ汚染を物理的に落としてから保存（ホワイトリスト再構築）
+      var clean = pick_(q);
+      var summary = summarize_(clean);
 
       var newRow = [];
       newRow[COL.ts]     = new Date();
       newRow[COL.status] = 'pending';
-      newRow[COL.id]     = q.id;
-      newRow[COL.type]   = q.type;
-      newRow[COL.cat]    = q.cat || '';
-      newRow[COL.json]   = JSON.stringify(q);
-      newRow[COL.q]      = summary;
-      newRow[COL.src]    = q.src;
+      newRow[COL.id]     = deformula_(clean.id);
+      newRow[COL.type]   = clean.type;
+      newRow[COL.cat]    = deformula_(clean.cat || '');
+      newRow[COL.json]   = deformula_(JSON.stringify(clean));
+      newRow[COL.q]      = deformula_(summary);
+      newRow[COL.src]    = deformula_(clean.src);
 
       sh.getRange(sh.getLastRow() + 1, 1, 1, HEADERS.length).setValues([newRow]);
 
@@ -159,7 +179,7 @@ function validate_(q) {
   if (!q || typeof q !== 'object' || Array.isArray(q)) return err_('not an object');
 
   if (!isNonEmptyStr_(q.id)) return err_('id required');
-  if (q.id.length > MAX_ID_LEN) return err_('id too long');
+  if (!ID_RE.test(q.id)) return err_('bad id format'); // 英数・_・- のみ（数式/制御文字/空白を排除）
 
   if (VALID_TYPES.indexOf(q.type) < 0) return err_('invalid type');
 
@@ -309,14 +329,27 @@ function okLen_(v) { return String(v).length <= MAX_FIELD_LEN; }
 
 function isInt_(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
 
+// UTF-8 バイト長（孤立サロゲートでも破綻しないよう GAS の Blob を使用）
 function byteLen_(s) {
-  var n = 0;
-  for (var i = 0; i < s.length; i++) {
-    var c = s.charCodeAt(i);
-    if (c < 0x80) n += 1;
-    else if (c < 0x800) n += 2;
-    else if (c >= 0xD800 && c <= 0xDBFF) { n += 4; i++; }
-    else n += 3;
-  }
-  return n;
+  try { return Utilities.newBlob(String(s)).getBytes().length; }
+  catch (e) { return String(s).length * 4; } // 念のための安全側フォールバック
+}
+
+// セル数式インジェクション対策：=,+,-,@,タブ,CR で始まる値は先頭にアポストロフィを付け、
+// 承認者がシートを開いた際に数式として評価されないようにする。
+function deformula_(v) {
+  var s = String(v == null ? '' : v);
+  return /^[=+\-@\t\r]/.test(s) ? ("'" + s) : s;
+}
+
+// 既知フィールドだけで問題オブジェクトを再構築（未知キー/__proto__等を物理的に除去）。
+// validate_ 通過後に呼ぶ前提。
+function pick_(q) {
+  var o = { id: q.id, type: q.type, cat: (q.cat == null ? '' : String(q.cat)), src: q.src };
+  if (q.type === 'qa') { o.q = q.q; o.a = q.a; }
+  else if (q.type === 'mc') { o.q = q.q; o.choices = q.choices.slice(0, MAX_ARRAY_LEN); o.ans = q.ans; if (q.exp != null) o.exp = String(q.exp); }
+  else if (q.type === 'cloze') { o.parts = q.parts.map(function (p) { return typeof p === 'string' ? p : { b: p.b }; }); }
+  else if (q.type === 'order') { o.q = q.q; o.items = q.items.slice(0, MAX_ARRAY_LEN); if (q.exp != null) o.exp = String(q.exp); }
+  else if (q.type === 'match') { o.q = q.q; o.pairs = q.pairs.slice(0, MAX_ARRAY_LEN).map(function (p) { return [p[0], p[1]]; }); }
+  return o;
 }

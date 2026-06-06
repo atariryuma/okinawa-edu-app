@@ -485,10 +485,9 @@ const EF_DEFAULT=2.5, EF_MIN=1.3, EF_MAX=2.7;   // ease factor の初期値と�
 const IVL_MAX=180;                               // 1カードの最長間隔(日)
 const LAPSE_KEEP=0.4, LAPSE_PENALTY=0.2;         // 失敗時：間隔の保持率 / ease の減点
 const OLD_BOX_IVL={1:0,2:1,3:3,4:7,5:16};        // 旧Leitner box→間隔(日) 移行用
-const BOX_INTERVAL=OLD_BOX_IVL;                  // 旧名参照の後方互換
 let store=load();
-function load(){try{return Object.assign({cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null,examDate:null,userQuestions:[]},JSON.parse(localStorage.getItem(KEY))||{});}catch(e){return{cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null,examDate:null,userQuestions:[]};}}
-function save(){localStorage.setItem(KEY,JSON.stringify(store));}
+function load(){try{return Object.assign({cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null,examDate:null,examDateT:0,userQuestions:[]},JSON.parse(localStorage.getItem(KEY))||{});}catch(e){return{cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null,examDate:null,examDateT:0,userQuestions:[]};}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){elog({type:'quota',msg:'進捗の保存に失敗（localStorage容量超過の可能性）: '+((e&&e.name)||e)});try{toast('保存できませんでした（容量超過）');}catch(_){}}}
 // ===== クライアントサイド診断（バグ先回り検知） =====================
 // バックエンドが無い静的アプリなので、不具合は端末内のリングバッファに記録し、
 // 進捗タブから開発者へコピー送付できる。プライバシー：外部送信は一切しない。
@@ -522,26 +521,47 @@ function review(id,ok){
   if(c.ef==null)c.ef=EF_DEFAULT;                 // 旧スキーマ移行：ease を補完
   if(c.ivl==null)c.ivl=OLD_BOX_IVL[c.box]||0;    // 旧スキーマ移行：間隔を box から推定
   if(ok){
-    let ivl;
-    if(c.pli!=null){ivl=c.pli;c.pli=null;}        // 失敗からの復帰：以前の間隔を一部引き継ぐ
+    let ivl,recovered=false;
+    if(c.pli!=null){ivl=c.pli;c.pli=null;recovered=true;} // 失敗からの復帰：以前の間隔を一部引き継ぐ
     else if(c.reps<=0)ivl=1;                       // 初回正解 → 翌日
     else if(c.reps===1)ivl=3;                      // 2回目 → 3日後
     else ivl=c.ivl*c.ef;                           // 3回目以降 → 間隔×ease（指数的に拡大）
     if(ivl>=4)ivl=ivl*(1+(Math.random()*0.1-0.05));// fuzz ±5%（復習日の集中を緩和）
     c.reps++;c.ef=Math.min(EF_MAX,c.ef+0.03);
-    c.ivl=clampIvl(ivl);c.due=Date.now()+c.ivl*DAY;c.last='pass';c.box=boxFromIvl(c.ivl);
+    c.ivl=clampIvl(ivl);c.due=Date.now()+c.ivl*DAY;c.last='pass';
+    // 失敗復帰直後は定着(mast=box4+)に跳ねさせない（弱点克服の誤表示を防ぐ）
+    c.box=recovered?Math.min(boxFromIvl(c.ivl),3):boxFromIvl(c.ivl);
   }else{
     c.fails++;c.ef=Math.max(EF_MIN,c.ef-LAPSE_PENALTY);
     c.pli=Math.max(1,Math.min(30,Math.round((c.ivl||1)*LAPSE_KEEP))); // 復帰時の種間隔
     c.reps=0;c.ivl=0;c.due=Date.now();c.last='fail';c.box=Math.min(c.box,2); // 当日中に再出題・弱点へ
   }
   c.hist.push({t:Date.now(),ok});
+  if(c.hist.length>30)c.hist=c.hist.slice(-30); // 履歴を直近30件に制限（localStorage肥大を防ぐ）
   touchStreak();save();
 }
 function touchStreak(){const t=todayStr();if(store.lastDate===t)return;
   const y=(()=>{const d=new Date(Date.now()-DAY);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();})();
   store.streak=store.lastDate===y?(store.streak||0)+1:1;store.lastDate=t;}
 function dueList(){return QUESTIONS.filter(q=>isDue(q.id)).sort((a,b)=>((getCard(a.id)?.due)||0)-((getCard(b.id)?.due)||0));}
+
+//==================== 安全・検証ヘルパ ====================
+// HTMLエスケープ：第三者由来（みんなの問題／インポート）の問題文を innerHTML に出す際に必ず通す。
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+// 型別の必須フィールド検証。不正（欠落・型違い）は出題プールから除外して描画/採点クラッシュを防ぐ。
+function validQuestion(q){
+  if(!q||typeof q!=='object'||typeof q.id!=='string'||!q.id)return false;
+  if(['qa','mc','cloze','order','match'].indexOf(q.type)<0)return false;
+  switch(q.type){
+    case'qa':return typeof q.q==='string'&&typeof q.a==='string';
+    case'mc':return typeof q.q==='string'&&Array.isArray(q.choices)&&q.choices.length>=2&&typeof q.ans==='number'&&q.ans>=0&&q.ans<q.choices.length;
+    case'cloze':return Array.isArray(q.parts)&&q.parts.length>0&&q.parts.some(p=>p&&typeof p==='object'&&typeof p.b==='string'&&p.b);
+    case'order':return typeof q.q==='string'&&Array.isArray(q.items)&&q.items.length>=2;
+    case'match':return typeof q.q==='string'&&Array.isArray(q.pairs)&&q.pairs.length>=1&&q.pairs.every(p=>Array.isArray(p)&&p.length===2);
+  }
+  return false;
+}
+function ymdNum(s){const m=String(s||'').split('-');return (+m[0]||0)*10000+(+m[1]||0)*100+(+m[2]||0);} // 'YYYY-M-D' を数値化（非ゼロ詰めでも正しく比較）
 
 //==================== THEME ====================
 const themeBtn=document.getElementById('themeBtn');
@@ -717,7 +737,7 @@ function startQuiz(mode){
   const cats=document.getElementById('cats');
   const typeMode=['qa','mc','cloze','order','match'].includes(mode);
   if(cats)cats.hidden=!typeMode;
-  if(mode==='daily'){quizPool=dueList().slice(0,12);if(!quizPool.length)quizPool=shuffle(QUESTIONS).slice(0,8);}
+  if(mode==='daily'){quizPool=dueList().slice(0,12);if(!quizPool.length)quizPool=shuffle(QUESTIONS.filter(q=>!isMastered(q.id))).slice(0,8);if(!quizPool.length)quizPool=shuffle(QUESTIONS).slice(0,8);}
   else if(mode==='review'){quizPool=shuffle(QUESTIONS.filter(q=>isWeak(q.id)));
     if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard result"><div class="emoji">✨</div><div class="msg">弱点はありません。「今日の学習」で新しい問題に挑戦しましょう。</div></div>`;return;}}
   else{quizPool=shuffle(QUESTIONS.filter(q=>q.type===mode&&(quizCat==='all'||q.cat===quizCat)));
@@ -740,7 +760,7 @@ function showQ(){
   }
   const q=quizPool[quizIdx];
   const prog=`<div class="progressbar"><i style="width:${quizIdx/quizPool.length*100}%"></i></div>`;
-  const meta=`<div class="qmeta"><span class="badge">${q.cat}・${typeName(q.type)}</span><span>${quizIdx+1} / ${quizPool.length}</span></div>`;
+  const meta=`<div class="qmeta"><span class="badge">${esc(q.cat)}・${typeName(q.type)}</span><span>${quizIdx+1} / ${quizPool.length}</span></div>`;
   area.innerHTML=prog;const card=document.createElement('div');area.appendChild(card);
   const r={qa:renderQA,mc:renderMC,cloze:renderCloze,order:renderOrder,match:renderMatch}[q.type];
   if(!r){quizIdx++;return showQ();}
@@ -750,13 +770,13 @@ function showQ(){
 function typeName(t){return{qa:'一問一答',mc:'4択',cloze:'穴埋め',order:'並べ替え',match:'関係づけ'}[t];}
 function nextBtn(){return `<button class="btn wide" style="margin-top:14px" id="nextQ">次へ →</button>`;}
 function bindNext(s){const n=s.querySelector('#nextQ');if(n)n.addEventListener('click',()=>{quizIdx++;showQ();});}
-function srcLine(q){return `<div class="src"><span>出典：${q.src}</span><a class="srcchk" href="https://www.google.com/search?q=${encodeURIComponent(q.src)}" target="_blank" rel="noopener" style="margin-left:10px;color:var(--accent);text-decoration:underline;white-space:nowrap">🔍 出典を確認</a></div>`;}
+function srcLine(q){return `<div class="src"><span>出典：${esc(q.src)}</span><a class="srcchk" href="https://www.google.com/search?q=${encodeURIComponent(q.src||'')}" target="_blank" rel="noopener noreferrer" aria-label="出典を新しいタブで検索して確認" style="margin-left:10px;color:var(--accent);text-decoration:underline;white-space:nowrap">🔍 出典を確認</a></div>`;}
 function answer(id,ok){review(id,ok);sAnswered++;if(ok)sCorrect++;}
 
 function renderQA(q,meta,id,card){
-  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
     <button class="btn ghost wide" id="showA">答えを表示</button>
-    <div class="reveal ok" id="A"><b>A.</b> ${q.a}${srcLine(q)}
+    <div class="reveal ok" id="A"><b>A.</b> ${esc(q.a)}${srcLine(q)}
       <div style="margin-top:11px;display:flex;gap:9px">
         <button class="btn ok" style="flex:1" id="g1">✓ 言えた</button>
         <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div></div></div>`;
@@ -769,8 +789,8 @@ function renderMC(q,meta,id,card){
   // 選択肢をシャッフル（位置で答えを覚えるのを防ぐ）。orig=元のインデックス、ansPos=正答の表示位置。
   const opts=shuffle(q.choices.map((c,i)=>({c,orig:i})));
   const ansPos=opts.findIndex(o=>o.orig===q.ans);
-  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
-    <div id="ch">${opts.map((o,i)=>`<button class="choice" data-i="${i}"><span class="k">${ks[i]}</span><span>${o.c}</span></button>`).join('')}</div>
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
+    <div id="ch">${opts.map((o,i)=>`<button class="choice" data-i="${i}"><span class="k">${ks[i]}</span><span>${esc(o.c)}</span></button>`).join('')}</div>
     <div class="reveal" id="R"></div></div>`;
   const wrap=card.querySelector('#ch');
   wrap.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>{
@@ -779,11 +799,11 @@ function renderMC(q,meta,id,card){
       if(j===ansPos){x.classList.add('correct');x.querySelector('.k').textContent='✓';}
       if(j===i&&!ok){x.classList.add('wrong');x.querySelector('.k').textContent='✗';}});
     answer(id,ok);const R=card.querySelector('#R');R.className='reveal show '+(ok?'ok':'ng');
-    R.innerHTML=`<b>${ok?'✅ 正解':'❌ 不正解'}</b>　正答：${ks[ansPos]}. ${opts[ansPos].c}<br>${q.exp}${srcLine(q)}${nextBtn()}`;bindNext(card);
+    R.innerHTML=`<b>${ok?'✅ 正解':'❌ 不正解'}</b>　正答：${ks[ansPos]}. ${esc(opts[ansPos].c)}<br>${esc(q.exp)}${srcLine(q)}${nextBtn()}`;bindNext(card);
   }));
 }
 function renderCloze(q,meta,id,card){
-  const html=q.parts.map(p=>typeof p==='string'?p:`<span class="blank" tabindex="0" role="button" aria-label="空欄をめくる">${p.b}</span>`).join('');
+  const html=q.parts.map(p=>typeof p==='string'?esc(p):`<span class="blank" tabindex="0" role="button" aria-label="空欄をめくる">${esc(p.b)}</span>`).join('');
   card.innerHTML=`<div class="quizcard cloze">${meta}
     <div class="redtoggle"><button class="btn ghost" id="allrev">全部めくる</button><span style="font-size:.72rem;color:var(--sub)">赤い部分をタップ/Enterで表示</span></div>
     <div class="qtext" style="font-weight:500;font-size:1rem">${html}</div>
@@ -796,8 +816,8 @@ function renderCloze(q,meta,id,card){
 }
 function renderOrder(q,meta,id,card){
   const sh=shuffle(q.items.map((t,i)=>({t,i})));
-  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
-    <ul class="orderlist" id="ol">${sh.map(o=>`<li draggable="true" data-i="${o.i}"><span class="num" aria-hidden="true">≡</span><span class="txt">${o.t}</span><span class="mv"><button class="up" aria-label="上へ">▲</button><button class="dn" aria-label="下へ">▼</button></span></li>`).join('')}</ul>
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
+    <ul class="orderlist" id="ol">${sh.map((o,pos)=>`<li draggable="true" data-i="${o.i}" aria-label="${pos+1}番目：${esc(o.t)}"><span class="num" aria-hidden="true">≡</span><span class="txt">${esc(o.t)}</span><span class="mv"><button class="up" aria-label="上へ">▲</button><button class="dn" aria-label="下へ">▼</button></span></li>`).join('')}</ul>
     <button class="btn wide" id="ck">答え合わせ</button><div class="reveal" id="R"></div></div>`;
   const ul=card.querySelector('#ol');let drag=null,answered=false;
   const move=(li,dir)=>{if(answered)return;if(dir<0&&li.previousElementSibling)ul.insertBefore(li,li.previousElementSibling);if(dir>0&&li.nextElementSibling)ul.insertBefore(li.nextElementSibling,li);};
@@ -814,15 +834,15 @@ function renderOrder(q,meta,id,card){
     const order=[...ul.children].map(li=>+li.dataset.i),ok=order.every((v,i)=>v===i);
     answer(id,ok);ul.querySelectorAll('li').forEach(li=>li.setAttribute('draggable','false'));
     const R=card.querySelector('#R');R.className='reveal show '+(ok?'ok':'ng');
-    R.innerHTML=`<b>${ok?'✅ 正しい順です':'❌ 違います'}</b>${ok?'':'　正しい順：<br>'+q.items.map((t,i)=>`${i+1}. ${t}`).join('<br>')}<br>${q.exp}${srcLine(q)}${nextBtn()}`;bindNext(card);
+    R.innerHTML=`<b>${ok?'✅ 正しい順です':'❌ 違います'}</b>${ok?'':'　正しい順：<br>'+q.items.map((t,i)=>`${i+1}. ${esc(t)}`).join('<br>')}<br>${esc(q.exp)}${srcLine(q)}${nextBtn()}`;bindNext(card);
     card.querySelector('#ck').disabled=true;
   });
 }
 function renderMatch(q,meta,id,card){
   const left=q.pairs.map((p,i)=>({t:p[0],i})),right=shuffle(q.pairs.map((p,i)=>({t:p[1],i})));
-  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
-    <div class="matchwrap"><div class="matchcol" id="L">${left.map(o=>`<button data-i="${o.i}">${o.t}</button>`).join('')}</div>
-      <div class="matchcol" id="R">${right.map(o=>`<button data-i="${o.i}">${o.t}</button>`).join('')}</div></div><div class="reveal" id="RR"></div></div>`;
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
+    <div class="matchwrap"><div class="matchcol" id="L">${left.map(o=>`<button data-i="${o.i}">${esc(o.t)}</button>`).join('')}</div>
+      <div class="matchcol" id="R">${right.map(o=>`<button data-i="${o.i}">${esc(o.t)}</button>`).join('')}</div></div><div class="reveal" id="RR"></div></div>`;
   let selL=null,done=0,miss=false;const L=card.querySelector('#L'),R=card.querySelector('#R');
   L.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.classList.contains('done'))return;L.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selL=b;});
   R.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.classList.contains('done')||!selL)return;
@@ -842,16 +862,16 @@ function userQSection(){
       <p class="hint" style="margin-top:0">自作の問題を追加できます。${cu?'<b>「みんなの問題」に出す</b>と、承認後に全員へ自動で配信されます（受け取りは全自動）。':'<b>エクスポート</b>でファイルにして仲間に共有、<b>インポート</b>で受け取れます（端末内＋ログイン時はDrive同期）。'}</p>
       <div style="display:grid;gap:8px">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select id="uqType" style="flex:1;min-width:110px;${UQ_INPUT}"><option value="qa">一問一答</option><option value="mc">4択</option></select>
-          <input id="uqCat" placeholder="分野（例：法規）" style="flex:1;min-width:110px;${UQ_INPUT}">
+          <select id="uqType" aria-label="問題の形式" style="flex:1;min-width:110px;${UQ_INPUT}"><option value="qa">一問一答</option><option value="mc">4択</option></select>
+          <input id="uqCat" aria-label="分野" placeholder="分野（例：法規）" style="flex:1;min-width:110px;${UQ_INPUT}">
         </div>
-        <textarea id="uqQ" placeholder="問題文" rows="2" style="${UQ_INPUT}"></textarea>
-        <div id="uqQA"><input id="uqA" placeholder="答え" style="${UQ_INPUT}"></div>
+        <textarea id="uqQ" aria-label="問題文" placeholder="問題文" rows="2" style="${UQ_INPUT}"></textarea>
+        <div id="uqQA"><input id="uqA" aria-label="答え" placeholder="答え" style="${UQ_INPUT}"></div>
         <div id="uqMC" style="display:none;grid-template-columns:auto 1fr;gap:7px;align-items:center">
-          ${[0,1,2,3].map(i=>`<label style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="radio" name="uqCorrect" value="${i}" ${i===0?'checked':''}><span style="font-size:.78rem;color:var(--sub)">正解</span></label><input class="uqChoice" data-i="${i}" placeholder="選択肢${i+1}" style="${UQ_INPUT}">`).join('')}
-          <div style="grid-column:1/3"><input id="uqExp" placeholder="解説（任意）" style="${UQ_INPUT}"></div>
+          ${[0,1,2,3].map(i=>`<label style="display:flex;align-items:center;gap:5px;white-space:nowrap"><input type="radio" name="uqCorrect" value="${i}" ${i===0?'checked':''} aria-label="選択肢${i+1}を正解にする"><span style="font-size:.78rem;color:var(--sub)">正解</span></label><input class="uqChoice" data-i="${i}" aria-label="選択肢${i+1}" placeholder="選択肢${i+1}" style="${UQ_INPUT}">`).join('')}
+          <div style="grid-column:1/3"><input id="uqExp" aria-label="解説（任意）" placeholder="解説（任意）" style="${UQ_INPUT}"></div>
         </div>
-        <input id="uqSrc" placeholder="出典（例：学校教育法第37条）" style="${UQ_INPUT}">
+        <input id="uqSrc" aria-label="出典" placeholder="出典（例：学校教育法第37条）" style="${UQ_INPUT}">
         ${cu?`<label style="display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--sub)"><input type="checkbox" id="uqShare" checked> 作成後に「みんなの問題」に出す（承認後に全員へ）</label>`:''}
         <button class="btn wide" id="uqAdd">＋ 問題を追加</button>
       </div>
@@ -886,6 +906,8 @@ function bindUserQ(el){
       submitCommunity(obj).then(()=>toast('追加し、みんなの問題に出しました（承認待ち）')).catch(err=>{elog({type:'community',msg:'投稿失敗:'+err.message});toast('追加（共有の送信は失敗）');});
     }else{toast('追加しました（自作 '+store.userQuestions.length+'問）');}
     renderProg();
+    // フォーム再生成後、アコーディオンを開いたまま問題文入力にフォーカスを戻す（連続追加しやすく）
+    const box=document.querySelector('#uqBox');if(box){box.open=true;const f=box.querySelector('#uqQ');if(f)f.focus();}
   });
   const sa=q('#uqShareAll');if(sa)sa.addEventListener('click',async()=>{
     if(!getCommunityUrl())return;if(!confirm('自作問題を「みんなの問題」に出しますか？（承認後に全員へ表示）'))return;
@@ -903,8 +925,8 @@ function bindUserQ(el){
     const f=e.target.files[0];if(!f)return;const r=new FileReader();
     r.onload=()=>{try{const arr=JSON.parse(r.result);if(!Array.isArray(arr))throw 0;
       store.userQuestions=store.userQuestions||[];const seen={};store.userQuestions.forEach(x=>seen[x.id]=1);let added=0;
-      arr.forEach(x=>{if(x&&x.id&&x.q&&x.type&&!seen[x.id]){seen[x.id]=1;store.userQuestions.push(x);added++;}});
-      save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderProg();toast(added+'問インポートしました');
+      let skipped=0;arr.forEach(x=>{if(x&&x.id&&!seen[x.id]&&validQuestion(x)){seen[x.id]=1;store.userQuestions.push(x);added++;}else if(x&&x.id&&!validQuestion(x))skipped++;});
+      save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderProg();toast(added+'問インポートしました'+(skipped?`（不正 ${skipped}問は除外）`:''));
     }catch(err){toast('読み込めないファイル形式です');}};
     r.readAsText(f);e.target.value='';
   });
@@ -948,12 +970,12 @@ function renderProg(){
   for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*DAY);const key=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
     const done=allHist.some(t=>{const dd=new Date(t);return dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate()===key;});
     const div=document.createElement('div');if(done)div.className='done';div.textContent=days[d.getDay()];heat.appendChild(div);}
-  const ex=el.querySelector('#examIn');if(ex)ex.addEventListener('change',e=>{store.examDate=e.target.value||null;save();renderProg();toast(store.examDate?'試験日を設定しました':'試験日を解除しました');});
+  const ex=el.querySelector('#examIn');if(ex)ex.addEventListener('change',e=>{store.examDate=e.target.value||null;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderProg();toast(store.examDate?'試験日を設定しました':'試験日を解除しました');});
   const ecp=el.querySelector('#elogCopy');if(ecp)ecp.addEventListener('click',()=>{const t=el.querySelector('#elogPre').textContent;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('コピーしました'),()=>toast('コピーできませんでした'));});
   const ecl=el.querySelector('#elogClr');if(ecl)ecl.addEventListener('click',()=>{clearElog();renderProg();toast('エラーログを消去しました');});
   const rv=el.querySelector('#revBtn');if(rv)rv.addEventListener('click',()=>{go('quiz');startQuiz('review');});
   bindUserQ(el);
-  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('進捗をすべて消去しますか？（作成した問題は残ります）')){const th=store.theme,ex=store.examDate,uq=store.userQuestions;store={cards:{},streak:0,lastDate:null,theme:th,dailyDate:null,examDate:ex,userQuestions:uq};save();renderProg();toast('リセットしました');}});
+  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('進捗をすべて消去しますか？（作成した問題は残ります）')){const th=store.theme,ex=store.examDate,et=store.examDateT||0,uq=store.userQuestions;store={cards:{},streak:0,lastDate:null,theme:th,dailyDate:null,examDate:ex,examDateT:et,userQuestions:uq};save();if(gSignedIn&&accessToken)driveSave(store).catch(()=>{});renderProg();toast('リセットしました');}});
   mountSync();
 }
 
@@ -1000,11 +1022,12 @@ const DEFAULT_COMMUNITY_URL='https://script.google.com/macros/s/AKfycbyUGWaoklT0
 function getCommunityUrl(){return (typeof DEFAULT_COMMUNITY_URL!=='undefined'&&DEFAULT_COMMUNITY_URL)?DEFAULT_COMMUNITY_URL:(localStorage.getItem('community_url')||'');}
 const COMMUNITY_CACHE='okinawa_community_cache';
 let COMMUNITY_QUESTIONS=[];
-function loadCommunityCache(){try{COMMUNITY_QUESTIONS=JSON.parse(localStorage.getItem(COMMUNITY_CACHE)||'[]')||[];}catch(e){COMMUNITY_QUESTIONS=[];}}
+function loadCommunityCache(){try{const a=JSON.parse(localStorage.getItem(COMMUNITY_CACHE)||'[]');COMMUNITY_QUESTIONS=Array.isArray(a)?a.filter(validQuestion):[];}catch(e){COMMUNITY_QUESTIONS=[];}}
+const COMMUNITY_MAX=1000; // 取り込み上限（localStorage肥大の歯止め）
 async function fetchCommunity(){const url=getCommunityUrl();if(!url)return;
-  try{const r=await fetch(url);const j=await r.json();const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
-    if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(q=>q&&q.id&&q.type);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}
-  }catch(e){elog({type:'community',msg:'共有問題の取得に失敗'});}}
+  try{const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
+    if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(validQuestion).slice(0,COMMUNITY_MAX);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}
+  }catch(e){elog({type:'community',msg:'共有問題の取得に失敗: '+((e&&e.message)||e)});}}
 async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw new Error('共有先が未設定です');
   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(qObj)});
   let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
@@ -1018,18 +1041,21 @@ function initGoogle(){
 }
 function signInGoogle(){if(!tokenClient&&!initGoogle()){toast('先にClient IDを設定してください');return;}tokenClient.requestAccessToken({prompt:gSignedIn?'':'consent'});}
 function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;renderProg();toast('サインアウトしました');}
-async function driveFind(){const r=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q="+encodeURIComponent("name='progress.json'"),{headers:{Authorization:'Bearer '+accessToken}});const j=await r.json();return j.files&&j.files[0];}
-async function driveGet(id){const r=await fetch('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media',{headers:{Authorization:'Bearer '+accessToken}});return await r.json();}
+async function driveFind(){const r=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q="+encodeURIComponent("name='progress.json'"),{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)throw new Error('driveFind HTTP '+r.status);const j=await r.json();return j.files&&j.files[0];}
+async function driveGet(id){const r=await fetch('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)throw new Error('driveGet HTTP '+r.status);return await r.json();}
 async function driveSave(obj){const file=await driveFind();const meta=file?{}:{name:'progress.json',parents:['appDataFolder']};const b='----edu'+Date.now();
   const body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj)}\r\n--${b}--`;
   const url=file?`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart`:`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
-  await fetch(url,{method:file?'PATCH':'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'multipart/related; boundary='+b},body});}
-function lastAct(c){return c&&c.hist&&c.hist.length?c.hist[c.hist.length-1].t:(c&&c.due)||0;}
+  const r=await fetch(url,{method:file?'PATCH':'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'multipart/related; boundary='+b},body});if(!r.ok)throw new Error('driveSave HTTP '+r.status);}
+function lastAct(c){return c&&c.hist&&c.hist.length?c.hist[c.hist.length-1].t:0;} // 「最終操作時刻」。hist無しは due を使わず劣後
 function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));out.cards=out.cards||{};
   const ids=new Set([...Object.keys(a.cards||{}),...Object.keys(b.cards||{})]);
   ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];if(!ca){out.cards[id]=cb;return;}if(!cb){out.cards[id]=ca;return;}out.cards[id]=lastAct(cb)>lastAct(ca)?cb:ca;});
-  out.streak=Math.max(a.streak||0,b.streak||0);out.lastDate=[a.lastDate,b.lastDate].filter(Boolean).sort().pop()||null;
-  if(!out.examDate&&b.examDate)out.examDate=b.examDate;
+  out.streak=Math.max(a.streak||0,b.streak||0);
+  out.lastDate=[a.lastDate,b.lastDate].filter(Boolean).sort((x,y)=>ymdNum(x)-ymdNum(y)).pop()||null; // 日付は数値比較（文字列ソートの誤りを回避）
+  // examDate は最後に変更した方を採用（設定も解除も端末間で伝播）
+  if((b.examDateT||0)>(a.examDateT||0))out.examDate=b.examDate;
+  out.examDateT=Math.max(a.examDateT||0,b.examDateT||0);
   // ユーザー作成問題は id で和集合（両端末で作った問題を統合）
   {const seen={},merged=[];[...(a.userQuestions||[]),...(b.userQuestions||[])].forEach(q=>{if(q&&q.id&&!seen[q.id]){seen[q.id]=1;merged.push(q);}});out.userQuestions=merged;}
   return out;}
@@ -1038,7 +1064,7 @@ function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
   mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
     <div class="st"><span class="dotg"></span>${gSignedIn?'Googleと同期中':'Google Driveに進捗を保存'}</div>
-    <small>${gSignedIn?'進捗はDriveのアプリ専用フォルダに保存され、複数の端末で引き継げます。':'ログインすると、スマホとPCで進捗を共有できます（Driveの隠しアプリフォルダに保存）。'} <a href="privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">プライバシーポリシー</a></small>
+    <small>${gSignedIn?'進捗はDriveのアプリ専用フォルダに保存され、複数の端末で引き継げます。':'ログインすると、スマホとPCで進捗を共有できます（Driveの隠しアプリフォルダに保存）。'} <a href="privacy.html" target="_blank" rel="noopener noreferrer" aria-label="プライバシーポリシーを新しいタブで開く" style="color:inherit;text-decoration:underline">プライバシーポリシー</a></small>
     ${cid?'':`<input id="cidIn" placeholder="Google OAuth クライアントIDを貼り付け（…apps.googleusercontent.com）" aria-label="クライアントID">`}
     <div class="syncrow" style="margin-top:10px">
       ${cid?'':'<button class="btn" id="saveCid">IDを保存</button>'}
@@ -1067,11 +1093,17 @@ let toastT;function toast(m){const t=document.getElementById('toast');t.textCont
 let BASE_QUESTIONS=[];
 // 重複idを除いて 公式(questions.json) > みんなの共有 > 自作 の優先で合成
 function rebuildQuestions(){const seen={},out=[];
-  [...BASE_QUESTIONS,...COMMUNITY_QUESTIONS,...(store.userQuestions||[])].forEach(q=>{if(q&&q.id&&!seen[q.id]){seen[q.id]=1;out.push(q);}});
+  // 不正な問題（型別フィールド欠落）は除外し、描画/採点クラッシュを防ぐ。優先: 公式>共有>自作。
+  [...BASE_QUESTIONS,...COMMUNITY_QUESTIONS,...(store.userQuestions||[])].forEach(q=>{if(q&&q.id&&!seen[q.id]&&validQuestion(q)){seen[q.id]=1;out.push(q);}});
   QUESTIONS=out;}
-function rerenderAll(){selfCheck();renderHome();renderMap();renderRef();renderLookup();renderQuiz();if(document.getElementById('prog'))try{renderProg();}catch(e){}}
+function rerenderAll(){selfCheck();renderHome();renderMap();renderRef();renderLookup();
+  // クイズ回答中（背景の共有取得が解決した等）は #quiz を作り直さない＝進行中セッションを壊さない
+  const quizBusy=quizMode!=null&&quizPool.length>0&&quizIdx<quizPool.length;
+  if(!quizBusy)renderQuiz();
+  if(document.getElementById('prog'))try{renderProg();}catch(e){}}
 async function boot(){
   loadCommunityCache();                 // 前回取得した共有問題（オフライン/初速のため）
+  if(store.examDate){const dl=examDaysLeft();if(dl!=null&&dl<=0){store.examDate=null;store.examDateT=Date.now();save();}} // 試験日を過ぎたら自動解除（通常SRSへ）
   try{
     const res=await fetch('questions.json');
     if(!res.ok)throw new Error('HTTP '+res.status);
