@@ -1020,8 +1020,13 @@ function renderRonbun(){
 
 //==================== GOOGLE DRIVE 同期 ====================
 const GSCOPE='https://www.googleapis.com/auth/drive.appdata';
+// ★ここに一度だけOAuthクライアントIDを貼ると、利用者は「Googleでログイン」だけでOK（貼り付け欄は消えます）。
+//   取得手順は README 手順2。空のままだと、各端末で手動入力にフォールバックします。
+//   例: const DEFAULT_CLIENT_ID='1234567890-abcde.apps.googleusercontent.com';
+const DEFAULT_CLIENT_ID='';
 let tokenClient=null,accessToken=null,gSignedIn=false;
-function getClientId(){return localStorage.getItem('gclient')||(typeof DEFAULT_CLIENT_ID!=='undefined'?DEFAULT_CLIENT_ID:'');}
+function usingDefaultClientId(){return !!(typeof DEFAULT_CLIENT_ID!=='undefined'&&DEFAULT_CLIENT_ID);}
+function getClientId(){return usingDefaultClientId()?DEFAULT_CLIENT_ID:(localStorage.getItem('gclient')||'');}
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
 function initGoogle(){
   if(!gReady()||!getClientId())return false;
@@ -1053,7 +1058,7 @@ function mountSync(){
       ${cid?'':'<button class="btn" id="saveCid">IDを保存</button>'}
       ${gSignedIn?'<button class="btn" id="syncNow">今すぐ同期</button><button class="btn ghost" id="signOut">サインアウト</button>'
         :(cid?'<button class="btn" id="signIn">Googleでログイン</button>':'')}
-      ${cid?'<button class="btn ghost" id="clrCid" style="flex:0 0 auto">ID変更</button>':''}
+      ${cid&&!usingDefaultClientId()?'<button class="btn ghost" id="clrCid" style="flex:0 0 auto">ID変更</button>':''}
     </div></div>`;
   const q=s=>mt.querySelector(s);
   if(q('#saveCid'))q('#saveCid').addEventListener('click',()=>{const v=q('#cidIn').value.trim();if(!v){toast('IDを入力してください');return;}localStorage.setItem('gclient',v);tokenClient=null;mountSync();toast('保存しました。ログインできます');});

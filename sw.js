@@ -1,5 +1,5 @@
 // 沖縄県 教育法規アプリ — Service Worker（オフライン対応）
-const CACHE = 'okinawa-edu-v4';
+const CACHE = 'okinawa-edu-v5';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', e => {
