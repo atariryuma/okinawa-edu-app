@@ -17,7 +17,7 @@
 - ※親フォルダ `../沖縄県_教育法規_学習アプリ.html` は同一物の旧コピー。**正本はこの `index.html`**。混乱を避けるなら親コピーは削除可。
 
 ## データモデル
-`QUESTIONS` は **`questions.json`（外部・正本）**。`REF/LOOKUP/RONBUN/COLORS` は `index.html` 内のJS配列リテラル（編集はそこ）。現状 Q202（法規53/指導要領28/生徒指導25/危機管理20/自立15/時事15/計画7/服務6/学校経営6/働き方6/情報管理4/苦情対応3/学校運営3/ビジョン4/体系4/努力点3） / REF / LOOKUP / RONBUN8。**出典→公式ソース直リンク**（`srcChk`/`LAW_LINKS`=e-Gov・`DOC_LINKS`=文科省/県、法令優先・長い順照合）。
+`QUESTIONS` は **`questions.json`（外部・正本）**。`REF/LOOKUP/RONBUN/COLORS` は `index.html` 内のJS配列リテラル（編集はそこ）。現状 Q218（法規59/指導要領28/生徒指導27/危機管理20/自立15/時事15/働き方9/服務9/計画7/学校経営6/学校運営5/ビジョン4/体系4/情報管理4/苦情対応3/努力点3） / REF / LOOKUP / RONBUN8。**出典→公式ソース直リンク**（`srcChk`/`LAW_LINKS`=e-Gov・`DOC_LINKS`=文科省/県、法令優先・長い順照合）。
 - **問題の編集・追加** → `questions.json` を直接編集（JSON配列）。検証はリポジトリ同梱の手順 or `node -e`（下記「検証」）。編集後は `sw.js` の `CACHE` を上げる。
 - **ユーザー作成問題** … アプリ内「✍️ 問題の作成・共有」フォームで追加 → `store.userQuestions[]` に保存（Drive同期対象）。`mergeStore` が id で和集合。エクスポート(JSON DL)/インポート(file)で共有。
 - **みんなの問題（コミュニティ共有）** … `DEFAULT_COMMUNITY_URL`（GAS /exec）で有効。受け取り＝起動時 `fetchCommunity()` GET→`COMMUNITY_QUESTIONS`キャッシュ。投稿＝`submitCommunity()` が `{q,token,device}` を `text/plain` POST。**無意識共有モデル**：サインイン済みは既存アクセストークンを黙って同梱→GASが `aud`=`CLIENT_ID` を tokeninfo で検証し **trusted＝自動公開(approved)**、匿名は審査(pending)。裏でスパム対策（URL禁止/NGワード/端末レート制限/数式無害化/上限）。共有問題は出題時に「みんなの問題・未検証」バッジ（`COMMUNITY_IDS`）。GAS更新後は `setup` 再実行で `script.external_request` 承認が必要。契約: GET→`{ok,questions:[]}`／POST→`{ok,status}`。
