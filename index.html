@@ -673,12 +673,17 @@ function renderHome(){
   const ctaLabel=seen===0?'▶ まず解いてみる（数分）':(due>0?`今日の学習をはじめる（${Math.min(due,12)}問）`:'今日のぶんは完了 🎉 追加で解く');
   const goal=store.dailyGoal||10;
   const goalDots=Array.from({length:Math.min(goal,14)},(_,i)=>`<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${i<todayDone?'#fff':'rgba(255,255,255,.32)'}"></span>`).join(' ');
-  const welcome=(seen===0&&localStorage.getItem('oki_welcome')!=='off')?`
+  const firstRun=(seen===0&&localStorage.getItem('oki_welcome')!=='off');     // 初回（未学習＋ようこそ未閉じ）
+  const welcome=firstRun?`
     <div class="card" id="welcomeCard" style="border-left:4px solid var(--accent)">
-      <div style="font-weight:700;margin-bottom:3px">👋 ようこそ</div>
-      <small style="color:var(--sub)">①「クイズ」で覚える ②「こんな時は（逆引き）」で実務の根拠を引く ③「論文・面接」でテンプレ。上の🔎検索で横断的にも探せます。まずは1問から。</small>
-      <div style="margin-top:8px"><button class="btn ghost" id="welcomeOk" style="padding:4px 13px;min-height:auto">はじめる</button></div>
+      <div style="font-weight:700;margin-bottom:3px">👋 ようこそ — 沖縄 教育法規ナビ</div>
+      <small style="color:var(--sub)">管理職試験の対策と、日々の学校経営での「判断の根拠」引きに。まずは下のボタンから1問、解いてみましょう。</small>
+      <div style="margin-top:10px"><button class="btn" id="welcomeStart" style="padding:8px 18px">▶ まず1問やってみる</button></div>
     </div>`:'';
+  // 初回はファーストビューを「ようこそ＋1問」に集中させ、空の検索欄は出さない（2回目以降に表示）
+  const searchBlock=firstRun?'':`
+    <div class="searchwrap" style="margin-bottom:4px"><span class="mag" aria-hidden="true">🔎</span><input class="search" id="globalSearch" placeholder="要点・逆引き・問題・論文を横断検索" aria-label="アプリ内を横断検索"></div>
+    <div class="gsres" id="gsres" aria-live="polite"></div>`;
   const examPrompt=(!store.examDate&&localStorage.getItem('oki_exam_skip')!=='1')?`
     <div class="card" id="examPrompt" style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;border-left:4px solid var(--accent)">
       <span style="font-size:.88rem;font-weight:700">🎯 試験日を設定</span>
@@ -692,9 +697,8 @@ function renderHome(){
       <div style="margin-top:7px"><button class="btn ghost" id="aiNoticeOk" style="padding:4px 12px;min-height:auto">了解（次回から非表示）</button></div>
     </div>`;
   el.innerHTML=`
-    <div class="searchwrap" style="margin-bottom:4px"><span class="mag" aria-hidden="true">🔎</span><input class="search" id="globalSearch" placeholder="要点・逆引き・問題・論文を横断検索" aria-label="アプリ内を横断検索"></div>
-    <div class="gsres" id="gsres" aria-live="polite"></div>
     ${welcome}
+    ${searchBlock}
     ${examPrompt}
     ${resumeBar?`<div style="margin-bottom:8px">${resumeBar}</div>`:''}
     ${nudge}
@@ -751,7 +755,7 @@ function renderHome(){
   el.querySelector('#ctaDaily').addEventListener('click',()=>{go('quiz');startQuiz('daily');});
   const rs=el.querySelector('#ctaResume');if(rs)rs.addEventListener('click',resumeSession);
   const an=el.querySelector('#aiNoticeOk');if(an)an.addEventListener('click',()=>{localStorage.setItem('okinawa_ai_notice','off');const n=el.querySelector('#aiNotice');if(n)n.remove();});
-  const wk=el.querySelector('#welcomeOk');if(wk)wk.addEventListener('click',()=>{localStorage.setItem('oki_welcome','off');const n=el.querySelector('#welcomeCard');if(n)n.remove();});
+  const wk=el.querySelector('#welcomeStart');if(wk)wk.addEventListener('click',()=>{localStorage.setItem('oki_welcome','off');go('quiz');startQuiz('daily');}); // ラベル通り押下で即クイズ開始（挙動一致）
   const exi=el.querySelector('#examPromptIn');if(exi)exi.addEventListener('change',e=>{if(e.target.value){store.examDate=e.target.value;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderHome();toast('試験日を設定しました 🎯');}});
   const exs=el.querySelector('#examSkip');if(exs)exs.addEventListener('click',()=>{localStorage.setItem('oki_exam_skip','1');const n=el.querySelector('#examPrompt');if(n)n.remove();});
   const hs=el.querySelector('#homeSyncBtn');if(hs)hs.addEventListener('click',openSync);
@@ -899,7 +903,7 @@ function showQ(){
     const msg=pct>=80?'お見事。定着が進みました。':pct>=50?'いい調子。弱点を復習しましょう。':'反復が力に。忘れた頃に自動で戻ってきます。';
     area.innerHTML=`<div class="quizcard result"><div class="emoji">${e}</div><div class="big">${sCorrect}/${sAnswered}</div>
       <div class="msg">正答率 ${pct}%　—　${msg}</div>
-      ${isMock?`<div class="msg" style="font-weight:700">⏱ 所要時間 ${fmtSec(elapsed)}（1問あたり約${sAnswered?Math.round(elapsed/sAnswered):0}秒）</div>`:''}
+      ${isMock?`<div class="msg" style="font-weight:700">⏱ 所要時間 ${fmtSec(elapsed)}（1問あたり約${sAnswered?Math.round(elapsed/sAnswered):0}秒）</div><div class="msg" style="font-size:.74rem;color:var(--sub)">※解説の閲覧時間も含む参考値です</div>`:''}
       <button class="btn wide" id="again">続けて次のセット</button>
       <button class="btn ghost wide" id="back" style="margin-top:9px">モード選択へ</button></div>`;
     area.querySelector('#again').addEventListener('click',()=>startQuiz(quizMode));
@@ -1252,15 +1256,38 @@ async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw n
   let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
   if(!j.ok)throw new Error(j.error||'送信に失敗しました');return j;}
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
+let gSilent=false; // 起動時のサイレント再ログイン中はトーストを出さない
 function initGoogle(){
   if(!gReady()||!getClientId())return false;
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:getClientId(),scope:GSCOPE,
-    callback:async(resp)=>{if(resp&&resp.access_token){accessToken=resp.access_token;gSignedIn=true;requestIdToken();await cloudSync();toast('Googleと同期しました ✓');renderProg();}else{toast('ログインできませんでした');}}});
+    callback:async(resp)=>{
+      if(resp&&resp.access_token){
+        accessToken=resp.access_token;gSignedIn=true;
+        localStorage.setItem('oki_gsign','1');           // 次回起動でサイレント再ログインを試す印
+        requestIdToken();await cloudSync(gSilent);
+        if(!gSilent)toast('Googleと同期しました ✓');
+        renderProg();mountSync();renderHome();
+      }else if(!gSilent){toast('ログインできませんでした');}
+      gSilent=false;
+    },
+    error_callback:()=>{gSilent=false;}});               // サイレント取得が無理なら静かにサインアウト状態のまま
   initIdToken();
   return true;
 }
-function signInGoogle(){if(!tokenClient&&!initGoogle()){toast('先にClient IDを設定してください');return;}tokenClient.requestAccessToken({prompt:gSignedIn?'':'consent'});}
-function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;renderProg();toast('サインアウトしました');}
+function signInGoogle(){if(!tokenClient&&!initGoogle()){toast('先にClient IDを設定してください');return;}gSilent=false;tokenClient.requestAccessToken({prompt:gSignedIn?'':'consent'});}
+// 起動時：前回ログイン済みなら、ポップアップを出さずに（prompt:''）アクセストークンを取り直してそのまま同期
+function trySilentSignIn(){
+  if(localStorage.getItem('oki_gsign')!=='1'||!getClientId())return;
+  let tries=40;(function wait(){
+    if(gReady()&&gIdReady()){if(!tokenClient&&!initGoogle())return;gSilent=true;try{tokenClient.requestAccessToken({prompt:''});}catch(e){gSilent=false;}return;}
+    if(--tries>0)setTimeout(wait,150);
+  })();
+}
+function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;localStorage.removeItem('oki_gsign');renderProg();toast('サインアウトしました');}
+// 画面を離れる/戻る時に自動同期（端末間の進捗ズレを抑制）。失敗は静かに無視。
+let _bgSyncT=0;
+function bgSync(){if(!gSignedIn||!accessToken)return;clearTimeout(_bgSyncT);_bgSyncT=setTimeout(()=>cloudSync(true),700);}
+document.addEventListener('visibilitychange',()=>{if(!gSignedIn||!accessToken)return;if(document.visibilityState==='hidden')cloudSync(true);else bgSync();});
 async function driveFind(){const r=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q="+encodeURIComponent("name='progress.json'"),{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)throw new Error('driveFind HTTP '+r.status);const j=await r.json();return j.files&&j.files[0];}
 async function driveGet(id){const r=await fetch('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)throw new Error('driveGet HTTP '+r.status);return await r.json();}
 async function driveSave(obj){const file=await driveFind();const meta=file?{}:{name:'progress.json',parents:['appDataFolder']};const b='----edu'+Date.now();
@@ -1294,13 +1321,13 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
   out.totalCorrect=Math.max(a.totalCorrect||0,b.totalCorrect||0);
   {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});out.dailyDone=dd;}
   return out;}
-async function cloudSync(){if(!accessToken)return;try{
+async function cloudSync(quiet){if(!accessToken)return;try{
   const f=await driveFind();const cloud=f?await driveGet(f.id):null;
   const merged=mergeStore(store,cloud);
   await driveSave(merged);          // 先にクラウドへ書込（失敗時は例外でローカル不変＝データ喪失を防ぐ）
   store=merged;save();              // クラウド成功を確認してからローカルを確定
   renderHome();
-}catch(e){console.warn(e);toast('同期に失敗しました');}}
+}catch(e){console.warn(e);if(!quiet)toast('同期に失敗しました');}}  // 背景同期(quiet)は失敗トーストを出さない
 function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
   mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
@@ -1367,6 +1394,7 @@ async function boot(){
   selfCheck();                          // 整合性チェックは起動時1回
   rerenderAll();
   fetchCommunity();                     // 背景で最新の共有問題を取得（届いたら再描画）
+  trySilentSignIn();                    // 前回ログイン済みなら無音で再認証→クラウドの最新を取り込む
 }
 boot();
 </script>
