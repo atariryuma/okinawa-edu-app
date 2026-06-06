@@ -125,10 +125,10 @@ function doPost(e) {
     } catch (parseErr) {
       return json_({ ok: false, error: 'invalid JSON' });
     }
-    // 新形式 {q, token, device} と、旧形式（問題オブジェクトそのもの）の両対応
-    var q, token = '', device = '';
+    // 新形式 {q, idtoken, device}（旧 token はアクセストークンだったが廃止。両キー受けるが検証はIDトークンとして行う）
+    var q, idtoken = '', device = '';
     if (env && env.q && typeof env.q === 'object' && !env.type) {
-      q = env.q; token = String(env.token || ''); device = String(env.device || '');
+      q = env.q; idtoken = String(env.idtoken || env.token || ''); device = String(env.device || '');
     } else { q = env; }
 
     var v = validate_(q);
@@ -137,8 +137,8 @@ function doPost(e) {
     if (hasUrl_(q))     return json_({ ok: false, error: 'links not allowed' });   // リンク禁止
     if (hasBlocked_(q)) return json_({ ok: false, error: 'blocked content' });     // NGワード
     if (device && !rateOk_(device)) return json_({ ok: false, error: 'rate limited' }); // 端末ごとレート制限
-    // 本アプリの正規ログインで発行されたトークンなら trusted（=自動公開）。匿名は審査(pending)へ。
-    var trusted = token ? verifyToken_(token) : false;
+    // 本アプリ向けに発行されたIDトークン(JWT)で本人確認できれば trusted（=自動公開）。無効/無しは審査(pending)へ。
+    var trusted = idtoken ? verifyToken_(idtoken) : false;
 
     // ── 排他制御つきで dedup → 追記 ──
     var lock = LockService.getScriptLock();
@@ -350,15 +350,20 @@ function okLen_(v) { return String(v).length <= MAX_FIELD_LEN; }
 
 function isInt_(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
 
-// ── 投稿の身元・スパム判定（自動公開のための門番）──────────────────────────
-// アクセストークンを Google の tokeninfo で検証し、発行先(aud/azp)が本アプリの
-// CLIENT_ID なら true（=正規ログインユーザー）。外部呼び出しに失敗したら false（=審査へ）。
-function verifyToken_(token) {
+// ── 投稿の身元判定（自動公開のための門番）──────────────────────────────────
+// IDトークン(JWT)を Google の tokeninfo で検証。発行先 aud が本アプリの CLIENT_ID で、
+// 発行者 iss が Google、かつ未失効なら true（=本人確認OK）。それ以外/外部呼び出し失敗は false（=審査へ）。
+// ※IDトークンは身元アサーションのみでアクセス権を持たない（旧: アクセストークン送信を廃止）。
+function verifyToken_(idtoken) {
   try {
-    var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(token), { muteHttpExceptions: true });
+    var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idtoken), { muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) return false;
     var info = JSON.parse(resp.getContentText());
-    return (String(info.aud || '') === CLIENT_ID) || (String(info.azp || '') === CLIENT_ID);
+    var iss = String(info.iss || '');
+    var audOk = (String(info.aud || '') === CLIENT_ID);
+    var issOk = (iss === 'accounts.google.com' || iss === 'https://accounts.google.com');
+    var notExpired = !info.exp || (parseInt(info.exp, 10) * 1000 > Date.now());
+    return audOk && issOk && notExpired;
   } catch (e) { return false; }
 }
 // 検査対象の全文字列を連結

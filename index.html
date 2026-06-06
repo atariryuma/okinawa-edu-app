@@ -1230,10 +1230,19 @@ async function fetchCommunity(){const url=getCommunityUrl();if(!url)return;
   try{const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
     if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(validQuestion).slice(0,COMMUNITY_MAX);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}
   }catch(e){elog({type:'community',msg:'共有問題の取得に失敗: '+((e&&e.message)||e)});}}
+// ===== 投稿の身元確認は「IDトークン(JWT)」を使う =====
+// アクセストークン(Drive権限を持つ資格情報)ではなく、身元のみを示すIDトークンを送る。
+// 漏えいしてもアクセス権を与えない。取得できない時は idtoken 空＝GAS側で審査(pending)へ安全に縮退。
+let idTok=null,idTokT=0;
+function gIdReady(){return window.google&&google.accounts&&google.accounts.id;}
+function initIdToken(){if(!gIdReady()||!getClientId())return;try{google.accounts.id.initialize({client_id:getClientId(),auto_select:true,callback:r=>{if(r&&r.credential){idTok=r.credential;idTokT=Date.now();}}});}catch(e){}}
+function requestIdToken(){try{if(gIdReady())google.accounts.id.prompt();}catch(e){}} // One Tap で身元アサーションを取得（既ログインなら最小操作で返る）
+function freshIdToken(){return (idTok&&(Date.now()-idTokT)<50*60000)?idTok:null;} // 約50分以内のものを再利用
 async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw new Error('共有先が未設定です');
-  // サインイン済みなら既存のアクセストークンを“黙って”同梱（新たなログイン画面は出さない）。
-  // GAS 側がトークンの発行先(aud)を検証し、本アプリの正規ログインなら自動公開、匿名は審査に回す。
-  const body=JSON.stringify({q:qObj,token:(typeof accessToken!=='undefined'&&accessToken)||'',device:deviceId()});
+  const idt=freshIdToken();
+  if(!idt&&gSignedIn)requestIdToken();   // 無ければ次回用にバックグラウンドで取得（今回の投稿は審査へ）
+  // 送るのは IDトークン(身元のみ・アクセス権なし)。GAS が aud=CLIENT_ID と iss を検証し、本人確認できれば自動公開、無ければ審査。
+  const body=JSON.stringify({q:qObj,idtoken:idt||'',device:deviceId()});
   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
   let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
   if(!j.ok)throw new Error(j.error||'送信に失敗しました');return j;}
@@ -1241,7 +1250,8 @@ function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;
 function initGoogle(){
   if(!gReady()||!getClientId())return false;
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:getClientId(),scope:GSCOPE,
-    callback:async(resp)=>{if(resp&&resp.access_token){accessToken=resp.access_token;gSignedIn=true;await cloudSync();toast('Googleと同期しました ✓');renderProg();}else{toast('ログインできませんでした');}}});
+    callback:async(resp)=>{if(resp&&resp.access_token){accessToken=resp.access_token;gSignedIn=true;requestIdToken();await cloudSync();toast('Googleと同期しました ✓');renderProg();}else{toast('ログインできませんでした');}}});
+  initIdToken();
   return true;
 }
 function signInGoogle(){if(!tokenClient&&!initGoogle()){toast('先にClient IDを設定してください');return;}tokenClient.requestAccessToken({prompt:gSignedIn?'':'consent'});}
