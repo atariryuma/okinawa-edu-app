@@ -1052,7 +1052,7 @@ function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
   mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
     <div class="st"><span class="dotg"></span>${gSignedIn?'Googleと同期中':'Google Driveに進捗を保存'}</div>
-    <small>${gSignedIn?'進捗はDriveのアプリ専用フォルダに保存され、複数の端末で引き継げます。':'ログインすると、スマホとPCで進捗を共有できます（Driveの隠しアプリフォルダに保存）。'}</small>
+    <small>${gSignedIn?'進捗はDriveのアプリ専用フォルダに保存され、複数の端末で引き継げます。':'ログインすると、スマホとPCで進捗を共有できます（Driveの隠しアプリフォルダに保存）。'} <a href="privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline">プライバシーポリシー</a></small>
     ${cid?'':`<input id="cidIn" placeholder="Google OAuth クライアントIDを貼り付け（…apps.googleusercontent.com）" aria-label="クライアントID">`}
     <div class="syncrow" style="margin-top:10px">
       ${cid?'':'<button class="btn" id="saveCid">IDを保存</button>'}
