@@ -47,6 +47,7 @@
 - 保存キー：`localStorage['okinawa_edu_app_v3']`（定数 `KEY`）。**互換維持のため据え置き**（フィールドは加算のみ）。
 - `store = {cards:{}, streak, lastDate, theme, dailyDate, examDate, examDateT, userQuestions:[], totalAnswered, totalCorrect, dailyDone:{ymd:n}, session, fontScale}`。`examDate`=本番日(ISO|null)、`examDateT`=変更時刻(同期解決用)、`userQuestions`=作成/インポート問題、`totalAnswered/totalCorrect/dailyDone`=累積統計、`session={mode,ids,idx,cat}`=中断復帰用、`fontScale`='s'|'m'|'l'|'xl'。すべて加算（KEY据え置き）。
 - **UX/IA（10ペルソナレビュー反映）**：ホーム＝初回CTA出し分け・試験カウントダウン・⏯続きから・🔥継続警告・box用語は平易語表示。進捗＝統計/試験日/要復習を上、Google同期/エラーログ/リセットは「⚙️同期・データ管理」details へ集約。作成導線はクイズタブにも(`openCreate`)。文字サイズ切替・タブ矢印キー・採点結果のSRフォーカス。
+- **UX強化（Webベストプラクティス5領域のサブエージェント判断を反映）**：ホーム先頭に**横断検索**（`buildSearchIndex`/`runSearch`：REF/LOOKUP/RONBUN/QUESTIONS を `.includes` で横断、種別グループ表示、タップで該当箇所へ `openRef`等）。初回**ウェルカム＋試験日フロントロード**（`oki_welcome`/`oki_exam_skip`）。ホームに**同期入口**(`openSync`)・**論文入口**(quickgrid `data-act=ronbun`)。関係図は二段タップ廃止＝ノードを `div[role=button]`＋「→要点で詳しく」`.reflink`。継続=**1日グレース**(`touchStreak`：昨日 or 一昨日で継続)＋**デイリーゴール**(`store.dailyGoal`,既定10,ホームにドット)＋**節目のお祝い**(`celebrate()`軽量confetti, reduced-motion尊重)。操作感=クイズ「次へ」を `.qstick` で親指圏に固定＋`answer()`で `navigator.vibrate` 触覚。見送り(次回)：下部ナビ移行/PWAインストール促進/達成バッジ。
 - `store.cards[id] = {box(1-5), reps, fails, due(ms), last, hist:[{t,ok}], ef(ease 1.3-2.7), ivl(間隔日), pli?(失敗復帰の種間隔)}`。
   - 旧データ（ef/ivl無し）は `review()` 冒頭で `ef=2.5`／`ivl=旧box換算(OLD_BOX_IVL)` を補完して移行（KEY据え置き）。
 - 主要定数：`EF_DEFAULT/MIN/MAX=2.5/1.3/2.7`、`IVL_MAX=180`、`LAPSE_KEEP=0.4`(失敗時に間隔を一部保持)、`LAPSE_PENALTY=0.2`(ease減点)。
