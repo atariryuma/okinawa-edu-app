@@ -59,6 +59,43 @@
 
 ---
 
+## 問題の修正・追加（コンテンツ運用）
+
+問題データの**正本は `questions.json`**（JSON配列）です。アプリは起動時にこれを読み込みます。
+**`index.html` を編集する必要はありません。**
+
+### 誤りを直す / 問題を足す手順
+
+1. `questions.json` を直接編集する（1問＝1オブジェクト）。
+   - `id` は**一意かつ不変**。既存問題の `id` は変えない（学習進捗が孤児化します）。文言修正はOK。
+   - 全問に `src`（出典）を入れる。形式別フィールド：
+     - `qa`：`{id,type:"qa",cat,q,a,src}`
+     - `mc`：`{id,type:"mc",cat,q,choices:[...],ans,exp,src}`（`ans` は元の並びでの正解index。出題時に自動シャッフル）
+     - `cloze`：`{id,type:"cloze",cat,parts:[...],src}`（`{ "b":"答え" }` が空欄）
+     - `order`：`{id,type:"order",cat,q,items:[...],exp,src}`（items は**正しい順**で記述）
+     - `match`：`{id,type:"match",cat,q,pairs:[[左,右],...],src}`
+2. **検証**（壊れたJSON・id重複・mcのans範囲などを事前チェック）：
+   ```bash
+   node -e 'const a=require("./questions.json");const ids=new Set();let e=0;
+     a.forEach(q=>{if(ids.has(q.id)){console.log("重複id",q.id);e++}ids.add(q.id);
+       if(!q.src){console.log("出典なし",q.id);e++}
+       if(q.type==="mc"&&(q.ans<0||q.ans>=q.choices.length)){console.log("ans範囲外",q.id);e++}});
+     console.log(a.length+"問 / 問題"+e+"件")'
+   ```
+   （アプリ起動時にも `selfCheck()` が自動点検し、問題は「進捗」タブの🐞エラーログに出ます）
+3. **`sw.js` の `CACHE` 名を上げる**（例 `okinawa-edu-v10` → `v11`）。← これを忘れると利用者に旧版が出続けます。
+4. コミット＆プッシュ：`git add -A && git commit -m "問題を修正" && git push`。GitHub Pages に自動反映。
+
+> 利用者は何もしなくても、次回アクセス時に最新の問題を自動で受け取ります（`questions.json` が共有の正本のため）。
+
+### 利用者が自分で作った問題
+
+「進捗」タブの **✍️ 問題の作成・共有** から、利用者自身が一問一答・4択を追加できます。
+**📤エクスポート**（JSONファイル）で他の人に渡し、**📥インポート**で受け取れます。
+これらは `questions.json` とは別に各自の端末（＋Driveに同期）へ保存されます。
+
+---
+
 ## データの保存場所
 
 - ローカル：ブラウザの `localStorage`（端末内）。

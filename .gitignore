@@ -13,3 +13,6 @@ Thumbs.db
 
 # 任意：クライアントIDを別ファイルに分けて秘匿したい場合
 # config.local.js
+
+# Claude Code ローカル設定
+.claude/
