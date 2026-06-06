@@ -526,7 +526,7 @@ function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+
 function getCard(id){return store.cards[id];}
 function boxFromIvl(ivl){if(ivl>=30)return 5;if(ivl>=10)return 4;if(ivl>=3)return 3;if(ivl>=1)return 2;return 1;}
 function examDaysLeft(){if(!store.examDate)return null;return Math.ceil((new Date(store.examDate+'T23:59:59').getTime()-Date.now())/DAY);}
-function clampIvl(ivl){ivl=Math.min(IVL_MAX,Math.max(1,Math.round(ivl)));const dl=examDaysLeft();if(dl!=null&&dl>0)ivl=Math.min(ivl,dl);return ivl;}
+function clampIvl(ivl){ivl=Math.min(IVL_MAX,Math.max(1,Math.round(ivl)));const dl=examDaysLeft();if(dl!=null&&dl>=0)ivl=Math.min(ivl,Math.max(1,dl));return ivl;} // 試験当日(dl=0)も1日にクランプ（dl>0条件だと当日キャップが外れていた）
 function isMastered(id){const c=getCard(id);return c&&c.box>=4;}
 function stateOf(id){const c=getCard(id);if(!c)return'new';if(c.box>=4)return'mast';if(c.box===3)return'near';return'learn';}
 function isDue(id){const c=getCard(id);return !c||c.due<=Date.now();}
@@ -939,14 +939,16 @@ function renderMC(q,meta,id,card){
   }));
 }
 function renderCloze(q,meta,id,card){
-  const html=q.parts.map(p=>typeof p==='string'?esc(p):`<span class="blank" tabindex="0" role="button" aria-label="空欄をめくる">${esc(p.b)}</span>`).join('');
+  // 答えは aria-hidden の子に入れ、SRには表示状態を aria-label で伝える（color:transparentだけでは音声で答えが先読みされる対策）
+  const html=q.parts.map(p=>typeof p==='string'?esc(p):`<span class="blank" tabindex="0" role="button" aria-label="空欄（タップで答えを表示）" data-ans="${esc(p.b)}"><span aria-hidden="true">${esc(p.b)}</span></span>`).join('');
   card.innerHTML=`<div class="quizcard cloze">${meta}
-    <div class="redtoggle"><button class="btn ghost" id="allrev">全部めくる</button><span style="font-size:.72rem;color:var(--sub)">赤い部分をタップ/Enterで表示</span></div>
+    <div class="redtoggle"><button class="btn ghost" id="allrev">全部めくる</button><span style="font-size:.72rem;color:var(--sub)">下線部をタップ/Enterで表示</span></div>
     <div class="qtext" style="font-weight:500;font-size:1rem">${html}</div>
     <div style="margin-top:14px;display:flex;gap:9px"><button class="btn ok" style="flex:1" id="g1">✓ 言えた</button><button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div>${srcLine(q)}</div>`;
-  const toggle=b=>b.classList.toggle('show');
+  const setLbl=b=>b.setAttribute('aria-label',b.classList.contains('show')?('答え：'+(b.dataset.ans||'')):'空欄（タップで答えを表示）');
+  const toggle=b=>{b.classList.toggle('show');setLbl(b);};
   card.querySelectorAll('.blank').forEach(b=>{b.addEventListener('click',()=>toggle(b));b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(b);}});});
-  card.querySelector('#allrev').addEventListener('click',()=>card.querySelectorAll('.blank').forEach(b=>b.classList.add('show')));
+  card.querySelector('#allrev').addEventListener('click',()=>card.querySelectorAll('.blank').forEach(b=>{b.classList.add('show');setLbl(b);}));
   card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);toast('✓ 正解として記録');quizIdx++;showQ();});
   card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);toast('🎯 弱点として記録');quizIdx++;showQ();});
 }
@@ -1205,9 +1207,18 @@ async function driveSave(obj){const file=await driveFind();const meta=file?{}:{n
 function lastAct(c){return c&&c.hist&&c.hist.length?c.hist[c.hist.length-1].t:0;} // 「最終操作時刻」。hist無しは due を使わず劣後
 function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));out.cards=out.cards||{};
   const ids=new Set([...Object.keys(a.cards||{}),...Object.keys(b.cards||{})]);
-  ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];if(!ca){out.cards[id]=cb;return;}if(!cb){out.cards[id]=ca;return;}out.cards[id]=lastAct(cb)>lastAct(ca)?cb:ca;});
-  out.streak=Math.max(a.streak||0,b.streak||0);
-  out.lastDate=[a.lastDate,b.lastDate].filter(Boolean).sort((x,y)=>ymdNum(x)-ymdNum(y)).pop()||null; // 日付は数値比較（文字列ソートの誤りを回避）
+  ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];if(!ca){out.cards[id]=cb;return;}if(!cb){out.cards[id]=ca;return;}
+    const la=lastAct(ca),lb=lastAct(cb);
+    // スケジュール状態は「より最近 or 進んでいる方」を採用。同値はreps多い方
+    const chosen=(lb>la)?cb:((la>lb)?ca:(((cb.reps||0)>(ca.reps||0))?cb:ca));
+    const m=Object.assign({},chosen);
+    // hist は両者の和集合（重複排除・時刻順・直近30）＝履歴を取りこぼさない
+    const seen={};m.hist=[...(ca.hist||[]),...(cb.hist||[])].filter(h=>h&&typeof h.t==='number').sort((x,y)=>x.t-y.t).filter(h=>{const k=h.t+'|'+(h.ok?1:0);return seen[k]?false:(seen[k]=1,true);}).slice(-30);
+    out.cards[id]=m;});
+  // streak は「より最近学習した端末」のものを採用（max だと放置端末の旧値で誤継続する）。同日は max
+  {const aD=ymdNum(a.lastDate||''),bD=ymdNum(b.lastDate||'');
+   out.lastDate=(bD>aD)?b.lastDate:((aD>bD)?a.lastDate:(a.lastDate||b.lastDate||null));
+   out.streak=(bD>aD)?(b.streak||0):((aD>bD)?(a.streak||0):Math.max(a.streak||0,b.streak||0));}
   // examDate は最後に変更した方を採用（設定も解除も端末間で伝播）
   if((b.examDateT||0)>(a.examDateT||0))out.examDate=b.examDate;
   out.examDateT=Math.max(a.examDateT||0,b.examDateT||0);
@@ -1218,7 +1229,13 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
   out.totalCorrect=Math.max(a.totalCorrect||0,b.totalCorrect||0);
   {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});out.dailyDone=dd;}
   return out;}
-async function cloudSync(){if(!accessToken)return;try{const f=await driveFind();const cloud=f?await driveGet(f.id):null;store=mergeStore(store,cloud);save();await driveSave(store);renderHome();}catch(e){console.warn(e);toast('同期に失敗しました');}}
+async function cloudSync(){if(!accessToken)return;try{
+  const f=await driveFind();const cloud=f?await driveGet(f.id):null;
+  const merged=mergeStore(store,cloud);
+  await driveSave(merged);          // 先にクラウドへ書込（失敗時は例外でローカル不変＝データ喪失を防ぐ）
+  store=merged;save();              // クラウド成功を確認してからローカルを確定
+  renderHome();
+}catch(e){console.warn(e);toast('同期に失敗しました');}}
 function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
   mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
