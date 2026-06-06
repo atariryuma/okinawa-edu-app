@@ -659,20 +659,70 @@ const RONBUN=[
 //==================== STATE / SRS ====================
 const KEY='okinawa_edu_app_v3';
 const DAY=86400000;
-const BOX_INTERVAL={1:0,2:1,3:3,4:7,5:16}; // Leitner: days until due
+// ===== 学習スケジューラ OkiSRS v2 ====================================
+// SM-2(Woźniak 1990) を基礎に、間隔反復研究の知見で調整。
+//  ・カードごとの ease factor（個別難易度）  … SM-2
+//  ・失敗時は間隔を「一部だけ」引き継ぐ（全消去しない＝ease hell回避） … FSRS/DSRモデル
+//  ・復習時の目標保持率≒90%（最適域85-90%） … Karpicke&Smith(2012)/FSRS
+//  ・試験日を越えて先送りしない（最適間隔比） … Cepeda et al.(2008)
+//  ・復習日のばらつき(fuzz)で“同日集中”を緩和 … Anki実装知見
+//  ・採点＝検索練習(testing effect) … Roediger&Karpicke(2006)
+// 互換: KEYは据え置き。ef/ivl/pli を加算するだけ。box(1-5)は定着度表示として維持。
+const EF_DEFAULT=2.5, EF_MIN=1.3, EF_MAX=2.7;   // ease factor の初期値と範囲
+const IVL_MAX=180;                               // 1カードの最長間隔(日)
+const LAPSE_KEEP=0.4, LAPSE_PENALTY=0.2;         // 失敗時：間隔の保持率 / ease の減点
+const OLD_BOX_IVL={1:0,2:1,3:3,4:7,5:16};        // 旧Leitner box→間隔(日) 移行用
+const BOX_INTERVAL=OLD_BOX_IVL;                  // 旧名参照の後方互換
 let store=load();
-function load(){try{return Object.assign({cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null},JSON.parse(localStorage.getItem(KEY))||{});}catch(e){return{cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null};}}
+function load(){try{return Object.assign({cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null,examDate:null},JSON.parse(localStorage.getItem(KEY))||{});}catch(e){return{cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null,examDate:null};}}
 function save(){localStorage.setItem(KEY,JSON.stringify(store));}
+// ===== クライアントサイド診断（バグ先回り検知） =====================
+// バックエンドが無い静的アプリなので、不具合は端末内のリングバッファに記録し、
+// 進捗タブから開発者へコピー送付できる。プライバシー：外部送信は一切しない。
+const ELOG_KEY='okinawa_edu_errlog';
+function elog(o){try{const a=JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');a.push(Object.assign({t:Date.now()},o));while(a.length>20)a.shift();localStorage.setItem(ELOG_KEY,JSON.stringify(a));}catch(e){}}
+function getElog(){try{return JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');}catch(e){return[];}}
+function clearElog(){try{localStorage.removeItem(ELOG_KEY);}catch(e){}}
+window.addEventListener('error',e=>{elog({type:'error',msg:String((e&&(e.message||e.error))||e),at:(e&&e.filename?e.filename.split('/').pop():'')+':'+((e&&e.lineno)||'')});});
+window.addEventListener('unhandledrejection',e=>{elog({type:'promise',msg:String((e&&e.reason&&(e.reason.message||e.reason))||'unhandledrejection')});});
+// 起動時のコンテンツ整合性チェック（id重複/出典欠落/mc範囲/cloze空欄 等を先回りで検出）
+function selfCheck(){const issues=[],ids=new Set();
+  QUESTIONS.forEach(q=>{if(ids.has(q.id))issues.push('重複id:'+q.id);ids.add(q.id);if(!q.src)issues.push('出典なし:'+q.id);
+    if(q.type==='mc'&&(typeof q.ans!=='number'||q.ans<0||q.ans>=(q.choices||[]).length))issues.push('mc ans範囲外:'+q.id);
+    if(q.type==='cloze'&&!(q.parts||[]).some(p=>p&&p.b))issues.push('cloze空欄なし:'+q.id);
+    if(q.type==='order'&&!(q.items||[]).length)issues.push('order項目なし:'+q.id);
+    if(q.type==='match'&&!(q.pairs||[]).length)issues.push('match対なし:'+q.id);});
+  if(issues.length){console.warn('[selfCheck] 問題データに不整合:',issues);elog({type:'selfcheck',msg:issues.join(' / ')});}
+  return issues;}
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
 function getCard(id){return store.cards[id];}
+function boxFromIvl(ivl){if(ivl>=30)return 5;if(ivl>=10)return 4;if(ivl>=3)return 3;if(ivl>=1)return 2;return 1;}
+function examDaysLeft(){if(!store.examDate)return null;return Math.ceil((new Date(store.examDate+'T23:59:59').getTime()-Date.now())/DAY);}
+function clampIvl(ivl){ivl=Math.min(IVL_MAX,Math.max(1,Math.round(ivl)));const dl=examDaysLeft();if(dl!=null&&dl>0)ivl=Math.min(ivl,dl);return ivl;}
 function isMastered(id){const c=getCard(id);return c&&c.box>=4;}
 function stateOf(id){const c=getCard(id);if(!c)return'new';if(c.box>=4)return'mast';if(c.box===3)return'near';return'learn';}
 function isDue(id){const c=getCard(id);return !c||c.due<=Date.now();}
 function isWeak(id){const c=getCard(id);return c&&c.box<=2;}
 function review(id,ok){
-  let c=store.cards[id]||(store.cards[id]={box:1,reps:0,fails:0,due:0,last:null,hist:[]});
-  if(ok){c.box=Math.min(5,c.box+1);c.reps++;}else{c.box=1;c.reps=0;c.fails++;}
-  c.due=Date.now()+BOX_INTERVAL[c.box]*DAY;c.last=ok?'pass':'fail';c.hist.push({t:Date.now(),ok});
+  let c=store.cards[id];
+  if(!c)c=store.cards[id]={box:1,reps:0,fails:0,due:0,last:null,hist:[],ef:EF_DEFAULT,ivl:0};
+  if(c.ef==null)c.ef=EF_DEFAULT;                 // 旧スキーマ移行：ease を補完
+  if(c.ivl==null)c.ivl=OLD_BOX_IVL[c.box]||0;    // 旧スキーマ移行：間隔を box から推定
+  if(ok){
+    let ivl;
+    if(c.pli!=null){ivl=c.pli;c.pli=null;}        // 失敗からの復帰：以前の間隔を一部引き継ぐ
+    else if(c.reps<=0)ivl=1;                       // 初回正解 → 翌日
+    else if(c.reps===1)ivl=3;                      // 2回目 → 3日後
+    else ivl=c.ivl*c.ef;                           // 3回目以降 → 間隔×ease（指数的に拡大）
+    if(ivl>=4)ivl=ivl*(1+(Math.random()*0.1-0.05));// fuzz ±5%（復習日の集中を緩和）
+    c.reps++;c.ef=Math.min(EF_MAX,c.ef+0.03);
+    c.ivl=clampIvl(ivl);c.due=Date.now()+c.ivl*DAY;c.last='pass';c.box=boxFromIvl(c.ivl);
+  }else{
+    c.fails++;c.ef=Math.max(EF_MIN,c.ef-LAPSE_PENALTY);
+    c.pli=Math.max(1,Math.min(30,Math.round((c.ivl||1)*LAPSE_KEEP))); // 復帰時の種間隔
+    c.reps=0;c.ivl=0;c.due=Date.now();c.last='fail';c.box=Math.min(c.box,2); // 当日中に再出題・弱点へ
+  }
+  c.hist.push({t:Date.now(),ok});
   touchStreak();save();
 }
 function touchStreak(){const t=todayStr();if(store.lastDate===t)return;
@@ -974,6 +1024,11 @@ function renderProg(){
       <div class="box b"><div class="n">${mast}</div><div class="l">定着(box4+)</div></div>
       <div class="box c"><div class="n">${weak.length}</div><div class="l">弱点(box1-2)</div></div>
     </div>
+    <div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <label for="examIn" style="font-size:.9rem;font-weight:700">🎯 試験日</label>
+      <input type="date" id="examIn" value="${store.examDate||''}" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit">
+      <span style="font-size:.78rem;color:var(--sub)">${(()=>{const d=examDaysLeft();return d==null?'設定すると、試験日に向けて復習間隔を自動調整します。':(d>0?'あと '+d+' 日。これを越えて復習は先送りしません。':'本番当日／経過');})()}</span>
+    </div>
     <h3 class="sec">直近7日の学習</h3><div class="card"><div class="heat" id="heat"></div></div>
     <h3 class="sec">分野別の定着</h3><div class="card">${cats.map(c=>{
       const qs=QUESTIONS.filter(q=>q.cat===c),m=qs.filter(q=>isMastered(q.id)).length,p=Math.round(m/qs.length*100);
@@ -981,6 +1036,7 @@ function renderProg(){
     <h3 class="sec">弱点リスト（${weak.length}）</h3>
     ${weak.length?weak.map(q=>{const c=getCard(q.id);const nd=Math.max(0,Math.ceil((c.due-Date.now())/DAY));return `<div class="wrongitem">[${q.cat}] ${(q.q||(q.parts?'穴埋め：'+q.parts.filter(p=>p.b).map(p=>p.b).join('／'):'')).replace(/<[^>]+>/g,'')}<br><span style="color:var(--sub);font-size:.7rem">box${c.box}・次回 ${nd===0?'今日':nd+'日後'}</span></div>`;}).join(''):'<div class="card"><p class="hint" style="margin:0">弱点なし。素晴らしい！</p></div>'}
     ${weak.length?`<button class="btn wide" style="margin-top:12px" id="revBtn">弱点を今すぐ復習</button>`:''}
+    ${(()=>{const elg=getElog();return elg.length?`<h3 class="sec">🐞 エラーログ（${elg.length}）</h3><div class="card"><small style="color:var(--sub)">不具合を自動記録（外部送信なし）。コピーして開発者に送ると修正に役立ちます。</small><pre id="elogPre" style="white-space:pre-wrap;font-size:.7rem;max-height:160px;overflow:auto;margin:8px 0;color:var(--ng)">${elg.map(e=>new Date(e.t).toLocaleString()+' ['+(e.type||'?')+'] '+String(e.msg||'').replace(/[<>&]/g,'')).join('\n')}</pre><div class="syncrow"><button class="btn" id="elogCopy">コピー</button><button class="btn ghost" id="elogClr">消去</button></div></div>`:'';})()}
     <button class="btn ghost wide" style="margin-top:10px" id="resetBtn">進捗をリセット</button>`;
   // heatmap: last 7 days
   const heat=el.querySelector('#heat');const days=['日','月','火','水','木','金','土'];
@@ -988,8 +1044,11 @@ function renderProg(){
   for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*DAY);const key=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
     const done=allHist.some(t=>{const dd=new Date(t);return dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate()===key;});
     const div=document.createElement('div');if(done)div.className='done';div.textContent=days[d.getDay()];heat.appendChild(div);}
+  const ex=el.querySelector('#examIn');if(ex)ex.addEventListener('change',e=>{store.examDate=e.target.value||null;save();renderProg();toast(store.examDate?'試験日を設定しました':'試験日を解除しました');});
+  const ecp=el.querySelector('#elogCopy');if(ecp)ecp.addEventListener('click',()=>{const t=el.querySelector('#elogPre').textContent;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('コピーしました'),()=>toast('コピーできませんでした'));});
+  const ecl=el.querySelector('#elogClr');if(ecl)ecl.addEventListener('click',()=>{clearElog();renderProg();toast('エラーログを消去しました');});
   const rv=el.querySelector('#revBtn');if(rv)rv.addEventListener('click',()=>{go('quiz');startQuiz('review');});
-  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('進捗をすべて消去しますか？')){const th=store.theme;store={cards:{},streak:0,lastDate:null,theme:th,dailyDate:null};save();renderProg();toast('リセットしました');}});
+  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('進捗をすべて消去しますか？')){const th=store.theme,ex=store.examDate;store={cards:{},streak:0,lastDate:null,theme:th,dailyDate:null,examDate:ex};save();renderProg();toast('リセットしました');}});
   mountSync();
 }
 
@@ -1046,7 +1105,8 @@ function lastAct(c){return c&&c.hist&&c.hist.length?c.hist[c.hist.length-1].t:(c
 function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));out.cards=out.cards||{};
   const ids=new Set([...Object.keys(a.cards||{}),...Object.keys(b.cards||{})]);
   ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];if(!ca){out.cards[id]=cb;return;}if(!cb){out.cards[id]=ca;return;}out.cards[id]=lastAct(cb)>lastAct(ca)?cb:ca;});
-  out.streak=Math.max(a.streak||0,b.streak||0);out.lastDate=[a.lastDate,b.lastDate].filter(Boolean).sort().pop()||null;return out;}
+  out.streak=Math.max(a.streak||0,b.streak||0);out.lastDate=[a.lastDate,b.lastDate].filter(Boolean).sort().pop()||null;
+  if(!out.examDate&&b.examDate)out.examDate=b.examDate;return out;}
 async function cloudSync(){if(!accessToken)return;try{const f=await driveFind();const cloud=f?await driveGet(f.id):null;store=mergeStore(store,cloud);save();await driveSave(store);renderHome();}catch(e){console.warn(e);toast('同期に失敗しました');}}
 function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
@@ -1076,6 +1136,7 @@ function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor
 let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1600);}
 
 //==================== INIT ====================
+selfCheck();
 renderHome();renderMap();renderRef();renderLookup();renderQuiz();
 </script>
 </body>

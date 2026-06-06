@@ -35,17 +35,29 @@
 - 追加後は必ず検証（下記「検証」）。`mc` の `ans` 範囲、`cloze` の `{b}` 有無などをチェック。
 - **内容の正確性（リグレッション厳禁）**：`主要施策は6本`／`教育基本法第17条第2項`（地方）。過去に誤記（7本・条のみ）を修正済み。学校教育法第37条④校長の職務、地公法28分限/29懲戒、学校保健安全法19出席停止(校長)/20臨時休業(設置者) などは検証済み。
 
-## 学習エンジン（SRS＝間隔反復, Leitner方式）
-- 保存キー：`localStorage['okinawa_edu_app_v3']`（定数 `KEY`）。
-- `store = {cards:{}, streak, lastDate, theme, dailyDate}`。
-- `store.cards[id] = {box(1-5), reps, fails, due(ms), last('pass'|'fail'), hist:[{t,ok}]}`。
-- `BOX_INTERVAL = {1:0, 2:1, 3:3, 4:7, 5:16}`（次回復習までの日数）。
-- `review(id, ok)`：正解→box+1（最大5）、不正解→box=1にリセット。`due` を再計算し `touchStreak()`。
-- 状態判定：`isMastered`=box≥4 ／ `stateOf`→ new/learn(1-2)/near(3)/mast(4-5) ／ `isWeak`=box≤2 ／ `isDue`=due≤now。
+## 学習エンジン（SRS = OkiSRS v2：SM-2基礎＋間隔反復研究の知見）
+旧Leitner（全カード一律・最長16日・失敗で完全リセット）から、学習科学に基づき改良。出典は `index.html` の `OkiSRS v2` コメント参照（SM-2 Woźniak1990 / Cepeda2008 / Roediger&Karpicke2006 / FSRS / Murre&Dros2015）。
+- 保存キー：`localStorage['okinawa_edu_app_v3']`（定数 `KEY`）。**互換維持のため据え置き**（フィールドは加算のみ）。
+- `store = {cards:{}, streak, lastDate, theme, dailyDate, examDate}`。`examDate`=本番日(ISO 'YYYY-MM-DD'|null)。
+- `store.cards[id] = {box(1-5), reps, fails, due(ms), last, hist:[{t,ok}], ef(ease 1.3-2.7), ivl(間隔日), pli?(失敗復帰の種間隔)}`。
+  - 旧データ（ef/ivl無し）は `review()` 冒頭で `ef=2.5`／`ivl=旧box換算(OLD_BOX_IVL)` を補完して移行（KEY据え置き）。
+- 主要定数：`EF_DEFAULT/MIN/MAX=2.5/1.3/2.7`、`IVL_MAX=180`、`LAPSE_KEEP=0.4`(失敗時に間隔を一部保持)、`LAPSE_PENALTY=0.2`(ease減点)。
+- `review(id, ok)`：
+  - 正解→ 初回`ivl=1`／2回目`=3`／以降`=ivl×ef`（指数拡大）。失敗復帰時は`pli`を引き継ぐ。`ivl≥4`で±5% fuzz。`reps++`,`ef+=0.03`。`box=boxFromIvl(ivl)`。
+  - 不正解→ `ef-=0.2`、`pli=round(ivl×0.4)`を退避、`ivl=0`で当日再出題、`box=min(box,2)`（弱点へ）。**全消去しない**のが旧仕様との最大の違い。
+  - `clampIvl`：`1..IVL_MAX`にクランプ＋`examDate`があれば残日数を越えない（Cepedaの最適間隔比）。`due` 再計算＋`touchStreak()`＋`save()`。
+- 状態判定：`isMastered`=box≥4 ／ `stateOf`→ new/learn/near(3)/mast(4+) ／ `isWeak`=box≤2 ／ `isDue`=due≤now。**box は ivl から導出する“定着度表示”**で、実スケジュールは ivl+ef が決める。
 - 出題：`daily`=`dueList()`（due昇順）先頭12 ／ `review`=weak ／ 形式モード=type＋`quizCat`で絞り込み。
 - `answer(id,ok)` がセッション得点＋`review()` を呼ぶ唯一の入口。
+- 検証：`/tmp/srs_test.js` 相当のシミュレーションで間隔拡大・失敗の部分保持・試験日キャップ・旧データ移行を確認できる。
 
-> スキーマを破壊的に変える時だけ `KEY` を上げ、`load()` に移行処理を足す。安易に上げると既存ユーザーの進捗が消える。
+## 診断（バグ先回り検知）
+バックエンドが無いため**端末内クライアントサイド診断**を搭載（外部送信なし）。
+- `selfCheck()`：起動時にコンテンツ整合性（id重複/出典欠落/mc ans範囲/cloze空欄/order・match空）を点検。問題は `console.warn`＋エラーログへ記録。
+- `window.onerror`/`unhandledrejection` を捕捉し `localStorage['okinawa_edu_errlog']`（最大20件のリング）へ記録。
+- 進捗タブに「🐞 エラーログ」カード（コピー／消去）。利用者から開発者へ貼り付けて送れる。
+
+> スキーマを破壊的に変える時だけ `KEY` を上げ、`load()` に移行処理を足す。安易に上げると既存ユーザーの進捗が消える。**加算フィールド（ef/ivl/pli/examDate）は破壊的でないので KEY据え置きでよい。**
 
 ## Google Drive 同期
 - スコープ `drive.appdata`（アプリ専用の隠しフォルダ）。ファイル名 `progress.json`。
