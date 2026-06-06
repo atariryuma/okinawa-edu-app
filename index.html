@@ -1023,7 +1023,7 @@ const GSCOPE='https://www.googleapis.com/auth/drive.appdata';
 // ★ここに一度だけOAuthクライアントIDを貼ると、利用者は「Googleでログイン」だけでOK（貼り付け欄は消えます）。
 //   取得手順は README 手順2。空のままだと、各端末で手動入力にフォールバックします。
 //   例: const DEFAULT_CLIENT_ID='1234567890-abcde.apps.googleusercontent.com';
-const DEFAULT_CLIENT_ID='';
+const DEFAULT_CLIENT_ID='773737222519-k2gpp483dqmnghfiuuv48kde10c2khog.apps.googleusercontent.com';
 let tokenClient=null,accessToken=null,gSignedIn=false;
 function usingDefaultClientId(){return !!(typeof DEFAULT_CLIENT_ID!=='undefined'&&DEFAULT_CLIENT_ID);}
 function getClientId(){return usingDefaultClientId()?DEFAULT_CLIENT_ID:(localStorage.getItem('gclient')||'');}
