@@ -19,7 +19,9 @@
 ## データモデル
 `QUESTIONS` は **`questions.json`（外部・正本）**。`REF/LOOKUP/RONBUN/COLORS` は `index.html` 内のJS配列リテラル（編集はそこ）。現状 Q110 / REF12 / LOOKUP14 / RONBUN8。
 - **問題の編集・追加** → `questions.json` を直接編集（JSON配列）。検証はリポジトリ同梱の手順 or `node -e`（下記「検証」）。編集後は `sw.js` の `CACHE` を上げる。
-- **ユーザー作成問題** … アプリ内「✍️ 問題の作成・共有」フォームで追加 → `store.userQuestions[]` に保存（Drive同期対象）。`mergeStore` が id で和集合。エクスポート(JSON DL)/インポート(file)で共有。`QUESTIONS = BASE_QUESTIONS.concat(store.userQuestions)`。
+- **ユーザー作成問題** … アプリ内「✍️ 問題の作成・共有」フォームで追加 → `store.userQuestions[]` に保存（Drive同期対象）。`mergeStore` が id で和集合。エクスポート(JSON DL)/インポート(file)で共有。
+- **みんなの問題（コミュニティ共有）** … `DEFAULT_COMMUNITY_URL`（GAS Web App の /exec）を埋めると有効。受け取り＝起動時 `fetchCommunity()` で GET→`COMMUNITY_QUESTIONS` にキャッシュ(`localStorage['okinawa_community_cache']`)。投稿＝`submitCommunity()` が `text/plain` で POST（CORSプリフライト回避）。承認制（GAS側 status=approved のみ配信）。バックエンドは `community-gas/`（`Code.gs`＋手順）。契約: GET→`{ok,questions:[]}`／POST→`{ok}`。
+- **合成順（dedup by id）**：`QUESTIONS = BASE_QUESTIONS(公式) ＞ COMMUNITY_QUESTIONS(共有) ＞ store.userQuestions(自作)`（`rebuildQuestions()`）。
 - **4択(mc)は出題時に選択肢をシャッフル**（`renderMC`：`{c,orig}` 配列＋`ansPos`で正答追跡）。データの `ans` は元の並びのindexのまま。
 
 - `REF[]` … 要点カード。`{id, cls, map?, name, tag, cat, points[](HTML可), src}`。

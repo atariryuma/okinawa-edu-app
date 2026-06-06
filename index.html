@@ -836,9 +836,10 @@ function renderMatch(q,meta,id,card){
 const UQ_INPUT='width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit';
 function userQSection(){
   const n=(store.userQuestions||[]).length;
-  return `<details class="rb" id="uqBox" style="margin-top:14px"><summary>✍️ 問題の作成・共有（自作 ${n}問）<span class="chev">›</span></summary>
+  const cu=getCommunityUrl(),cn=COMMUNITY_QUESTIONS.length;
+  return `<details class="rb" id="uqBox" style="margin-top:14px"><summary>✍️ 問題の作成・共有（自作 ${n}問${cu?` ／ みんなの問題 ${cn}問`:''}）<span class="chev">›</span></summary>
     <div class="body">
-      <p class="hint" style="margin-top:0">自作の問題を追加できます。<b>エクスポート</b>でファイルにして仲間に共有、<b>インポート</b>で受け取れます（端末内＋ログイン時はDrive同期）。</p>
+      <p class="hint" style="margin-top:0">自作の問題を追加できます。${cu?'<b>「みんなの問題」に出す</b>と、承認後に全員へ自動で配信されます（受け取りは全自動）。':'<b>エクスポート</b>でファイルにして仲間に共有、<b>インポート</b>で受け取れます（端末内＋ログイン時はDrive同期）。'}</p>
       <div style="display:grid;gap:8px">
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <select id="uqType" style="flex:1;min-width:110px;${UQ_INPUT}"><option value="qa">一問一答</option><option value="mc">4択</option></select>
@@ -851,9 +852,11 @@ function userQSection(){
           <div style="grid-column:1/3"><input id="uqExp" placeholder="解説（任意）" style="${UQ_INPUT}"></div>
         </div>
         <input id="uqSrc" placeholder="出典（例：学校教育法第37条）" style="${UQ_INPUT}">
+        ${cu?`<label style="display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--sub)"><input type="checkbox" id="uqShare" checked> 作成後に「みんなの問題」に出す（承認後に全員へ）</label>`:''}
         <button class="btn wide" id="uqAdd">＋ 問題を追加</button>
       </div>
       <div class="syncrow" style="margin-top:12px">
+        ${cu&&n?`<button class="btn ghost" id="uqShareAll">📣 自作を共有に出す</button>`:''}
         <button class="btn ghost" id="uqExport">📤 エクスポート</button>
         <button class="btn ghost" id="uqImport">📥 インポート</button>
         ${n?`<button class="btn ghost" id="uqClear" style="flex:0 0 auto">自作を全削除</button>`:''}
@@ -878,7 +881,16 @@ function bindUserQ(el){
       obj={id,type:'mc',cat,q:qt,choices,ans,exp:(q('#uqExp').value||'').trim(),src};}
     store.userQuestions=store.userQuestions||[];store.userQuestions.push(obj);save();rebuildQuestions();
     if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();
-    renderProg();toast('追加しました（自作 '+store.userQuestions.length+'問）');
+    const share=q('#uqShare');
+    if(share&&share.checked&&getCommunityUrl()){
+      submitCommunity(obj).then(()=>toast('追加し、みんなの問題に出しました（承認待ち）')).catch(err=>{elog({type:'community',msg:'投稿失敗:'+err.message});toast('追加（共有の送信は失敗）');});
+    }else{toast('追加しました（自作 '+store.userQuestions.length+'問）');}
+    renderProg();
+  });
+  const sa=q('#uqShareAll');if(sa)sa.addEventListener('click',async()=>{
+    if(!getCommunityUrl())return;if(!confirm('自作問題を「みんなの問題」に出しますか？（承認後に全員へ表示）'))return;
+    let ok=0,ng=0;for(const obj of (store.userQuestions||[])){try{await submitCommunity(obj);ok++;}catch(e){ng++;}}
+    toast(ok+'問を共有に出しました'+(ng?`（${ng}問は失敗/既出）`:''));
   });
   q('#uqExport').addEventListener('click',()=>{
     const data=JSON.stringify(store.userQuestions||[],null,1);
@@ -979,6 +991,24 @@ const DEFAULT_CLIENT_ID='773737222519-k2gpp483dqmnghfiuuv48kde10c2khog.apps.goog
 let tokenClient=null,accessToken=null,gSignedIn=false;
 function usingDefaultClientId(){return !!(typeof DEFAULT_CLIENT_ID!=='undefined'&&DEFAULT_CLIENT_ID);}
 function getClientId(){return usingDefaultClientId()?DEFAULT_CLIENT_ID:(localStorage.getItem('gclient')||'');}
+
+// ===== みんなの問題（コミュニティ共有：GAS Web App＋スプレッドシート） =====
+// DEFAULT_COMMUNITY_URL に GAS の /exec を入れると、自作問題を承認制で全員に自動共有できる。
+//  受け取り＝全自動（起動時にGETして合成）／投稿＝ワンタップ（POST, text/plainでCORSプリフライト回避）。
+//  承認はあなたがスプレッドシートの status を approved にした問題だけがGETで配信される。
+const DEFAULT_COMMUNITY_URL='';
+function getCommunityUrl(){return (typeof DEFAULT_COMMUNITY_URL!=='undefined'&&DEFAULT_COMMUNITY_URL)?DEFAULT_COMMUNITY_URL:(localStorage.getItem('community_url')||'');}
+const COMMUNITY_CACHE='okinawa_community_cache';
+let COMMUNITY_QUESTIONS=[];
+function loadCommunityCache(){try{COMMUNITY_QUESTIONS=JSON.parse(localStorage.getItem(COMMUNITY_CACHE)||'[]')||[];}catch(e){COMMUNITY_QUESTIONS=[];}}
+async function fetchCommunity(){const url=getCommunityUrl();if(!url)return;
+  try{const r=await fetch(url);const j=await r.json();const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
+    if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(q=>q&&q.id&&q.type);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}
+  }catch(e){elog({type:'community',msg:'共有問題の取得に失敗'});}}
+async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw new Error('共有先が未設定です');
+  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(qObj)});
+  let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
+  if(!j.ok)throw new Error(j.error||'送信に失敗しました');return j;}
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
 function initGoogle(){
   if(!gReady()||!getClientId())return false;
@@ -1035,9 +1065,13 @@ let toastT;function toast(m){const t=document.getElementById('toast');t.textCont
 // 問題の正本は questions.json（同一オリジン＝CORSなし、SWでオフラインキャッシュ）。
 // 起動時に読み込み、ユーザー作成問題(store.userQuestions)を連結して QUESTIONS を構成。
 let BASE_QUESTIONS=[];
-function rebuildQuestions(){QUESTIONS=BASE_QUESTIONS.concat((store.userQuestions||[]));}
+// 重複idを除いて 公式(questions.json) > みんなの共有 > 自作 の優先で合成
+function rebuildQuestions(){const seen={},out=[];
+  [...BASE_QUESTIONS,...COMMUNITY_QUESTIONS,...(store.userQuestions||[])].forEach(q=>{if(q&&q.id&&!seen[q.id]){seen[q.id]=1;out.push(q);}});
+  QUESTIONS=out;}
 function rerenderAll(){selfCheck();renderHome();renderMap();renderRef();renderLookup();renderQuiz();if(document.getElementById('prog'))try{renderProg();}catch(e){}}
 async function boot(){
+  loadCommunityCache();                 // 前回取得した共有問題（オフライン/初速のため）
   try{
     const res=await fetch('questions.json');
     if(!res.ok)throw new Error('HTTP '+res.status);
@@ -1045,6 +1079,7 @@ async function boot(){
   }catch(e){elog({type:'load',msg:'questions.json 読み込み失敗: '+((e&&e.message)||e)});console.warn('questions.json 読み込み失敗',e);}
   rebuildQuestions();
   rerenderAll();
+  fetchCommunity();                     // 背景で最新の共有問題を取得（届いたら再描画）
 }
 boot();
 </script>
