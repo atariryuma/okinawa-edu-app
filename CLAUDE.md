@@ -45,7 +45,8 @@
 ## 学習エンジン（SRS = OkiSRS v2：SM-2基礎＋間隔反復研究の知見）
 旧Leitner（全カード一律・最長16日・失敗で完全リセット）から、学習科学に基づき改良。出典は `index.html` の `OkiSRS v2` コメント参照（SM-2 Woźniak1990 / Cepeda2008 / Roediger&Karpicke2006 / FSRS / Murre&Dros2015）。
 - 保存キー：`localStorage['okinawa_edu_app_v3']`（定数 `KEY`）。**互換維持のため据え置き**（フィールドは加算のみ）。
-- `store = {cards:{}, streak, lastDate, theme, dailyDate, examDate, userQuestions:[]}`。`examDate`=本番日(ISO 'YYYY-MM-DD'|null)。`userQuestions`=利用者が作成/インポートした問題。
+- `store = {cards:{}, streak, lastDate, theme, dailyDate, examDate, examDateT, userQuestions:[], totalAnswered, totalCorrect, dailyDone:{ymd:n}, session, fontScale}`。`examDate`=本番日(ISO|null)、`examDateT`=変更時刻(同期解決用)、`userQuestions`=作成/インポート問題、`totalAnswered/totalCorrect/dailyDone`=累積統計、`session={mode,ids,idx,cat}`=中断復帰用、`fontScale`='s'|'m'|'l'|'xl'。すべて加算（KEY据え置き）。
+- **UX/IA（10ペルソナレビュー反映）**：ホーム＝初回CTA出し分け・試験カウントダウン・⏯続きから・🔥継続警告・box用語は平易語表示。進捗＝統計/試験日/要復習を上、Google同期/エラーログ/リセットは「⚙️同期・データ管理」details へ集約。作成導線はクイズタブにも(`openCreate`)。文字サイズ切替・タブ矢印キー・採点結果のSRフォーカス。
 - `store.cards[id] = {box(1-5), reps, fails, due(ms), last, hist:[{t,ok}], ef(ease 1.3-2.7), ivl(間隔日), pli?(失敗復帰の種間隔)}`。
   - 旧データ（ef/ivl無し）は `review()` 冒頭で `ef=2.5`／`ivl=旧box換算(OLD_BOX_IVL)` を補完して移行（KEY据え置き）。
 - 主要定数：`EF_DEFAULT/MIN/MAX=2.5/1.3/2.7`、`IVL_MAX=180`、`LAPSE_KEEP=0.4`(失敗時に間隔を一部保持)、`LAPSE_PENALTY=0.2`(ease減点)。
