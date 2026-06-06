@@ -10,13 +10,17 @@
 
 ## ファイル構成
 - `index.html` … アプリ本体。**HTML/CSS/JS すべてインライン**。外部依存はGoogle Identity Services(`gsi/client`)とDrive REST APIのみ。
-- `sw.js` … Service Worker。アプリシェルをキャッシュしオフライン動作。
+- `questions.json` … **問題データの正本**（`QUESTIONS`）。起動時に同一オリジンfetchで読み込む（CORSなし）。**問題の修正・追加はこのファイルを編集**→ `sw.js` の `CACHE` を上げる、だけで全利用者に反映（index.html再編集・再ビルド不要）。`index.html` 側は `let QUESTIONS=[]` で、`boot()`→`BASE_QUESTIONS`＋`store.userQuestions` を連結して構成。
+- `sw.js` … Service Worker。アプリシェル＋`questions.json` をキャッシュしオフライン動作。
 - `manifest.webmanifest` / `icon.svg` … PWA。
 - `README.md` … 公開手順＋Google OAuth設定手順。
 - ※親フォルダ `../沖縄県_教育法規_学習アプリ.html` は同一物の旧コピー。**正本はこの `index.html`**。混乱を避けるなら親コピーは削除可。
 
-## データモデル（`index.html` 内の定数）
-すべてJSの配列リテラル。コンテンツ追加は基本ここを編集するだけ。現状 Q110 / REF12 / LOOKUP14 / RONBUN8。
+## データモデル
+`QUESTIONS` は **`questions.json`（外部・正本）**。`REF/LOOKUP/RONBUN/COLORS` は `index.html` 内のJS配列リテラル（編集はそこ）。現状 Q110 / REF12 / LOOKUP14 / RONBUN8。
+- **問題の編集・追加** → `questions.json` を直接編集（JSON配列）。検証はリポジトリ同梱の手順 or `node -e`（下記「検証」）。編集後は `sw.js` の `CACHE` を上げる。
+- **ユーザー作成問題** … アプリ内「✍️ 問題の作成・共有」フォームで追加 → `store.userQuestions[]` に保存（Drive同期対象）。`mergeStore` が id で和集合。エクスポート(JSON DL)/インポート(file)で共有。`QUESTIONS = BASE_QUESTIONS.concat(store.userQuestions)`。
+- **4択(mc)は出題時に選択肢をシャッフル**（`renderMC`：`{c,orig}` 配列＋`ansPos`で正答追跡）。データの `ans` は元の並びのindexのまま。
 
 - `REF[]` … 要点カード。`{id, cls, map?, name, tag, cat, points[](HTML可), src}`。
   `cls` は色キー（`law/vision/plan/doryoku/proj/extra`、`COLORS`参照）。`map:1` の項目だけ「関係図」に描画（`renderMap` が id 指定で拾う）。
@@ -38,7 +42,7 @@
 ## 学習エンジン（SRS = OkiSRS v2：SM-2基礎＋間隔反復研究の知見）
 旧Leitner（全カード一律・最長16日・失敗で完全リセット）から、学習科学に基づき改良。出典は `index.html` の `OkiSRS v2` コメント参照（SM-2 Woźniak1990 / Cepeda2008 / Roediger&Karpicke2006 / FSRS / Murre&Dros2015）。
 - 保存キー：`localStorage['okinawa_edu_app_v3']`（定数 `KEY`）。**互換維持のため据え置き**（フィールドは加算のみ）。
-- `store = {cards:{}, streak, lastDate, theme, dailyDate, examDate}`。`examDate`=本番日(ISO 'YYYY-MM-DD'|null)。
+- `store = {cards:{}, streak, lastDate, theme, dailyDate, examDate, userQuestions:[]}`。`examDate`=本番日(ISO 'YYYY-MM-DD'|null)。`userQuestions`=利用者が作成/インポートした問題。
 - `store.cards[id] = {box(1-5), reps, fails, due(ms), last, hist:[{t,ok}], ef(ease 1.3-2.7), ivl(間隔日), pli?(失敗復帰の種間隔)}`。
   - 旧データ（ef/ivl無し）は `review()` 冒頭で `ef=2.5`／`ivl=旧box換算(OLD_BOX_IVL)` を補完して移行（KEY据え置き）。
 - 主要定数：`EF_DEFAULT/MIN/MAX=2.5/1.3/2.7`、`IVL_MAX=180`、`LAPSE_KEEP=0.4`(失敗時に間隔を一部保持)、`LAPSE_PENALTY=0.2`(ease減点)。
