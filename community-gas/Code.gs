@@ -34,6 +34,11 @@ var LOCK_WAIT_MS    = 10000;            // 追記時のロック待ち上限
 /* 列インデックス（0始まり）。HEADERS と一致させる */
 var COL = { ts:0, status:1, id:2, type:3, cat:4, json:5, q:6, src:7 };
 
+/* スタンドアロン（clasp 等）でデプロイする場合は、ここに対象スプレッドシートの
+   ID を入れる。空ならコンテナバインド（拡張機能→Apps Script で作成）として
+   getActiveSpreadsheet を使う。 */
+var SHEET_ID = '';
+
 /* ============================================================================
  *  setup(): ヘッダ行の自動作成（手動実行用）
  * ========================================================================== */
@@ -279,8 +284,8 @@ function onEdit(e) {
  *  ヘルパ
  * ========================================================================== */
 function getSheet_(createIfMissing) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) throw new Error('no active spreadsheet (run setup once)');
+  var ss = SHEET_ID ? SpreadsheetApp.openById(SHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('no spreadsheet (set SHEET_ID, or create as container-bound)');
   var sh = ss.getSheetByName(SHEET_NAME);
   if (!sh && createIfMissing) {
     sh = ss.insertSheet(SHEET_NAME);
