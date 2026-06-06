@@ -654,7 +654,7 @@ function renderHome(){
   const counts={new:0,learn:0,near:0,mast:0};
   QUESTIONS.forEach(q=>counts[stateOf(q.id)]++);
   const pct=Math.round(counts.mast/total*100);
-  const due=dueList().length;
+  const dueArr=dueList();const due=dueArr.length;const dueRev=dueArr.filter(q=>getCard(q.id)).length; // 「復習」は既習で期日到来した分のみ（未学習は含めない）
   const r=42,c=2*Math.PI*r,off=c*(1-pct/100);
   const hour=new Date().getHours();
   const greet=hour<11?'おはようございます':hour<18?'おつかれさまです':'こんばんは';
@@ -666,7 +666,7 @@ function renderHome(){
   const nudge=(!studiedToday&&(store.streak||0)>0)?`<div class="card" style="border-left:4px solid var(--warn);font-size:.86rem;color:var(--ink)">🔥 ${store.streak}日連続中。今日はまだ未学習です——1問だけでも続けて記録を伸ばしましょう。</div>`:'';
   const sess=store.session;
   const resuming=sess&&Array.isArray(sess.ids)&&sess.idx>0&&sess.idx<sess.ids.length;
-  const resumeBar=resuming?`<button class="cta" id="ctaResume" style="background:var(--accent)">⏯ 前回の続きから（${sess.idx} / ${sess.ids.length}問）<small>中断したところから再開します</small></button>`:'';
+  const resumeBar=resuming?`<button class="cta" id="ctaResume" style="background:var(--accent);color:#fff">⏯ 前回の続きから（${sess.idx} / ${sess.ids.length}問）<small style="color:rgba(255,255,255,.9)">中断したところから再開します</small></button>`:'';
   const ctaLabel=seen===0?'▶ まず解いてみる（数分）':(due>0?`今日の学習をはじめる（${Math.min(due,12)}問）`:'今日のぶんは完了 🎉 追加で解く');
   const goal=store.dailyGoal||10;
   const goalDots=Array.from({length:Math.min(goal,14)},(_,i)=>`<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${i<todayDone?'#fff':'rgba(255,255,255,.32)'}"></span>`).join(' ');
@@ -711,11 +711,11 @@ function renderHome(){
             <span class="streak">🔥 ${store.streak||0}日連続</span>${examChip}
           </div>
           <div class="mini">
-            <div><b>${due}</b><span>今日の復習</span></div>
+            <div><b>${dueRev}</b><span>今日の復習</span></div>
             <div><b>${todayDone}</b><span>今日解いた</span></div>
             <div><b>${counts.mast}/${total}</b><span>定着</span></div>
           </div>
-          <div style="margin-top:7px;font-size:.72rem;opacity:.95">今日の目標 ${Math.min(todayDone,goal)}/${goal}　${goalDots}</div>
+          <div style="margin-top:7px;font-size:.72rem;opacity:.95">今日の目標 ${todayDone}/${goal}${todayDone>=goal?' ✓達成':''}　${goalDots}</div>
         </div>
       </div>
       <button class="cta" id="ctaDaily">${ctaLabel}<small>忘れた頃の問題が自動で戻ってきます</small></button>
@@ -1109,13 +1109,13 @@ function renderProg(){
   const mast=QUESTIONS.filter(q=>isMastered(q.id)).length;
   const seen=QUESTIONS.filter(q=>getCard(q.id)).length;
   const weak=QUESTIONS.filter(q=>isWeak(q.id));
-  const due=dueList().length;
+  const dueRev=dueList().filter(q=>getCard(q.id)).length; // 既習で期日到来した「復習」数
   const cats=[...new Set(QUESTIONS.map(q=>q.cat))];
   const acc=store.totalAnswered||0,accC=store.totalCorrect||0,accPct=acc?Math.round(accC/acc*100):0;
   const todayDone=(store.dailyDone&&store.dailyDone[todayStr()])||0;
   el.innerHTML=`
     <div class="stat">
-      <div class="box a"><div class="n">${due}</div><div class="l">今日の復習</div></div>
+      <div class="box a"><div class="n">${dueRev}</div><div class="l">今日の復習</div></div>
       <div class="box b"><div class="n">${mast}</div><div class="l">定着</div></div>
       <div class="box c"><div class="n">${weak.length}</div><div class="l">要復習</div></div>
     </div>
@@ -1346,6 +1346,8 @@ function rerenderAll(){
 const QJSON_CACHE='okinawa_qjson_cache';
 async function boot(){
   loadCommunityCache();                 // 前回取得した共有問題（オフライン/初速のため）
+  // 通算統計の後付けフィールド導入前の履歴をカードのhistからバックフィル（既存ユーザーの過小表示を是正・1回のみ）
+  if(!store._statMig){let ta=0,tc=0;Object.values(store.cards||{}).forEach(c=>{(c.hist||[]).forEach(h=>{ta++;if(h&&h.ok)tc++;});});if(ta>(store.totalAnswered||0)){store.totalAnswered=ta;store.totalCorrect=tc;}store._statMig=1;save();}
   if(store.examDate){const dl=examDaysLeft();if(dl!=null&&dl<=0){store.examDate=null;store.examDateT=Date.now();save();}} // 試験日を過ぎたら自動解除（通常SRSへ）
   try{
     const res=await fetch('questions.json');
