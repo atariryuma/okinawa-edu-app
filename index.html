@@ -808,7 +808,8 @@ function showQ(){
   if(store.session){store.session.idx=quizIdx;save();} // 中断復帰用に現在位置を保存
   const q=quizPool[quizIdx];
   const prog=`<div class="progressbar" role="progressbar" aria-valuemin="0" aria-valuemax="${quizPool.length}" aria-valuenow="${quizIdx+1}" aria-label="${quizPool.length}問中 ${quizIdx+1}問目"><i style="width:${quizIdx/quizPool.length*100}%"></i></div>`;
-  const meta=`<div class="qmeta"><span class="badge">${esc(q.cat)}・${typeName(q.type)}</span><span>${quizIdx+1} / ${quizPool.length}</span></div>`;
+  const commBadge=COMMUNITY_IDS.has(q.id)?`<span class="badge" style="background:var(--warn);color:#000">みんなの問題・未検証</span>`:'';
+  const meta=`<div class="qmeta"><span class="badge">${esc(q.cat)}・${typeName(q.type)}</span>${commBadge}<span>${quizIdx+1} / ${quizPool.length}</span></div>`;
   area.innerHTML=prog;const card=document.createElement('div');area.appendChild(card);
   const r={qa:renderQA,mc:renderMC,cloze:renderCloze,order:renderOrder,match:renderMatch}[q.type];
   if(!r){quizIdx++;return showQ();}
@@ -925,7 +926,7 @@ function userQSection(){
           <div style="grid-column:1/3"><input id="uqExp" aria-label="解説（任意）" placeholder="解説（任意）" style="${UQ_INPUT}"></div>
         </div>
         <input id="uqSrc" aria-label="出典" placeholder="出典（例：学校教育法第37条）" style="${UQ_INPUT}">
-        ${cu?`<label style="display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--sub)"><input type="checkbox" id="uqShare"> 作成後に「みんなの問題」に出す（承認後に全員へ／任意）</label>`:''}
+        ${cu?`<label style="display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--sub)"><input type="checkbox" id="uqShare" ${gSignedIn?'checked':''}> みんなにも共有する${gSignedIn?'（自動で公開されます）':'（ログインすると自動公開／未ログインは承認後）'}</label>`:''}
         <button class="btn wide" id="uqAdd">＋ 問題を追加</button>
       </div>
       <div class="syncrow" style="margin-top:12px">
@@ -956,7 +957,7 @@ function bindUserQ(el){
     if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();
     const share=q('#uqShare');
     if(share&&share.checked&&getCommunityUrl()){
-      submitCommunity(obj).then(()=>toast('追加し、みんなの問題に出しました（承認待ち）')).catch(err=>{elog({type:'community',msg:'投稿失敗:'+err.message});toast('追加（共有の送信は失敗）');});
+      submitCommunity(obj).then(r=>toast(r&&r.status==='approved'?'追加し、みんなに共有しました ✓':'追加し、共有に出しました（承認後に公開）')).catch(err=>{elog({type:'community',msg:'投稿失敗:'+err.message});toast('追加しました（共有の送信は失敗）');});
     }else{toast('追加しました（自作 '+store.userQuestions.length+'問）');}
     renderProg();
     // フォーム再生成後、アコーディオンを開いたまま問題文入力にフォーカスを戻す（連続追加しやすく）
@@ -1086,15 +1087,20 @@ function getClientId(){return usingDefaultClientId()?DEFAULT_CLIENT_ID:(localSto
 const DEFAULT_COMMUNITY_URL='https://script.google.com/macros/s/AKfycbyUGWaoklT0PvPB-uhBvsoSquQHKRGxIsUjg9BuivheJhpxw-XE-TtFx-xh02FjR3Yy9g/exec';
 function getCommunityUrl(){return (typeof DEFAULT_COMMUNITY_URL!=='undefined'&&DEFAULT_COMMUNITY_URL)?DEFAULT_COMMUNITY_URL:(localStorage.getItem('community_url')||'');}
 const COMMUNITY_CACHE='okinawa_community_cache';
-let COMMUNITY_QUESTIONS=[];
+let COMMUNITY_QUESTIONS=[],COMMUNITY_IDS=new Set();
 function loadCommunityCache(){try{const a=JSON.parse(localStorage.getItem(COMMUNITY_CACHE)||'[]');COMMUNITY_QUESTIONS=Array.isArray(a)?a.filter(validQuestion):[];}catch(e){COMMUNITY_QUESTIONS=[];}}
+// 端末ごとの匿名ID（スパムのレート制限用。個人を特定しない）
+function deviceId(){let d=localStorage.getItem('okinawa_device_id');if(!d){d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('okinawa_device_id',d);}return d;}
 const COMMUNITY_MAX=1000; // 取り込み上限（localStorage肥大の歯止め）
 async function fetchCommunity(){const url=getCommunityUrl();if(!url)return;
   try{const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
     if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(validQuestion).slice(0,COMMUNITY_MAX);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}
   }catch(e){elog({type:'community',msg:'共有問題の取得に失敗: '+((e&&e.message)||e)});}}
 async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw new Error('共有先が未設定です');
-  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(qObj)});
+  // サインイン済みなら既存のアクセストークンを“黙って”同梱（新たなログイン画面は出さない）。
+  // GAS 側がトークンの発行先(aud)を検証し、本アプリの正規ログインなら自動公開、匿名は審査に回す。
+  const body=JSON.stringify({q:qObj,token:(typeof accessToken!=='undefined'&&accessToken)||'',device:deviceId()});
+  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
   let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
   if(!j.ok)throw new Error(j.error||'送信に失敗しました');return j;}
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
@@ -1164,7 +1170,10 @@ let BASE_QUESTIONS=[];
 function rebuildQuestions(){const seen={},out=[];
   // 不正な問題（型別フィールド欠落）は除外し、描画/採点クラッシュを防ぐ。優先: 公式>共有>自作。
   [...BASE_QUESTIONS,...COMMUNITY_QUESTIONS,...(store.userQuestions||[])].forEach(q=>{if(q&&q.id&&!seen[q.id]&&validQuestion(q)){seen[q.id]=1;out.push(q);}});
-  QUESTIONS=out;}
+  QUESTIONS=out;
+  // 「みんなの問題（未検証）」バッジ用：公式に無い共有問題のidを記録
+  const baseIds=new Set(BASE_QUESTIONS.map(q=>q.id));
+  COMMUNITY_IDS=new Set(COMMUNITY_QUESTIONS.filter(q=>q&&q.id&&!baseIds.has(q.id)).map(q=>q.id));}
 function rerenderAll(){selfCheck();renderHome();renderMap();renderRef();renderLookup();
   // クイズ回答中（背景の共有取得が解決した等）は #quiz を作り直さない＝進行中セッションを壊さない
   const quizBusy=quizMode!=null&&quizPool.length>0&&quizIdx<quizPool.length;

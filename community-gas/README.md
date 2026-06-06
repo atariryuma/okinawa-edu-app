@@ -9,7 +9,13 @@
 
 ## クライアントとの契約（変更不可）
 - `doGet()` → `{"ok":true,"questions":[ <問題オブジェクト>, ... ]}`（approved のみ）
-- `doPost()` → 本文は `Content-Type: text/plain` の JSON 1問。成功 `{"ok":true}` / 失敗 `{"ok":false,"error":"..."}`
+- `doPost()` → 本文は `Content-Type: text/plain` の JSON。新形式 `{"q":<問題>, "token":"<アクセストークン|空>", "device":"<端末ID>"}`（旧形式＝問題そのものも後方互換）。成功 `{"ok":true,"status":"approved"|"pending"}` / 失敗 `{"ok":false,"error":"..."}`
+
+## 自動公開モデル（無意識な共有）
+- **サインイン済みユーザーの投稿**：トークンの発行先(`aud/azp`)が本アプリの `CLIENT_ID` と一致すれば **trusted＝自動で `approved`**（人手の承認なしで全員に配信）。ログイン画面は新たに出ない（同期用の既存ログインを黙って再利用）。
+- **匿名（未ログイン）の投稿**：`pending`。あなたがシートで `approved` にした時だけ配信。
+- **裏側のスパム対策（全投稿に適用）**：リンク(URL)禁止・NGワード・端末ごとレート制限（`RATE_PER_HOUR`）・id形式・重複排除・行/未承認上限・数式インジェクション無害化。
+- トークン検証は Google の tokeninfo を `UrlFetchApp` で叩くため **`script.external_request` 権限が必要**。コード更新後は **一度 `setup` を再実行**して、追加権限（外部リクエスト）を承認すること（承認するまで自動公開は働かず、全投稿が安全に `pending` になります）。
 
 ## セットアップ手順
 
