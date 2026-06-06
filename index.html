@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>沖縄県 教育法規・計画 学習＆実務アプリ</title>
+<meta name="description" content="沖縄県の管理職試験対策。教育法規・計画の関係図、要点、逆引き、間隔反復クイズ、論文対策を1つに。">
+<meta name="theme-color" content="#0e7490">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="教育法規">
+<style>
+  :root{
+    --bg:#eef2f7; --bg2:#e3e9f2; --card:#ffffff; --ink:#16202e; --sub:#566174;
+    --line:#e2e8f0; --line2:#c3cedd; --chip:#eef3f9;
+    --accent:#0e7490; --accent2:#0891b2; --accent-soft:#cffafe;
+    --ok:#15803d; --ok-soft:#dcfce7; --ng:#c2253b; --ng-soft:#fde7ea; --warn:#b45309;
+    --law:#5b6b7a; --vision:#0e7490; --plan:#15803d; --doryoku:#b5651d; --proj:#9a2c6e;
+    --shadow:0 1px 2px rgba(16,30,54,.06),0 8px 24px rgba(16,30,54,.08);
+    --shadow-sm:0 1px 2px rgba(16,30,54,.06),0 2px 8px rgba(16,30,54,.05);
+    --r1:12px; --r2:16px; --r3:20px;
+  }
+  html[data-theme="dark"]{
+    --bg:#0c1220; --bg2:#0a0f1a; --card:#161f30; --ink:#e8eef6; --sub:#a6b2c4;
+    --line:#243247; --line2:#3a4d68; --chip:#1d2940;
+    --accent:#22d3ee; --accent2:#38bdf8; --accent-soft:#0e3a44;
+    --ok:#5fd28a; --ok-soft:#10331f; --ng:#f3868f; --ng-soft:#39191d; --warn:#e0a14a;
+    --law:#9aa7b8; --vision:#22d3ee; --plan:#5fd28a; --doryoku:#e0a14a; --proj:#e26aae;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);
+    --shadow-sm:0 1px 2px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.3);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html{font-size:16px;}
+  body{margin:0;font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,sans-serif;
+    color:var(--ink);background:
+      radial-gradient(1200px 600px at 80% -10%, var(--accent-soft) 0%, transparent 55%),
+      linear-gradient(180deg,var(--bg) 0%,var(--bg2) 100%);
+    background-attachment:fixed;line-height:1.65;font-size:.94rem;-webkit-font-smoothing:antialiased;
+    transition:background .4s,color .3s;}
+  .app{max-width:960px;margin:0 auto;padding:0 0 calc(40px + env(safe-area-inset-bottom));}
+  ::-webkit-scrollbar{height:6px;width:6px;}::-webkit-scrollbar-thumb{background:var(--line2);border-radius:6px;}
+  :focus-visible{outline:3px solid var(--accent2);outline-offset:2px;border-radius:6px;}
+  b,strong{color:inherit;font-weight:700;}
+
+  header.top{padding:max(16px,env(safe-area-inset-top)) 16px 0;position:sticky;top:0;z-index:30;
+    background:linear-gradient(180deg,var(--bg) 65%,transparent);backdrop-filter:blur(8px);}
+  .brand{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .brand h1{margin:0;font-size:1.06rem;font-weight:800;}
+  .brand p{margin:1px 0 0;font-size:.72rem;color:var(--sub);}
+  .theme{width:44px;height:44px;border-radius:13px;border:1px solid var(--line);background:var(--card);
+    color:var(--ink);font-size:1.1rem;cursor:pointer;box-shadow:var(--shadow-sm);transition:.2s;flex:0 0 auto;}
+  .theme:active{transform:scale(.92);}
+  nav.tabs{display:flex;gap:4px;overflow-x:auto;margin:14px -2px 12px;padding:4px;background:var(--card);
+    border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-sm);scrollbar-width:none;}
+  nav.tabs::-webkit-scrollbar{display:none;}
+  nav.tabs button{flex:1 0 auto;background:transparent;color:var(--sub);border:none;padding:10px 14px;min-height:44px;
+    border-radius:12px;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:.2s;}
+  nav.tabs button[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(14,116,144,.35);}
+
+  main{padding:6px 16px 0;}
+  .view{display:none;}
+  .view.active{display:block;animation:fade .35s cubic-bezier(.2,.7,.3,1);}
+  @keyframes fade{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  h3.sec{font-size:.84rem;margin:20px 2px 10px;color:var(--sub);font-weight:800;letter-spacing:.02em;}
+
+  /* HOME */
+  .hero{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:var(--r3);
+    padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+  .hero::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;
+    background:rgba(255,255,255,.12);}
+  .hero .row{display:flex;align-items:center;gap:18px;position:relative;}
+  .ring{width:96px;height:96px;flex:0 0 auto;}
+  .ring text{fill:#fff;font-weight:800;}
+  .hero h2{margin:0 0 2px;font-size:1.02rem;}
+  .hero p{margin:0;font-size:.78rem;opacity:.94;}
+  .hero .streak{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.2);
+    padding:3px 11px;border-radius:20px;font-size:.78rem;font-weight:800;margin-top:8px;}
+  .hero .mini{display:flex;gap:16px;margin-top:8px;}
+  .hero .mini b{display:block;font-size:1.12rem;font-weight:800;}
+  .hero .mini span{font-size:.7rem;opacity:.92;}
+  .cta{display:block;width:100%;margin-top:14px;background:#fff;color:var(--accent);border:none;border-radius:var(--r2);
+    padding:16px;font-size:1rem;font-weight:800;cursor:pointer;box-shadow:var(--shadow);transition:.15s;}
+  .cta:active{transform:scale(.99);}
+  .cta small{display:block;font-weight:600;color:var(--sub);font-size:.72rem;margin-top:2px;}
+  .quickgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+  .quick{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:14px;cursor:pointer;
+    box-shadow:var(--shadow-sm);transition:.18s;text-align:left;color:var(--ink);min-height:64px;}
+  .quick:active{transform:scale(.98);}
+  .quick .ic{font-size:1.25rem;}
+  .quick b{display:block;margin-top:4px;font-size:.88rem;}
+  .quick span{font-size:.7rem;color:var(--sub);}
+
+  /* layered mastery bar */
+  .layers{display:flex;height:14px;border-radius:8px;overflow:hidden;margin:4px 0 8px;background:var(--chip);}
+  .layers i{height:100%;}
+  .lg-new{background:var(--line2);}.lg-learn{background:var(--warn);}.lg-near{background:var(--accent2);}.lg-mast{background:var(--plan);}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;font-size:.7rem;color:var(--sub);}
+  .legend span{display:inline-flex;align-items:center;gap:4px;}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block;}
+
+  /* NODE / MAP */
+  .hint{text-align:center;color:var(--sub);font-size:.74rem;margin:2px 0 12px;}
+  .node{border-radius:var(--r2);padding:14px 16px;color:#fff;margin:0 auto;box-shadow:var(--shadow);cursor:pointer;
+    transition:transform .15s;position:relative;overflow:hidden;width:100%;text-align:left;border:none;}
+  .node::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(255,255,255,.14),transparent 60%);}
+  .node:active{transform:scale(.99);}
+  .node h2{margin:0;font-size:.92rem;display:flex;justify-content:space-between;align-items:center;gap:8px;position:relative;color:#fff;}
+  .node .tag{font-size:.64rem;background:rgba(255,255,255,.24);padding:3px 9px;border-radius:20px;font-weight:700;white-space:nowrap;}
+  .node .pt{margin:8px 0 0;font-size:.78rem;opacity:.98;display:none;position:relative;}
+  .node.open .pt{display:block;animation:fade .25s;}
+  .node.law{background:linear-gradient(135deg,#64748b,#475569);}
+  .node.vision{background:linear-gradient(135deg,#0e7490,#0891b2);}
+  .node.plan{background:linear-gradient(135deg,#15803d,#0e9f6e);}
+  .node.doryoku{background:linear-gradient(135deg,#b5651d,#9a5512);}
+  .node.proj{background:linear-gradient(135deg,#9a2c6e,#7d2f7d);}
+  .node.daikou{background:linear-gradient(135deg,#2b8aa6,#0e7490);}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:600px){.two{grid-template-columns:1fr;}}
+  .arrow{text-align:center;color:var(--sub);font-size:1rem;margin:6px 0;line-height:1.2;}
+  .arrow small{display:block;font-size:.66rem;opacity:.9;}
+
+  /* REF accordion */
+  .acc{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+  .acc>summary{padding:15px 16px;font-weight:800;cursor:pointer;font-size:.92rem;display:flex;align-items:center;gap:10px;list-style:none;min-height:44px;}
+  .acc>summary::-webkit-details-marker{display:none;}
+  .acc>summary .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 0 3px var(--chip);}
+  .acc>summary .chev{margin-left:auto;color:var(--sub);transition:.2s;}
+  .acc[open]>summary .chev{transform:rotate(90deg);}
+  .acc .body{padding:0 16px 15px;}
+  .acc ul{margin:6px 0;padding-left:20px;}
+  .acc li{margin:5px 0;}
+  .src{font-size:.72rem;color:var(--sub);border-top:1px dashed var(--line2);padding-top:9px;margin-top:9px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .copybtn{font-size:.72rem;border:1px solid var(--line2);background:var(--card);border-radius:10px;padding:8px 12px;cursor:pointer;color:var(--accent);font-weight:700;min-height:40px;}
+  .copybtn:active{transform:scale(.94);}
+  .tagrow{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;}
+  .filt{border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:16px;padding:6px 12px;font-size:.74rem;cursor:pointer;min-height:36px;}
+  .filt.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  /* LOOKUP */
+  .searchwrap{position:relative;}
+  .search{width:100%;padding:14px 14px 14px 42px;border:1px solid var(--line);border-radius:14px;font-size:1rem;background:var(--card);color:var(--ink);box-shadow:var(--shadow-sm);}
+  .searchwrap .mag{position:absolute;left:14px;top:13px;color:var(--sub);font-size:1rem;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0;}
+  .chips button{border:1px solid var(--line2);background:var(--card);border-radius:20px;padding:8px 13px;font-size:.76rem;cursor:pointer;color:var(--ink);box-shadow:var(--shadow-sm);min-height:40px;}
+  .chips button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .lk{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow-sm);border-left:4px solid var(--accent);animation:fade .25s;}
+  .lk h4{margin:0 0 7px;font-size:.92rem;}
+  .lk .based{font-size:.8rem;color:var(--sub);margin-top:6px;padding-left:14px;position:relative;}
+  .lk .based::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .lk .based b{color:var(--accent);}
+
+  /* QUIZ */
+  .modegrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+  .mode{padding:15px 13px;border:1px solid var(--line);background:var(--card);border-radius:var(--r2);cursor:pointer;text-align:left;box-shadow:var(--shadow-sm);transition:.18s;color:var(--ink);min-height:74px;}
+  .mode:active{transform:scale(.98);}
+  .mode .ic{font-size:1.15rem;}
+  .mode b{display:block;font-size:.88rem;margin:5px 0 1px;}
+  .mode span{font-size:.7rem;color:var(--sub);}
+  .mode.daily{grid-column:1/3;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;}
+  .mode.daily span{color:rgba(255,255,255,.9);}
+  .mode.review{grid-column:1/3;border-color:var(--ng);}
+  .mode.review b{color:var(--ng);}
+  .catbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .catbar button{border:1px solid var(--line2);background:var(--card);border-radius:16px;padding:7px 12px;font-size:.74rem;cursor:pointer;color:var(--ink);min-height:38px;}
+  .catbar button.on{background:var(--proj);color:#fff;border-color:var(--proj);}
+  .catbar[hidden]{display:none;}
+  .progressbar{height:7px;background:var(--chip);border-radius:6px;overflow:hidden;margin-bottom:14px;}
+  .progressbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s;}
+  .quizcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:20px 17px;box-shadow:var(--shadow);animation:fade .3s;}
+  .qmeta{font-size:.72rem;color:var(--sub);display:flex;justify-content:space-between;margin-bottom:12px;font-weight:700;}
+  .badge{background:var(--chip);padding:4px 10px;border-radius:20px;}
+  .qtext{font-size:1.06rem;font-weight:700;margin-bottom:16px;line-height:1.55;}
+  .choice{display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:13px;padding:14px 13px;margin-bottom:9px;cursor:pointer;font-size:.92rem;transition:.15s;box-shadow:var(--shadow-sm);min-height:52px;}
+  .choice .k{width:26px;height:26px;border-radius:8px;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:.78rem;font-weight:800;flex:0 0 auto;}
+  .choice:active{transform:scale(.99);}
+  .choice.correct{background:var(--ok-soft);border-color:var(--ok);}
+  .choice.correct .k{background:var(--ok);color:#fff;}
+  .choice.wrong{background:var(--ng-soft);border-color:var(--ng);}
+  .choice.wrong .k{background:var(--ng);color:#fff;}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:13px;padding:13px 18px;font-size:.94rem;cursor:pointer;font-weight:700;transition:.15s;box-shadow:0 4px 12px rgba(14,116,144,.28);min-height:48px;}
+  .btn:active{transform:scale(.98);}
+  .btn.ghost{background:var(--card);color:var(--accent);border:1px solid var(--accent);box-shadow:var(--shadow-sm);}
+  .btn.wide{width:100%;}
+  .btn.ok{background:var(--ok);box-shadow:0 4px 12px rgba(21,128,61,.28);}
+  .btn.ng{background:var(--ng);box-shadow:0 4px 12px rgba(194,37,59,.28);}
+  .reveal{margin-top:14px;padding:13px;border-radius:13px;font-size:.84rem;display:none;animation:fade .25s;}
+  .reveal.show{display:block;}
+  .reveal.ok{background:var(--ok-soft);border:1px solid var(--ok);}
+  .reveal.ng{background:var(--ng-soft);border:1px solid var(--ng);}
+  .reveal .src{border:none;padding:0;margin-top:8px;}
+  .cloze .blank{background:var(--ng);color:transparent;border-radius:5px;padding:1px 8px;cursor:pointer;transition:.18s;font-weight:800;text-decoration:underline;text-decoration-color:rgba(255,255,255,.5);}
+  .cloze .blank.show{background:var(--ok-soft);color:var(--ink);text-decoration:none;}
+  .redtoggle{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
+  .orderlist{list-style:none;padding:0;margin:0 0 14px;}
+  .orderlist li{background:var(--card);border:1px solid var(--line2);border-radius:13px;padding:11px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;box-shadow:var(--shadow-sm);transition:.12s;}
+  .orderlist li .num{width:26px;height:26px;border-radius:9px;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:.86rem;flex:0 0 auto;color:var(--sub);cursor:grab;}
+  .orderlist li .txt{flex:1;font-size:.88rem;}
+  .orderlist li .mv{display:flex;flex-direction:column;gap:2px;}
+  .orderlist li .mv button{width:34px;height:24px;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:7px;font-size:.7rem;cursor:pointer;line-height:1;}
+  .orderlist li.dragging{opacity:.4;}
+  .matchwrap{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
+  .matchcol button{display:block;width:100%;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:11px;padding:13px 10px;margin-bottom:8px;font-size:.8rem;cursor:pointer;box-shadow:var(--shadow-sm);min-height:52px;}
+  .matchcol button.sel{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .matchcol button.done{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);cursor:default;}
+  .matchcol button.wrong{background:var(--ng-soft);border-color:var(--ng);}
+
+  .result{text-align:center;}
+  .result .emoji{font-size:2.8rem;}
+  .result .big{font-size:2.6rem;font-weight:900;color:var(--accent);margin:6px 0;}
+  .result .msg{font-size:.9rem;color:var(--sub);margin-bottom:16px;}
+
+  .stat{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:8px;}
+  .stat .box{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:15px 8px;text-align:center;box-shadow:var(--shadow-sm);}
+  .stat .box .n{font-size:1.6rem;font-weight:900;}
+  .stat .box.a .n{color:var(--accent);}.stat .box.b .n{color:var(--plan);}.stat .box.c .n{color:var(--ng);}
+  .stat .box .l{font-size:.68rem;color:var(--sub);}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:16px;box-shadow:var(--shadow-sm);}
+  .catrow{margin-bottom:12px;font-size:.78rem;}
+  .catrow .top{display:flex;justify-content:space-between;margin-bottom:4px;font-weight:600;}
+  .bar{height:9px;background:var(--chip);border-radius:6px;overflow:hidden;}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--plan),var(--accent));border-radius:6px;transition:width .5s;}
+  .heat{display:flex;gap:5px;margin-top:4px;}
+  .heat div{flex:1;aspect-ratio:1;border-radius:5px;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:.6rem;color:var(--sub);}
+  .heat div.done{background:var(--plan);color:#fff;}
+  .wrongitem{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--ng);border-radius:11px;padding:11px 13px;margin-bottom:8px;font-size:.78rem;box-shadow:var(--shadow-sm);}
+  /* RONBUN */
+  .rb{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);margin-bottom:10px;overflow:hidden;box-shadow:var(--shadow-sm);}
+  .rb>summary{padding:15px 16px;font-weight:800;cursor:pointer;font-size:.92rem;display:flex;align-items:center;gap:10px;list-style:none;min-height:44px;}
+  .rb>summary::-webkit-details-marker{display:none;}
+  .rb>summary .chev{margin-left:auto;color:var(--sub);transition:.2s;}
+  .rb[open]>summary .chev{transform:rotate(90deg);}
+  .rb .body{padding:0 16px 16px;}
+  .rb .qx{background:var(--chip);border-radius:10px;padding:10px 12px;font-size:.84rem;margin-bottom:12px;}
+  .rb h5{margin:14px 0 5px;font-size:.82rem;color:var(--accent);display:flex;align-items:center;gap:7px;}
+  .rb h5::before{content:"";width:4px;height:14px;background:var(--accent);border-radius:2px;}
+  .rb p{margin:4px 0;font-size:.85rem;}
+  .rb ul{margin:4px 0;padding-left:18px;font-size:.85rem;}
+  .rb .konkyo{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+  .rb .konkyo span{background:var(--accent-soft);color:var(--accent);border-radius:14px;padding:3px 10px;font-size:.74rem;font-weight:700;}
+  .rb .ng{background:var(--ng-soft);border:1px solid var(--ng);border-radius:9px;padding:8px 11px;font-size:.8rem;}
+  .synccard{background:var(--card);border:1px solid var(--line);border-radius:var(--r2);padding:16px;box-shadow:var(--shadow-sm);margin-bottom:14px;}
+  .synccard .st{display:flex;align-items:center;gap:8px;font-weight:700;font-size:.88rem;margin-bottom:4px;}
+  .synccard .dotg{width:9px;height:9px;border-radius:50%;background:var(--line2);}
+  .synccard.on .dotg{background:var(--ok);}
+  .synccard small{color:var(--sub);font-size:.72rem;}
+  .synccard input{width:100%;margin:8px 0;padding:10px 12px;border:1px solid var(--line2);border-radius:10px;background:var(--bg);color:var(--ink);font-size:.82rem;}
+  .syncrow{display:flex;gap:8px;flex-wrap:wrap;}
+  .syncrow .btn{flex:1;min-width:120px;}
+
+  footer{text-align:center;color:var(--sub);font-size:.66rem;margin-top:26px;padding:0 16px;line-height:1.7;}
+  .toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:24px;font-size:.82rem;font-weight:700;opacity:0;transition:.3s;z-index:60;box-shadow:var(--shadow);pointer-events:none;max-width:90%;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
+  @media(prefers-reduced-motion:reduce){*{animation-duration:.001s!important;transition-duration:.001s!important;}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <div><h1>沖縄県 教育法規・計画アプリ</h1><p>管理職試験対策 ＆ 日々の判断の根拠</p></div>
+      <button class="theme" id="themeBtn" aria-label="テーマを切り替え" aria-pressed="false">🌙</button>
+    </div>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="メインメニュー">
+      <button data-v="home" role="tab" aria-selected="true">ホーム</button>
+      <button data-v="map" role="tab" aria-selected="false">関係図</button>
+      <button data-v="ref" role="tab" aria-selected="false">要点</button>
+      <button data-v="lookup" role="tab" aria-selected="false">逆引き</button>
+      <button data-v="quiz" role="tab" aria-selected="false">クイズ</button>
+      <button data-v="ronbun" role="tab" aria-selected="false">論文・面接</button>
+      <button data-v="prog" role="tab" aria-selected="false">進捗</button>
+    </nav>
+  </header>
+  <main>
+    <section class="view active" id="home" role="tabpanel" aria-label="ホーム"></section>
+    <section class="view" id="map" role="tabpanel" aria-label="関係図"></section>
+    <section class="view" id="ref" role="tabpanel" aria-label="要点"></section>
+    <section class="view" id="lookup" role="tabpanel" aria-label="逆引き"></section>
+    <section class="view" id="quiz" role="tabpanel" aria-label="クイズ" aria-live="polite"></section>
+    <section class="view" id="ronbun" role="tabpanel" aria-label="論文・面接"></section>
+    <section class="view" id="prog" role="tabpanel" aria-label="進捗"></section>
+  </main>
+  <footer>
+    出典：沖縄県教育委員会／沖縄県／文部科学省 各公表資料。<b>年度依存の重点・施策・推進期間は受験年度の最新版で必ず確認</b>のこと。<br>
+    間隔反復(SRS)で「忘れた頃」に自動で復習が戻ります。進捗は端末内に保存され、Googleログイン時はDriveアプリフォルダにも同期されます。
+  </footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+"use strict";
+//==================== DATA ====================
+const COLORS={law:'#5b6b7a',vision:'#0e7490',plan:'#15803d',doryoku:'#b5651d',proj:'#9a2c6e',extra:'#475569'};
+
+const REF=[
+ {id:'law',cls:'law',map:1,name:'教育関係法規',tag:'国・全国共通',cat:'法規',
+  points:[
+   '<b>教育基本法</b>：教育の根本理念。<b>第17条</b>＝教育振興基本計画の根拠。<b>第1項が国（策定義務）、第2項が地方（参酌して定める努力義務）</b>。',
+   '<b>学校教育法</b>：第11条＝懲戒は認めるが<b>体罰は禁止</b>。第37条④＝「校長は、<b>校務をつかさどり、所属職員を監督する</b>」。副校長・教頭・主幹教諭・指導教諭等の職も規定。施行規則第48条＝<b>職員会議は校長の補助機関</b>。',
+   '<b>地方教育行政法(地教行法)</b>：教育委員会制度、教育長。<b>大綱・総合教育会議は首長が策定・招集</b>。第47条の5＝<b>学校運営協議会（コミュニティ・スクール）</b>。',
+   '<b>地方公務員法</b>：服務の根本基準＝<b>全体の奉仕者(30)</b>、信用失墜行為の禁止(33)、守秘義務(34)、職務専念義務(35)、政治的行為の制限(36)、争議行為の禁止(37)。身分上の<b>分限(28)</b>と<b>懲戒(29)</b>は区別。'],
+  src:'教育基本法／学校教育法・同施行規則／地教行法／地方公務員法'},
+ {id:'kyotoku',cls:'extra',name:'教育公務員特例法（研修）',tag:'研修体系',cat:'法規',
+  points:[
+   '教員は<b>絶えず研究と修養</b>に努める。研修を受ける機会が与えられる（第21・22条）。',
+   '法定研修：<b>初任者研修(第23条)</b>、<b>中堅教諭等資質向上研修(第24条)</b>、<b>指導改善研修(第25条)</b>。',
+   '校長・教員ごとに資質向上に関する<b>指標</b>と研修計画（任命権者が策定）。'],
+  src:'教育公務員特例法'},
+ {id:'cs',cls:'law',map:1,name:'学習指導要領 解説（総則）小学校',tag:'H29告示／R2全面実施',cat:'指導要領',
+  points:[
+   '基盤の理念＝<b>「社会に開かれた教育課程」</b>。',
+   '<b>資質・能力の三つの柱</b>：①知識及び技能 ②思考力・判断力・表現力等 ③学びに向かう力・人間性等。',
+   '<b>主体的・対話的で深い学び</b>（アクティブ・ラーニングの視点）による授業改善。',
+   '<b>カリキュラム・マネジメント</b>：教育課程をPDCAで編成・実施・評価・改善。',
+   '学習の基盤となる資質・能力＝<b>言語能力・情報活用能力・問題発見・解決の能力</b>。'],
+  src:'文科省「小学校学習指導要領解説 総則編」(H29.6)'},
+ {id:'reiwa',cls:'extra',name:'「令和の日本型学校教育」答申',tag:'中教審 R3.1',cat:'指導要領',
+  points:[
+   '目指す姿＝<b>「全ての子供たちの可能性を引き出す、個別最適な学びと協働的な学びの実現」</b>。',
+   '<b>個別最適な学び</b>＝「指導の個別化」＋「学習の個性化」。<b>協働的な学び</b>と一体的に充実。',
+   '理念＝<b>誰一人取り残さない</b>。2020年代を通じて実現。GIGAスクールが基盤。'],
+  src:'中央教育審議会答申(令和3年1月)'},
+ {id:'vision',cls:'vision',map:1,name:'新・沖縄21世紀ビジョン基本計画',tag:'R4〜R13（沖縄振興計画）',cat:'ビジョン',
+  points:[
+   '<b>県政全体の最上位計画</b>。各分野計画の親。教育振興基本計画もこれを「踏まえた計画の一つ」。',
+   '基本理念：時代を切り拓き、世界と交流し、ともに支え合う平和で豊かな<b>「美ら島」おきなわ</b>。',
+   '2つの基軸：<b>沖縄らしい優しい社会の構築</b>／<b>強くしなやかな自立型経済の構築</b>。',
+   '<b>5つの将来像</b>の実現と<b>4つの固有課題</b>（駐留軍用地跡地の利用、離島の条件不利性 等）の克服。'],
+  src:'沖縄県「新・沖縄21世紀ビジョン基本計画」(R4)'},
+ {id:'plan',cls:'plan',map:1,name:'沖縄県教育振興基本計画',tag:'R4〜R13（10年間）',cat:'計画',
+  points:[
+   '法的根拠＝<b>教育基本法第17条第2項</b>（地方の参酌・努力義務）。ビジョン計画と教育基本法に基づく県教育の基本計画。',
+   'キャッチフレーズ：<b>新しい時代を切り拓く人づくり</b>。',
+   '目標：平和で安らぎと活力ある社会の形成者、郷土文化を継承し国際・情報社会で活躍する心身ともに健全な県民の育成。',
+   '<b>主要施策は6本</b>：①「生きる力」を育む学校教育の充実 ②多様な能力を育て、力強く未来を拓く人づくり ③子どもの貧困の解消に向けた総合的な支援の推進 ④多様な学びの享受に向けた環境づくり ⑤沖縄文化の保存・継承・創造と更なる発展 ⑥新しい時代を展望した教育行政の充実。'],
+  src:'沖縄県教育委員会「沖縄県教育振興基本計画」(R4〜R13) p.2,16'},
+ {id:'doryoku',cls:'doryoku',map:1,name:'学校教育における指導の努力点',tag:'県教委・毎年度【要更新】',cat:'努力点',
+  points:[
+   '基本計画を受けた<b>当該年度の学校・教員向け指導指針</b>。<b>毎年度改訂されるため受験年度版で要確認</b>。',
+   '三本柱＝<b>確かな学力の育成／豊かな心の育成／健やかな体の育成</b>（＝生きる力）。',
+   '近年の重点（例）：主体的・対話的で深い学びと<b>教育DX</b>、平和教育、不登校・いじめ未然防止、児童生徒支援体制、健康・安全教育、キャリア教育、インクルーシブ教育・特別支援。',
+   '<b>働き方改革</b>・メンタルヘルス対策・<b>教職員確保</b>を一体的に推進。'],
+  src:'沖縄県教育委員会「学校教育における指導の努力点」(各年度)'},
+ {id:'proj',cls:'proj',map:1,name:'「自立した学習者」育成プロジェクト',tag:'＝学力向上推進施策 R7〜R9【要更新】',cat:'自立した学習者',
+  points:[
+   '<b>自立した学習者</b>＝目的や状況に応じて、自分に合った学び方を工夫したり、学習意欲を自ら引き出したりして学習できる児童生徒。',
+   '核＝<b>「子供の姿」に基づく授業改善</b>（教師の姿→子供の姿へ視点転換）。本県のめざす授業＝<b>「問い」が生まれる授業</b>。',
+   '授業改善<b>4つの取組</b>：①「個別最適な学び」と「協働的な学び」の一体的充実 ②「学習基盤としてのICT」の活用 ③「指導と評価の一体化」の実現 ④「自学自習力」を育む取組の充実。',
+   '育成を支える<b>4つのポイント</b>（生徒指導提要の4観点）：自己存在感の感受／共感的な人間関係の育成／自己決定の場の提供／安全・安心な風土の醸成。',
+   '共通実践事項（R7例）：①「目指す児童生徒像」実現化を目指した校内研修の充実 ②児童生徒の変容につながるPDCAサイクルの確立。',
+   'キャリア教育で身に付けさせたい4つの力<b>「かふやみ」</b>：かかわる・ふり返る・やりぬく・みとおす力。'],
+  src:'沖縄県教育委員会「『自立した学習者』育成プロジェクト」(R7)'},
+ {id:'seitoshido',cls:'extra',name:'生徒指導提要（2022改訂）',tag:'文科省 R4',cat:'生徒指導',
+  points:[
+   '生徒指導の<b>2軸3類4層</b>構造：時間軸（常態的／即応的）×<b>発達支持的・課題予防的（未然防止／早期発見対応）・困難課題対応的</b>。',
+   '生徒指導実践上の<b>4つの視点</b>＝自己存在感の感受／共感的な人間関係／自己決定の場／安全・安心な風土。',
+   '<b>特別活動</b>を生徒指導が中心的に行われる場と位置づけ。'],
+  src:'文部科学省「生徒指導提要」(令和4年改訂)'},
+ {id:'ijime',cls:'extra',name:'いじめ防止対策推進法',tag:'H25',cat:'生徒指導',
+  points:[
+   'いじめの定義＝対象児童生徒が<b>心身の苦痛を感じているもの</b>（行為を受けた側の認識が基準）。',
+   '学校は<b>学校いじめ防止基本方針</b>を策定し、<b>いじめ対策の組織</b>を常設（組織的対応）。',
+   '生命・心身・財産に重大な被害、相当期間の不登校等＝<b>重大事態</b>として調査（第28条）。'],
+  src:'いじめ防止対策推進法'},
+ {id:'hoken',cls:'extra',name:'学校保健安全法',tag:'保健・安全',cat:'生徒指導',
+  points:[
+   '保健：健康診断、感染症による<b>出席停止は校長(第19条)</b>、<b>臨時休業は学校の設置者(第20条)</b>。',
+   '安全：<b>学校安全計画(第27条)</b>、<b>危険等発生時対処要領＝危機管理マニュアル(第29条)</b>の作成義務。'],
+  src:'学校保健安全法'},
+ {id:'team',cls:'extra',name:'チーム学校・コミュニティ・スクール',tag:'中教審 H27 等',cat:'計画',
+  points:[
+   '<b>チームとしての学校</b>（H27答申）＝校長のリーダーシップの下、専門スタッフ（SC・SSW等）と連携し組織的に対応。',
+   '<b>コミュニティ・スクール</b>＝<b>学校運営協議会（地教行法第47条の5）</b>を置く学校。地域とともにある学校づくり、地域学校協働活動と一体的推進。'],
+  src:'中教審答申／地方教育行政法'}
+];
+
+const LOOKUP=[
+ {sit:'不登校・いじめへの対応',kw:'不登校 いじめ 重大事態 魅力ある学校 未然防止 生徒指導',
+  based:[['いじめ防止対策推進法','学校いじめ防止基本方針・対策組織・重大事態(28条)'],['生徒指導提要(2022)','発達支持的→課題予防的→困難課題対応的の重層'],['指導の努力点','豊かな心／魅力ある学校づくりによる未然防止・組織的対応']]},
+ {sit:'学力向上・授業改善の根拠',kw:'学力 授業改善 主体的 対話的 深い学び 全国学調',
+  based:[['自立した学習者P','「子供の姿」に基づく授業改善＋4つの取組'],['学習指導要領 総則','主体的・対話的で深い学び／三つの柱'],['令和答申','個別最適×協働的な学びの一体的充実']]},
+ {sit:'ICT・GIGA・教育DX',kw:'ICT GIGA 端末 DX 情報活用能力 クラウド',
+  based:[['自立した学習者P','「学習基盤としてのICT」の活用（1人1台＋クラウド／校務∽授業∽研修）'],['学習指導要領 総則','情報活用能力＝学習の基盤となる資質・能力'],['令和答申','個別最適な学びの基盤']]},
+ {sit:'校内研修・人材育成',kw:'校内研修 研修 OJT 初任者 中堅 指標 育成',
+  based:[['教育公務員特例法','初任者研修(23)・中堅教諭等資質向上研修(24)・指導改善研修(25)・指標'],['自立した学習者P','「目指す児童生徒像」実現化を目指した校内研修'],['管理職の役割','キャリアステージに応じた成長支援→学校全体の教育力向上']]},
+ {sit:'働き方改革・教職員の負担軽減',kw:'働き方改革 多忙化 メンタルヘルス 勤務 教員確保',
+  based:[['指導の努力点','働き方改革・メンタルヘルス・教職員確保を一体的に推進'],['チーム学校','専門スタッフとの連携・分担で負担軽減'],['教育振興基本計画','施策⑥＝学校の働き方改革']]},
+ {sit:'キャリア教育',kw:'キャリア教育 かふやみ 進路 社会的職業的自立 基礎的汎用的能力',
+  based:[['自立した学習者P／キャリア教育の基本方針','「かふやみ」＝かかわる・ふり返る・やりぬく・みとおす力'],['教育振興基本計画','施策①個性を伸ばし自立に向けた資質・能力（非認知能力）']]},
+ {sit:'特別支援・インクルーシブ教育',kw:'特別支援 インクルーシブ 障害 個別最適 合理的配慮 個別の教育支援計画',
+  based:[['指導の努力点','インクルーシブ教育・特別支援教育の充実'],['令和答申','「誰一人取り残さない」個別最適な学び'],['個別計画','個別の教育支援計画（関係機関連携）／個別の指導計画（指導）']]},
+ {sit:'子どもの貧困への支援',kw:'貧困 就学援助 居場所 相対的貧困 通学費',
+  based:[['教育振興基本計画','施策③子どもの貧困解消に向けた総合的支援（就学援助・居場所・通学費）']]},
+ {sit:'教育課程の編成・評価',kw:'教育課程 カリキュラム マネジメント PDCA 編成 授業時数 職員会議',
+  based:[['学習指導要領 総則','カリキュラム・マネジメント／社会に開かれた教育課程'],['学校教育法施行規則','標準授業時数／職員会議＝校長の補助機関(48条)'],['自立した学習者P','「指導と評価の一体化」']]},
+ {sit:'学校安全・事故・防災',kw:'安全 事故 防災 危機管理 出席停止 臨時休業 感染症',
+  based:[['学校保健安全法','学校安全計画(27)・危機管理マニュアル(29)・出席停止(校長19)・臨時休業(設置者20)']]},
+ {sit:'保護者対応・苦情',kw:'保護者 苦情 クレーム 説明責任 記録 組織的',
+  based:[['チーム学校','組織的・チームで対応（個人で抱えない）'],['服務','誠実な説明と正確な記録、守秘義務の遵守']]},
+ {sit:'服務・コンプライアンス・個人情報',kw:'服務 信用失墜 守秘義務 職務専念 政治的行為 懲戒 分限 個人情報 SNS',
+  based:[['地方公務員法','全体の奉仕者(30)・信用失墜(33)・守秘義務(34)・職務専念(35)／分限(28)と懲戒(29)の区別'],['個人情報','情報管理の徹底・SNS利用の留意']]},
+ {sit:'地域連携・コミュニティスクール',kw:'地域 連携 コミュニティスクール 学校運営協議会 協働',
+  based:[['地教行法','学校運営協議会＝第47条の5（コミュニティ・スクール）'],['チーム学校','地域学校協働活動と一体的推進']]},
+ {sit:'計画の体系・なぜこの施策か説明',kw:'体系 上位計画 根拠 ビジョン 大綱 整合 スクールプラン',
+  based:[['新ビジョン基本計画','県政の最上位計画（親）'],['教育振興基本計画','ビジョン＋教育基本法第17条第2項に基づく10年計画'],['努力点→自立した学習者P','基本計画を年度の現場指針・授業改善へ具体化']]}
+];
+
+const QUESTIONS=[
+ // 法規
+ {id:'q01',type:'qa',cat:'法規',q:'地方公共団体の教育振興基本計画の根拠条文は？（項まで）',a:'教育基本法 第17条第2項（参酌して定める努力義務）',src:'教育基本法'},
+ {id:'q02',type:'qa',cat:'法規',q:'学校教育法で校長の職務はどう規定されているか。',a:'校務をつかさどり、所属職員を監督する（第37条第4項）',src:'学校教育法'},
+ {id:'q03',type:'qa',cat:'法規',q:'体罰の禁止を定める条文は？',a:'学校教育法第11条（懲戒は可、体罰は不可）',src:'学校教育法'},
+ {id:'q04',type:'qa',cat:'法規',q:'職員会議の法令上の位置づけは？',a:'校長の職務の円滑な執行に資するための補助機関（学校教育法施行規則第48条）',src:'学校教育法施行規則'},
+ {id:'q05',type:'qa',cat:'法規',q:'教育の大綱と総合教育会議を策定・招集するのは誰か。',a:'地方公共団体の長（首長）。根拠は地教行法。',src:'地方教育行政法'},
+ {id:'q06',type:'qa',cat:'法規',q:'コミュニティ・スクール（学校運営協議会）の根拠条文は？',a:'地方教育行政法 第47条の5',src:'地方教育行政法'},
+ {id:'q07',type:'qa',cat:'法規',q:'地方公務員の「服務の根本基準」を定める条文と内容は？',a:'地公法第30条＝全体の奉仕者として公共の利益のために勤務',src:'地方公務員法'},
+ {id:'q08',type:'qa',cat:'法規',q:'教員の法定研修3種を挙げよ。',a:'初任者研修(教特法23)・中堅教諭等資質向上研修(24)・指導改善研修(25)',src:'教育公務員特例法'},
+ // 指導要領
+ {id:'q09',type:'qa',cat:'指導要領',q:'H29学習指導要領の基盤となる理念を答えよ。',a:'社会に開かれた教育課程',src:'小学校学習指導要領解説 総則編'},
+ {id:'q10',type:'qa',cat:'指導要領',q:'「主体的・対話的で深い学び」は何の視点と言い換えられるか。',a:'アクティブ・ラーニングの視点',src:'小学校学習指導要領解説 総則編'},
+ {id:'q11',type:'qa',cat:'指導要領',q:'「令和の日本型学校教育」が目指す2つの学びは？',a:'個別最適な学び（指導の個別化＋学習の個性化）と協働的な学び',src:'中教審答申(R3.1)'},
+ // ビジョン
+ {id:'q12',type:'qa',cat:'ビジョン',q:'沖縄県政全体の最上位に位置づく計画は？',a:'新・沖縄21世紀ビジョン基本計画（R4〜R13）',src:'新・沖縄21世紀ビジョン基本計画'},
+ {id:'q13',type:'qa',cat:'ビジョン',q:'新・沖縄21世紀ビジョン基本計画の2つの基軸は？',a:'沖縄らしい優しい社会の構築／強くしなやかな自立型経済の構築',src:'新・沖縄21世紀ビジョン基本計画'},
+ // 計画
+ {id:'q14',type:'qa',cat:'計画',q:'沖縄県教育振興基本計画の期間とキャッチフレーズは？',a:'令和4〜13年度（10年間）／「新しい時代を切り拓く人づくり」',src:'沖縄県教育振興基本計画'},
+ {id:'q15',type:'qa',cat:'計画',q:'沖縄県教育振興基本計画の主要施策は何本か。第1の柱は？',a:'6本。第1＝「生きる力」を育む学校教育の充実',src:'沖縄県教育振興基本計画 p.16'},
+ // 努力点
+ {id:'q16',type:'qa',cat:'努力点',q:'「指導の努力点」の三本柱（＝生きる力）は？',a:'確かな学力の育成／豊かな心の育成／健やかな体の育成',src:'学校教育における指導の努力点'},
+ // 自立した学習者
+ {id:'q17',type:'qa',cat:'自立した学習者',q:'本県における「自立した学習者」の定義を答えよ。',a:'目的や状況に応じて、自分に合った学び方を工夫したり、学習意欲を自ら引き出したりして学習できる児童生徒',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q18',type:'qa',cat:'自立した学習者',q:'「自立した学習者」育成の核となる授業改善の考え方は？',a:'「子供の姿」に基づく授業改善（教師の姿→子供の姿へ視点転換）',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q19',type:'qa',cat:'自立した学習者',q:'本県が提唱する「めざす授業」を一言で言うと？',a:'「問い」が生まれる授業',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q20',type:'qa',cat:'自立した学習者',q:'キャリア教育の4つの力「かふやみ」とは？',a:'かかわる力・ふり返る力・やりぬく力・みとおす力',src:'沖縄県キャリア教育の基本方針'},
+ {id:'q21',type:'qa',cat:'自立した学習者',q:'「自学自習力」とは何か。',a:'目標達成に向けて自分の現状を把握し、必要な学習を計画し、自己調整しながら継続して学習する力',src:'「自立した学習者」育成プロジェクト'},
+ // 生徒指導
+ {id:'q22',type:'qa',cat:'生徒指導',q:'いじめ防止対策推進法上の「いじめ」の判断基準は？',a:'対象の児童生徒が心身の苦痛を感じているもの（受けた側の認識が基準）',src:'いじめ防止対策推進法'},
+ {id:'q23',type:'qa',cat:'生徒指導',q:'感染症による出席停止と臨時休業、それぞれの権限者は？',a:'出席停止＝校長(第19条)、臨時休業＝学校の設置者(第20条)',src:'学校保健安全法'},
+ {id:'q24',type:'qa',cat:'生徒指導',q:'生徒指導提要(2022)の生徒指導の構造を端的に。',a:'2軸3類4層（発達支持的・課題予防的（未然防止/早期発見対応）・困難課題対応的）',src:'生徒指導提要(2022)'},
+
+ // 4択
+ {id:'q25',type:'mc',cat:'指導要領',q:'学習指導要領「資質・能力の三つの柱」に<b>含まれない</b>ものは？',
+  choices:['知識及び技能','思考力・判断力・表現力等','学びに向かう力・人間性等','確かな学力・豊かな心・健やかな体'],ans:3,
+  exp:'「確かな学力・豊かな心・健やかな体」は“生きる力”の3要素。三つの柱とは別概念。',src:'小学校学習指導要領解説 総則編'},
+ {id:'q26',type:'mc',cat:'計画',q:'沖縄県教育振興基本計画の主要施策の本数として正しいものは？',
+  choices:['4本','6本','7本','9本'],ans:1,
+  exp:'主要施策は6本。スポーツや体力向上は施策①の中に含まれ、独立の柱ではない。',src:'沖縄県教育振興基本計画 p.16'},
+ {id:'q27',type:'mc',cat:'法規',q:'教育振興基本計画について、地方公共団体の根拠条文は？',
+  choices:['教育基本法第16条','教育基本法第17条第1項','教育基本法第17条第2項','地方自治法第2条'],ans:2,
+  exp:'第17条第1項が国（策定義務）、第2項が地方（参酌・努力義務）。',src:'教育基本法'},
+ {id:'q28',type:'mc',cat:'自立した学習者',q:'授業改善「4つの取組」に当たらないものは？',
+  choices:['個別最適な学びと協働的な学びの一体的充実','学習基盤としてのICTの活用','指導と評価の一体化','少人数学級の推進'],ans:3,
+  exp:'少人数学級は基本計画の施策。4つ目は「自学自習力を育む取組の充実」。',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q29',type:'mc',cat:'自立した学習者',q:'育成を支える「4つのポイント」の出典は？',
+  choices:['生徒指導提要','学習指導要領','教育基本法','人権教育の指導方法'],ans:0,
+  exp:'自己存在感の感受・共感的な人間関係・自己決定の場・安全安心な風土＝生徒指導提要の4観点。',src:'生徒指導提要(2022)'},
+ {id:'q30',type:'mc',cat:'法規',q:'教育の大綱を定めるのは誰か。',
+  choices:['教育長','教育委員会','地方公共団体の長（首長）','校長会'],ans:2,
+  exp:'大綱・総合教育会議は首長。地教行法が根拠。',src:'地方教育行政法'},
+ {id:'q31',type:'mc',cat:'法規',q:'体罰の禁止を定める条文は？',
+  choices:['学校教育法第11条','学校教育法第37条','地方公務員法第33条','教育基本法第6条'],ans:0,
+  exp:'第11条＝懲戒は認めるが体罰は禁止。第37条は校長等の職務。',src:'学校教育法'},
+ {id:'q32',type:'mc',cat:'法規',q:'分限処分と懲戒処分の説明として正しいものは？',
+  choices:['分限は制裁、懲戒は身分上の措置','分限は身分上の措置、懲戒は制裁','両方とも制裁','両方とも本人の責任を問わない'],ans:1,
+  exp:'分限(28条)＝公務能率維持のための身分上の措置、懲戒(29条)＝義務違反への制裁。',src:'地方公務員法'},
+ {id:'q33',type:'mc',cat:'生徒指導',q:'学校安全計画・危機管理マニュアルの作成義務を定める法律は？',
+  choices:['いじめ防止対策推進法','学校保健安全法','学校教育法','災害対策基本法'],ans:1,
+  exp:'学校安全計画(27条)・危険等発生時対処要領＝危機管理マニュアル(29条)。',src:'学校保健安全法'},
+ {id:'q34',type:'mc',cat:'指導要領',q:'学習の基盤となる資質・能力に<b>含まれない</b>ものは？',
+  choices:['言語能力','情報活用能力','問題発見・解決の能力','体力'],ans:3,
+  exp:'学習の基盤＝言語能力・情報活用能力・問題発見・解決の能力。',src:'小学校学習指導要領解説 総則編'},
+
+ // 穴埋め
+ {id:'q35',type:'cloze',cat:'指導要領',
+  parts:['H29学習指導要領のキーワードは、資質・能力の',{b:'三つの柱'},'、',{b:'主体的・対話的で深い学び'},'、',{b:'カリキュラム・マネジメント'},'であり、その基盤は',{b:'社会に開かれた教育課程'},'である。'],
+  src:'小学校学習指導要領解説 総則編'},
+ {id:'q36',type:'cloze',cat:'自立した学習者',
+  parts:['授業改善の4つの取組は、',{b:'個別最適'},'な学びと',{b:'協働的'},'な学びの一体的充実、',{b:'学習基盤としてのICT'},'の活用、',{b:'指導と評価の一体化'},'、',{b:'自学自習力'},'を育む取組の充実である。'],
+  src:'「自立した学習者」育成プロジェクト'},
+ {id:'q37',type:'cloze',cat:'自立した学習者',
+  parts:['育成を支える4つのポイントは、',{b:'自己存在感'},'の感受、',{b:'共感的な人間関係'},'の育成、',{b:'自己決定の場'},'の提供、',{b:'安全・安心な風土'},'の醸成である。'],
+  src:'生徒指導提要(2022)'},
+ {id:'q38',type:'cloze',cat:'計画',
+  parts:['沖縄県教育振興基本計画は',{b:'教育基本法第17条第2項'},'を根拠とし、期間は',{b:'令和4〜13年度'},'、主要施策は',{b:'6'},'本、キャッチフレーズは「',{b:'新しい時代を切り拓く人づくり'},'」である。'],
+  src:'沖縄県教育振興基本計画'},
+ {id:'q39',type:'cloze',cat:'努力点',
+  parts:['指導の努力点の三本柱は、',{b:'確かな学力'},'の育成、',{b:'豊かな心'},'の育成、',{b:'健やかな体'},'の育成であり、これらは',{b:'生きる力'},'にあたる。'],
+  src:'学校教育における指導の努力点'},
+ {id:'q40',type:'cloze',cat:'ビジョン',
+  parts:['新・沖縄21世紀ビジョン基本計画の基本理念のキーワードは「',{b:'美ら島'},'」おきなわであり、2つの基軸は',{b:'優しい社会'},'と',{b:'自立型経済'},'の構築である。'],
+  src:'新・沖縄21世紀ビジョン基本計画'},
+ {id:'q41',type:'cloze',cat:'法規',
+  parts:['学校教育法第37条で校長は、',{b:'校務をつかさどり'},'、',{b:'所属職員を監督する'},'と規定され、職員会議は施行規則第48条で校長の',{b:'補助機関'},'と位置づけられる。'],
+  src:'学校教育法・同施行規則'},
+ {id:'q42',type:'cloze',cat:'法規',
+  parts:['教員の法定研修は、',{b:'初任者研修'},'（教特法23条）、',{b:'中堅教諭等資質向上研修'},'（24条）、',{b:'指導改善研修'},'（25条）である。'],
+  src:'教育公務員特例法'},
+
+ // 並べ替え
+ {id:'q43',type:'order',cat:'体系',q:'計画の体系を「上位→下位」に並べ替えよ。',
+  items:['学習指導要領・教育基本法（国）','新・沖縄21世紀ビジョン基本計画（県の最上位）','沖縄県教育振興基本計画','学校教育における指導の努力点','「自立した学習者」育成プロジェクト'],
+  exp:'国の法令・要領を踏まえ、県の最上位計画→教育の基本計画→年度の現場指針→授業改善の実践核へと具体化される。',src:'「自立した学習者」育成プロジェクト 位置付け図'},
+ {id:'q44',type:'order',cat:'自立した学習者',q:'PDCAサイクルを正しい順に並べ替えよ。',
+  items:['Plan（計画）','Do（実行）','Check（検証）','Action（改善）'],
+  exp:'Checkはデータ活用で「児童生徒の変容」を評価する段階。目標は定量化する。',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q45',type:'order',cat:'自立した学習者',q:'「探究のサイクル」の学習過程を順に並べ替えよ。',
+  items:['課題の設定','情報の収集','整理・分析','まとめ・表現'],
+  exp:'ICTを学習基盤として、探究の各過程に1人1台端末を日常的・効果的に活用する。',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q46',type:'order',cat:'生徒指導',q:'生徒指導の3類を「予防の段階が早い順」に並べ替えよ。',
+  items:['発達支持的生徒指導','課題予防的生徒指導','困難課題対応的生徒指導'],
+  exp:'全員対象の発達支持→予防（未然防止・早期発見対応）→特定の児童生徒への困難課題対応、の重層構造。',src:'生徒指導提要(2022)'},
+
+ // 関係づけ
+ {id:'q47',type:'match',cat:'自立した学習者',q:'「かふやみ」の各文字と力を対応づけよ。',
+  pairs:[['か','かかわる力'],['ふ','ふり返る力'],['や','やりぬく力'],['み','みとおす力']],src:'沖縄県キャリア教育の基本方針'},
+ {id:'q48',type:'match',cat:'体系',q:'資料とレベル（役割）を対応づけよ。',
+  pairs:[['教育基本法','すべての土台（国の法令）'],['新・沖縄21世紀ビジョン基本計画','県政の最上位計画'],['指導の努力点','年度ごとの現場指針'],['自立した学習者プロジェクト','学力向上の実践核']],src:'計画体系'},
+ {id:'q49',type:'match',cat:'法規',q:'地方公務員法の各条文と内容を対応づけよ。',
+  pairs:[['第30条','全体の奉仕者（服務の根本基準）'],['第33条','信用失墜行為の禁止'],['第34条','守秘義務'],['第35条','職務専念義務']],src:'地方公務員法'},
+ {id:'q50',type:'match',cat:'法規',q:'各事項と根拠法令を対応づけよ。',
+  pairs:[['体罰の禁止','学校教育法第11条'],['学校運営協議会','地教行法第47条の5'],['危機管理マニュアル','学校保健安全法第29条'],['初任者研修','教育公務員特例法第23条']],src:'各法令'},
+ {id:'q51',type:'match',cat:'生徒指導',q:'学校保健安全法の権限を対応づけよ。',
+  pairs:[['出席停止','校長（第19条）'],['臨時休業','学校の設置者（第20条）'],['学校安全計画','学校（第27条）'],['危機管理マニュアル','学校（第29条）']],src:'学校保健安全法'},
+
+ // ===== 増補：憲法・教育法規 =====
+ {id:'q52',type:'qa',cat:'法規',q:'「教育を受ける権利」と義務教育の無償を定める憲法の条文は？',a:'日本国憲法第26条',src:'日本国憲法'},
+ {id:'q53',type:'mc',cat:'法規',q:'義務教育の「無償」が及ぶ範囲として正しいものは？',choices:['授業料の不徴収','給食費','制服代','学用品すべて'],ans:0,exp:'憲法26条2項の無償＝授業料不徴収。教科書は別途法律で無償給与。',src:'日本国憲法／教科書無償措置法'},
+ {id:'q54',type:'qa',cat:'法規',q:'教育基本法第1条が掲げる教育の目的は？',a:'人格の完成を目指し、平和で民主的な国家及び社会の形成者として必要な資質を備えた心身ともに健康な国民の育成',src:'教育基本法第1条'},
+ {id:'q55',type:'qa',cat:'法規',q:'教育基本法第9条が定める教員の在り方を端的に。',a:'自己の崇高な使命を深く自覚し、絶えず研究と修養に励み、職責の遂行に努める',src:'教育基本法第9条'},
+ {id:'q56',type:'mc',cat:'法規',q:'教育の機会均等を定める教育基本法の条文は？',choices:['第2条','第4条','第6条','第9条'],ans:1,exp:'第4条＝教育の機会均等（人種・信条・性別・社会的身分等で差別されない）。',src:'教育基本法'},
+ {id:'q57',type:'qa',cat:'法規',q:'「設置者管理主義・設置者負担主義」を定める条文は？',a:'学校教育法第5条',src:'学校教育法'},
+ {id:'q58',type:'mc',cat:'法規',q:'性行不良で他の児童の妨げとなる児童の「出席停止」を命じる主体は？',choices:['校長','市町村教育委員会（保護者に対し）','都道府県教育委員会','学級担任'],ans:1,exp:'学校教育法第35条。問題行動の出席停止は市町村教委が保護者に命令。感染症(学校保健安全法19条)は校長で別。',src:'学校教育法第35条'},
+ {id:'q59',type:'mc',cat:'法規',q:'指導要録の保存期間として正しい組合せは？',choices:['学籍5年・指導5年','学籍20年・指導5年','学籍20年・指導20年','学籍10年・指導3年'],ans:1,exp:'施行規則：学籍に関する記録20年、指導に関する記録5年。',src:'学校教育法施行規則'},
+ {id:'q60',type:'qa',cat:'法規',q:'各学校が自己評価を行い結果を公表する根拠は？',a:'学校教育法第42条（学校評価）／施行規則',src:'学校教育法'},
+ {id:'q61',type:'qa',cat:'法規',q:'県費負担教職員の任命権者と給与負担者は？',a:'任命権＝都道府県教育委員会（地教行法第37条）、給与負担＝都道府県。服務監督は市町村教委。',src:'地教行法／市町村立学校職員給与負担法'},
+ {id:'q62',type:'mc',cat:'法規',q:'地方公務員の「営利企業への従事等の制限」を定める条文は？',choices:['第30条','第34条','第36条','第38条'],ans:3,exp:'地公法第38条＝営利企業への従事等の制限（任命権者の許可が必要）。',src:'地方公務員法'},
+ {id:'q63',type:'qa',cat:'法規',q:'懲戒処分(地公法29条)の4種類を挙げよ。',a:'戒告・減給・停職・免職',src:'地方公務員法第29条'},
+ {id:'q64',type:'mc',cat:'法規',q:'分限処分(地公法28条)に当たらないものは？',choices:['降任','休職','減給','免職'],ans:2,exp:'分限＝降任・免職・休職・降給。減給は懲戒処分。',src:'地方公務員法第28条'},
+ {id:'q65',type:'qa',cat:'法規',q:'公立学校教員の政治的行為の制限は、何の例によるか？',a:'国家公務員の例による（教育公務員特例法第18条）',src:'教育公務員特例法'},
+ {id:'q66',type:'qa',cat:'法規',q:'児童虐待を受けたと思われる児童を発見した者の義務は？',a:'速やかに市町村・児童相談所等へ通告する（児童虐待防止法第6条）。守秘義務違反にはならない。',src:'児童虐待防止法'},
+ {id:'q67',type:'mc',cat:'法規',q:'こども家庭庁の発足とこども基本法の施行の時期は？',choices:['2021年4月','2022年4月','2023年4月','2024年4月'],ans:2,exp:'令和5年（2023）4月に発足・施行。こどもまんなか社会の実現。',src:'こども基本法'},
+ {id:'q68',type:'qa',cat:'法規',q:'障害者差別解消法が学校等に求める、障害のある人への対応は？',a:'合理的配慮の提供（不当な差別的取扱いの禁止）',src:'障害者差別解消法'},
+ {id:'q69',type:'match',cat:'法規',q:'事項と根拠条文を対応づけよ。',pairs:[['教育の目的','教育基本法第1条'],['教育を受ける権利','憲法第26条'],['出席停止(問題行動)','学校教育法第35条'],['営利企業従事制限','地方公務員法第38条']],src:'各法令'},
+ {id:'q70',type:'order',cat:'法規',q:'処分・指導の重さ（軽→重）で懲戒処分を並べ替えよ。',items:['戒告','減給','停職','免職'],exp:'地公法29条の懲戒は戒告→減給→停職→免職の順に重い。',src:'地方公務員法'},
+
+ // ===== 増補：学習指導要領 =====
+ {id:'q71',type:'qa',cat:'指導要領',q:'観点別学習状況の評価の「3観点」は？',a:'知識・技能／思考・判断・表現／主体的に学習に取り組む態度',src:'小学校学習指導要領（評価）'},
+ {id:'q72',type:'mc',cat:'指導要領',q:'道徳は現在どう位置づけられているか。',choices:['教科外活動','特別の教科 道徳','総合的な学習の時間の一部','選択教科'],ans:1,exp:'小学校はH30全面実施で「特別の教科 道徳」。検定教科書・評価(記述)あり。',src:'学習指導要領'},
+ {id:'q73',type:'qa',cat:'指導要領',q:'小学校で外国語が「教科」となる学年と、外国語活動の学年は？',a:'外国語（教科）＝5・6年、外国語活動＝3・4年',src:'小学校学習指導要領'},
+ {id:'q74',type:'qa',cat:'指導要領',q:'カリキュラム・マネジメントの3つの側面のうち、教科横断の視点とは別の2つは？',a:'PDCAで教育課程の質を向上させること／地域等の人的・物的資源を活用し体制を確保すること',src:'小学校学習指導要領解説 総則編'},
+ {id:'q75',type:'mc',cat:'指導要領',q:'「深い学び」の鍵となる、各教科等の特質に応じた物事を捉える視点や考え方を何というか。',choices:['見方・考え方','問題解決','体験活動','言語活動'],ans:0,exp:'各教科等の「見方・考え方」を働かせることが深い学びの鍵。',src:'小学校学習指導要領解説 総則編'},
+ {id:'q76',type:'qa',cat:'指導要領',q:'総合的な学習の時間が育成を目指すのは、何を働かせた学習か。',a:'探究的な見方・考え方を働かせ、横断的・総合的な学習を行い、自己の生き方を考える',src:'小学校学習指導要領'},
+ {id:'q77',type:'qa',cat:'指導要領',q:'特別活動の主な内容を挙げよ。',a:'学級活動・児童会活動・クラブ活動・学校行事',src:'小学校学習指導要領'},
+ {id:'q78',type:'cloze',cat:'指導要領',parts:['観点別評価の3観点は、',{b:'知識・技能'},'、',{b:'思考・判断・表現'},'、',{b:'主体的に学習に取り組む態度'},'である。'],src:'学習指導要領（評価）'},
+ {id:'q79',type:'qa',cat:'指導要領',q:'「個に応じた指導」を充実させる2つの考え方は（令和答申）？',a:'指導の個別化と学習の個性化（＝個別最適な学び）',src:'中教審答申(R3.1)'},
+
+ // ===== 増補：生徒指導 =====
+ {id:'q80',type:'qa',cat:'生徒指導',q:'生徒指導提要が示す、生徒指導が中心的に行われる教育活動は？',a:'特別活動',src:'生徒指導提要(2022)'},
+ {id:'q81',type:'mc',cat:'生徒指導',q:'懲戒と体罰について正しいものは？',choices:['体罰も懲戒として認められる','懲戒は認められるが体罰は禁止','放課後の居残りは一律体罰','叱責は体罰に当たる'],ans:1,exp:'学校教育法11条。懲戒は可、体罰は不可。',src:'学校教育法'},
+ {id:'q82',type:'qa',cat:'生徒指導',q:'本来大人が担う家事や家族の世話を日常的に行う子どもを何というか。',a:'ヤングケアラー',src:'生徒指導提要(2022)等'},
+ {id:'q83',type:'mc',cat:'生徒指導',q:'いじめ防止対策推進法上の「重大事態」に当たるものは？',choices:['軽い口論','相当の期間(目安30日)の不登校','席替えの不満','宿題の未提出'],ans:1,exp:'生命心身財産への重大な被害、または相当期間(目安年間30日)の欠席等が重大事態。',src:'いじめ防止対策推進法第28条'},
+ {id:'q84',type:'qa',cat:'生徒指導',q:'校則について生徒指導提要が求める姿勢は？',a:'絶えず見直し、児童生徒・保護者が参画し、ホームページ等で公開するなど主体的な点検・見直し',src:'生徒指導提要(2022)'},
+ {id:'q85',type:'cloze',cat:'生徒指導',parts:['生徒指導の構造は、全員対象の',{b:'発達支持的'},'生徒指導、未然防止・早期発見対応の',{b:'課題予防的'},'生徒指導、特定の児童生徒への',{b:'困難課題対応的'},'生徒指導の重層である。'],src:'生徒指導提要(2022)'},
+
+ // ===== 増補：時事・教育課題 =====
+ {id:'q86',type:'qa',cat:'時事',q:'教員の時間外勤務手当を支給せず教職調整額を支給する法律の通称は？',a:'給特法（公立の義務教育諸学校等の教育職員の給与等に関する特別措置法）',src:'給特法'},
+ {id:'q87',type:'qa',cat:'時事',q:'休日の部活動を学校から地域の運営団体等に移していく動きを何というか。',a:'部活動の地域連携・地域移行（地域クラブ活動）',src:'文科省 部活動改革'},
+ {id:'q88',type:'mc',cat:'時事',q:'GIGAスクール構想の中核は？',choices:['1人1台端末＋高速大容量通信ネットワーク','電子黒板の全教室設置','プログラミング必修化','35人学級'],ans:0,exp:'1人1台端末とクラウド・高速通信を整備し個別最適な学びを支える。',src:'GIGAスクール構想'},
+ {id:'q89',type:'qa',cat:'時事',q:'学校での生成AI活用について文科省が示したものは？',a:'初等中等教育段階における生成AIの利用に関するガイドライン（暫定）',src:'文部科学省'},
+ {id:'q90',type:'qa',cat:'時事',q:'「こどもまんなか社会」の実現を理念に2023年に施行された法律は？',a:'こども基本法',src:'こども基本法'},
+
+ // ===== 増補：沖縄県の計画・施策 =====
+ {id:'q91',type:'qa',cat:'計画',q:'沖縄県教育振興基本計画 主要施策③のテーマは？',a:'子どもの貧困の解消に向けた総合的な支援の推進',src:'沖縄県教育振興基本計画'},
+ {id:'q92',type:'mc',cat:'計画',q:'Society5.0に対応する教育の推進は、主要施策の何に位置づくか。',choices:['施策①','施策②','施策⑤','施策⑥'],ans:1,exp:'施策②「多様な能力を育て、力強く未来を拓く人づくり」に含まれる。',src:'沖縄県教育振興基本計画'},
+ {id:'q93',type:'qa',cat:'ビジョン',q:'新・沖縄21世紀ビジョン基本計画が掲げる将来像はいくつか。',a:'5つの将来像',src:'新・沖縄21世紀ビジョン基本計画'},
+ {id:'q94',type:'match',cat:'計画',q:'沖縄県教育振興基本計画の施策番号と内容を対応づけよ。',pairs:[['①','「生きる力」を育む学校教育の充実'],['③','子どもの貧困の解消に向けた総合的な支援'],['⑤','沖縄文化の保存・継承・創造と更なる発展'],['⑥','新しい時代を展望した教育行政の充実']],src:'沖縄県教育振興基本計画'},
+ {id:'q95',type:'qa',cat:'努力点',q:'指導の努力点で、働き方改革と一体的に推進するとされる3点は？',a:'働き方改革・メンタルヘルス対策・教職員の確保',src:'学校教育における指導の努力点'},
+ {id:'q96',type:'qa',cat:'自立した学習者',q:'「個別最適な学び」を構成する2つの概念は？',a:'指導の個別化と学習の個性化',src:'「自立した学習者」育成プロジェクト／令和答申'},
+ {id:'q97',type:'mc',cat:'自立した学習者',q:'本施策が授業改善で「出発点・起点」とすべきとするものは？',choices:['教師の指導','子供の姿','教科書','学力テストの点数'],ans:1,exp:'「子供の姿」を出発点・改善の起点とする授業づくり。',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q98',type:'match',cat:'自立した学習者',q:'授業改善「4つの取組」とねらいを対応づけよ。',pairs:[['個別最適×協働的な学び','誰一人取り残さない'],['学習基盤としてのICT','1人1台端末の日常的活用'],['指導と評価の一体化','学習改善・指導改善に生かす'],['自学自習力','学習サイクルの確立']],src:'「自立した学習者」育成プロジェクト'},
+ {id:'q99',type:'order',cat:'体系',q:'「子供の姿に基づく授業改善」の論理を順に並べよ。',items:['子供の姿に着目','授業改善','学び方の質が高まる','学力の向上'],exp:'子供の姿を起点に授業改善し、学び方の質が高まることで学力が向上する。',src:'「自立した学習者」育成プロジェクト'},
+ {id:'q100',type:'qa',cat:'体系',q:'沖縄県教育振興基本計画が「踏まえる」県政全体の最上位計画は？',a:'新・沖縄21世紀ビジョン基本計画',src:'沖縄県教育振興基本計画'},
+
+ // ===== 増補：管理職実務・組織 =====
+ {id:'q101',type:'qa',cat:'法規',q:'職員会議は誰が主宰するか。',a:'校長（学校教育法施行規則第48条。職員会議は校長の補助機関）',src:'学校教育法施行規則'},
+ {id:'q102',type:'mc',cat:'法規',q:'学校評議員について正しいものは？',choices:['校長が委嘱する','設置者が委嘱し校長の求めに応じ意見を述べる','合議体で決定権をもつ','学校運営協議会と同一'],ans:1,exp:'施行規則49条。設置者が委嘱、個人として校長の求めに応じ意見。協議会(CS)とは別。',src:'学校教育法施行規則'},
+ {id:'q103',type:'qa',cat:'法規',q:'「チームとしての学校」で連携する代表的な専門スタッフは？',a:'スクールカウンセラー(SC)・スクールソーシャルワーカー(SSW)等',src:'中教審答申(H27)'},
+ {id:'q104',type:'mc',cat:'法規',q:'コミュニティ・スクールに置かれる合議制機関は？',choices:['学校評議員','学校運営協議会','職員会議','PTA総会'],ans:1,exp:'学校運営協議会（地教行法47条の5）。一定の権限をもつ。',src:'地方教育行政法'},
+ {id:'q105',type:'qa',cat:'生徒指導',q:'特別支援教育で作成する、関係機関連携のための計画と、指導のための計画は？',a:'個別の教育支援計画（関係機関連携）と個別の指導計画（指導）',src:'特別支援教育'},
+ {id:'q106',type:'qa',cat:'時事',q:'2021年に小学校で全学年35人学級とする改正が行われた法律は？',a:'義務標準法（公立義務教育諸学校の学級編制及び教職員定数の標準に関する法律）',src:'義務標準法'},
+ {id:'q107',type:'mc',cat:'指導要領',q:'幼児期の教育と小学校教育を円滑に接続するための、入学当初の工夫を何というか。',choices:['スタートカリキュラム','ブリッジプログラム','レディネステスト','アプローチ期'],ans:0,exp:'小学校入学当初のスタートカリキュラム（生活科を中心に合科的・関連的指導）。',src:'小学校学習指導要領'},
+ {id:'q108',type:'qa',cat:'法規',q:'教育委員会の代表者で事務をつかさどるのは誰か。',a:'教育長（地教行法。教育委員会の会務を総理し教育委員会を代表）',src:'地方教育行政法'},
+ {id:'q109',type:'cloze',cat:'法規',parts:['公立学校教員の研修は教特法に基づき、',{b:'初任者研修'},'、',{b:'中堅教諭等資質向上研修'},'があり、能力不足には',{b:'指導改善研修'},'が行われる。'],src:'教育公務員特例法'},
+ {id:'q110',type:'match',cat:'時事',q:'施策・取組と内容を対応づけよ。',pairs:[['GIGAスクール構想','1人1台端末'],['給特法','教職調整額'],['こども家庭庁','こどもまんなか社会'],['部活動改革','地域連携・地域移行']],src:'各施策'}
+];
+
+const RONBUN=[
+ {t:'確かな学力の育成・授業改善',q:'本県の学力に課題がある中、校長として確かな学力をどう育成するか述べよ。',
+  jo:'全国学調で全国平均を下回る現状と、コロナ禍で顕在化した「指示がないと学べない子」の課題を述べ、「自立した学習者」の育成を学校経営の柱に据える。',
+  hon:['<b>本論1：子供の姿に基づく授業改善</b>　4つの取組（個別最適×協働的、学習基盤としてのICT、指導と評価の一体化、自学自習力）から自校の実態に応じ重点化し、校内研修で日常化・共有する。','<b>本論2：データに基づくPDCA</b>　全国学調・県到達度調査でCheck→Action。目標は定量化し、形骸化を防ぐ。'],
+  ketsu:'校長のリーダーシップで組織的な授業改善を推進し、生涯学習社会を生き抜く自立した学習者を育てる決意を述べる。',
+  konkyo:['学習指導要領（主体的・対話的で深い学び／三つの柱）','「自立した学習者」育成プロジェクト','令和の日本型学校教育答申'],
+  jisaku:'校内研修の年間計画化、研究授業の相互参観、ミドルリーダーの育成、児童生徒質問紙の活用。',
+  ng:'精神論（教員の頑張り）に終始し、組織・データ・具体策がない答案。'},
+ {t:'いじめ・不登校への対応',q:'いじめの未然防止と不登校児童生徒への支援について、管理職としての方策を述べよ。',
+  jo:'いじめ・不登校の深刻化を踏まえ、未然防止と組織的対応を学校経営の重点に位置づける。',
+  hon:['<b>本論1：未然防止と組織的対応</b>　学校いじめ防止基本方針と常設の対策組織を機能させ、生徒指導提要の発達支持的・課題予防的・困難課題対応的の重層で対応。','<b>本論2：魅力ある学校づくりと支援</b>　共感的な人間関係・安全安心な風土を醸成し、SC/SSW等チーム学校で支援。重大事態は法に基づき調査。'],
+  ketsu:'「誰一人取り残さない」学校づくりを校長が先頭に立って進める。',
+  konkyo:['いじめ防止対策推進法（基本方針・対策組織・重大事態28条）','生徒指導提要(2022)','指導の努力点（豊かな心・魅力ある学校づくり）'],
+  jisaku:'アンケート・教育相談の定例化、欠席連絡のしくみ、関係機関との連携、校内ケース会議。',
+  ng:'担任任せ・事後対応のみで、未然防止と組織体制への言及がない。'},
+ {t:'働き方改革',q:'教職員が働きがいをもって職務に専念できる環境づくりについて、校長としての方策を述べよ。',
+  jo:'多忙化と教員不足を背景に、働き方改革を「教育の質の向上」と一体で進める必要性を述べる。',
+  hon:['<b>本論1：業務の見直しと時間管理</b>　会議・行事・調査の精選、ICT・校務DXの活用、勤務時間の把握と上限管理。','<b>本論2：チーム化とメンタルヘルス</b>　専門スタッフや地域人材との分担、相談体制、心理的安全性のある職場づくり。'],
+  ketsu:'働きやすさと働きがいの両立で、持続可能な学校をつくる。',
+  konkyo:['指導の努力点（働き方改革・メンタルヘルス・教職員確保を一体的に推進）','給特法／勤務時間の上限指針','チーム学校'],
+  jisaku:'定時退校日、行事の精選、出退勤管理システム、業務分担表の見直し、部活動の地域連携。',
+  ng:'「早く帰る」だけで教育の質との両立や組織的工夫がない。'},
+ {t:'ICT・教育DXの推進',q:'1人1台端末を活用した学びの充実について、校長としてどう推進するか述べよ。',
+  jo:'GIGAスクール構想で整備された端末を「学習基盤」と捉え、個別最適な学びの実現に活かす。',
+  hon:['<b>本論1：日常的・効果的な活用</b>　探究のサイクルに端末を取り入れ、情報活用能力を育成。校務∽授業∽研修で教師自身も活用。','<b>本論2：格差・情報モラルへの配慮</b>　活用格差の解消、情報モラル教育、健康面への配慮。'],
+  ketsu:'ICTを子供主体の学びへの転換の手段として位置づけ、組織的に推進する。',
+  konkyo:['学習指導要領（情報活用能力＝学習の基盤）','「自立した学習者」育成プロジェクト（学習基盤としてのICT）','令和の日本型学校教育答申'],
+  jisaku:'活用ルールの共有、ICT支援員・推進担当の配置、持ち帰り学習、研修での実演。',
+  ng:'端末を配ること自体が目的化し、学びの質や活用の視点がない。'},
+ {t:'人材育成・校内研修',q:'若手が増える中、教職員の資質向上をどう図るか、校長としての方策を述べよ。',
+  jo:'大量退職・大量採用で経験の継承が課題。校内研修を学校改善の中核に据える。',
+  hon:['<b>本論1：目指す児童生徒像の共有</b>　自校の「目指す児童生徒像」実現を目指した校内研修で、全教職員が研修を自分事に。','<b>本論2：キャリアステージに応じた育成</b>　初任者・中堅等の段階に応じOJTとメンタリング、ミドルリーダーの活用。'],
+  ketsu:'学び合う組織文化を醸成し、学校全体の教育力を高める。',
+  konkyo:['教育公務員特例法（研修・指標）','「自立した学習者」育成プロジェクト（校内研修の充実）','令和の日本型学校教育（教師の学び）'],
+  jisaku:'研究授業の相互参観、研修テーマの焦点化、若手とベテランのペア、外部研修の還元。',
+  ng:'研修を「実施した」だけで、目的・組織化・育成の視点がない。'},
+ {t:'特別支援・インクルーシブ教育',q:'多様な子供を誰一人取り残さない教育の充実について、校長としての方策を述べよ。',
+  jo:'発達障害・外国にルーツ・不登校傾向など多様な実態を踏まえ、個別最適な学びを学校全体で。',
+  hon:['<b>本論1：個に応じた指導と合理的配慮</b>　指導の個別化・学習の個性化、個別の教育支援計画／指導計画の活用、合理的配慮の提供。','<b>本論2：校内体制と連携</b>　特別支援教育コーディネーター・校内委員会、専門機関・保護者との連携。'],
+  ketsu:'多様性を生かし、一人一人の可能性を最大限に引き出す学校をつくる。',
+  konkyo:['令和の日本型学校教育（誰一人取り残さない）','障害者差別解消法（合理的配慮）','指導の努力点（インクルーシブ教育の推進）'],
+  jisaku:'校内委員会の定例化、個別計画の作成・引継ぎ、ユニバーサルデザインの授業、通級・支援員の活用。',
+  ng:'特別支援学級だけの話に矮小化し、通常学級・学校全体の視点がない。'},
+ {t:'信頼される学校・危機管理',q:'保護者・地域から信頼される学校づくりと危機管理について、校長としての方策を述べよ。',
+  jo:'説明責任と安全・安心への期待を踏まえ、開かれた学校経営と危機管理体制を両輪で進める。',
+  hon:['<b>本論1：開かれた学校経営</b>　学校評価・情報公開、学校運営協議会(CS)や地域学校協働で地域とともにある学校に。','<b>本論2：危機管理体制</b>　学校安全計画・危機管理マニュアルの実効化、組織的・初動重視の対応と記録。'],
+  ketsu:'平時の備えと誠実な対応で、信頼される学校をつくる。',
+  konkyo:['学校保健安全法（安全計画27条・危機管理マニュアル29条）','地教行法（学校運営協議会47条の5）','学校教育法（学校評価42条）'],
+  jisaku:'避難訓練・引渡し訓練、保護者への迅速な情報発信、苦情の組織的対応と記録、CSの活用。',
+  ng:'危機を個人で抱え、組織的体制・平時の備え・説明責任の視点がない。'},
+ {t:'服務規律・不祥事の防止',q:'教職員の信頼を損なう事案の防止について、校長としての取組を述べよ。',
+  jo:'体罰・わいせつ・個人情報漏えい・飲酒運転等は教育への信頼を根底から損なうため、未然防止を徹底する。',
+  hon:['<b>本論1：服務の徹底と研修</b>　全体の奉仕者としての自覚、信用失墜行為の禁止・守秘義務・職務専念義務を研修で繰り返し確認。','<b>本論2：組織風土と相談体制</b>　報告・相談しやすい風土、情報管理ルール、SNS利用の留意、早期の声かけ。'],
+  ketsu:'一人の不祥事が全教職員の信頼を損なうという自覚を共有し、未然防止に努める。',
+  konkyo:['地方公務員法（全体の奉仕者30・信用失墜33・守秘34・職務専念35）','学校教育法（体罰禁止11条）','個人情報保護'],
+  jisaku:'定例の服務研修、チェックリスト、個人情報の持出し管理、ヒヤリハットの共有。',
+  ng:'「気をつける」精神論で、研修・ルール・組織風土の具体策がない。'}
+];
+
+//==================== STATE / SRS ====================
+const KEY='okinawa_edu_app_v3';
+const DAY=86400000;
+const BOX_INTERVAL={1:0,2:1,3:3,4:7,5:16}; // Leitner: days until due
+let store=load();
+function load(){try{return Object.assign({cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null},JSON.parse(localStorage.getItem(KEY))||{});}catch(e){return{cards:{},streak:0,lastDate:null,theme:'light',dailyDate:null};}}
+function save(){localStorage.setItem(KEY,JSON.stringify(store));}
+function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
+function getCard(id){return store.cards[id];}
+function isMastered(id){const c=getCard(id);return c&&c.box>=4;}
+function stateOf(id){const c=getCard(id);if(!c)return'new';if(c.box>=4)return'mast';if(c.box===3)return'near';return'learn';}
+function isDue(id){const c=getCard(id);return !c||c.due<=Date.now();}
+function isWeak(id){const c=getCard(id);return c&&c.box<=2;}
+function review(id,ok){
+  let c=store.cards[id]||(store.cards[id]={box:1,reps:0,fails:0,due:0,last:null,hist:[]});
+  if(ok){c.box=Math.min(5,c.box+1);c.reps++;}else{c.box=1;c.reps=0;c.fails++;}
+  c.due=Date.now()+BOX_INTERVAL[c.box]*DAY;c.last=ok?'pass':'fail';c.hist.push({t:Date.now(),ok});
+  touchStreak();save();
+}
+function touchStreak(){const t=todayStr();if(store.lastDate===t)return;
+  const y=(()=>{const d=new Date(Date.now()-DAY);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();})();
+  store.streak=store.lastDate===y?(store.streak||0)+1:1;store.lastDate=t;}
+function dueList(){return QUESTIONS.filter(q=>isDue(q.id)).sort((a,b)=>((getCard(a.id)?.due)||0)-((getCard(b.id)?.due)||0));}
+
+//==================== THEME ====================
+const themeBtn=document.getElementById('themeBtn');
+function applyTheme(){document.documentElement.setAttribute('data-theme',store.theme);themeBtn.textContent=store.theme==='dark'?'☀️':'🌙';themeBtn.setAttribute('aria-pressed',store.theme==='dark');}
+themeBtn.addEventListener('click',()=>{store.theme=store.theme==='dark'?'light':'dark';save();applyTheme();});
+applyTheme();
+
+//==================== TABS ====================
+const tabs=document.getElementById('tabs');
+tabs.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;go(b.dataset.v);});
+function go(v){
+  [...tabs.children].forEach(x=>x.setAttribute('aria-selected',x.dataset.v===v));
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
+  if(v==='home')renderHome();
+  if(v==='prog')renderProg();
+  if(v==='quiz')renderQuiz();
+  if(v==='ronbun')renderRonbun();
+  const rm=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  window.scrollTo({top:0,behavior:rm?'auto':'smooth'});
+}
+
+//==================== HOME ====================
+function renderHome(){
+  const el=document.getElementById('home');
+  const total=QUESTIONS.length;
+  const counts={new:0,learn:0,near:0,mast:0};
+  QUESTIONS.forEach(q=>counts[stateOf(q.id)]++);
+  const pct=Math.round(counts.mast/total*100);
+  const due=dueList().length;
+  const r=42,c=2*Math.PI*r,off=c*(1-pct/100);
+  const hour=new Date().getHours();
+  const greet=hour<11?'おはようございます':hour<18?'おつかれさまです':'こんばんは';
+  el.innerHTML=`
+    <div class="hero">
+      <div class="row">
+        <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="${r}" fill="none" stroke="rgba(255,255,255,.25)" stroke-width="9"/>
+          <circle cx="50" cy="50" r="${r}" fill="none" stroke="#fff" stroke-width="9" stroke-linecap="round"
+            stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 50 50)"/>
+          <text x="50" y="50" text-anchor="middle" font-size="22">${pct}%</text>
+          <text x="50" y="64" text-anchor="middle" font-size="9" opacity=".85">定着</text>
+        </svg>
+        <div>
+          <h2>${greet} 👋</h2>
+          <p>定着＝安定して想起できる状態（box4以上）。</p>
+          <span class="streak">🔥 ${store.streak||0}日連続</span>
+          <div class="mini">
+            <div><b>${due}</b><span>今日の復習</span></div>
+            <div><b>${counts.mast}/${total}</b><span>定着</span></div>
+          </div>
+        </div>
+      </div>
+      <button class="cta" id="ctaDaily">${due>0?`今日の学習をはじめる（${Math.min(due,12)}問）`:'今日のノルマは完了 🎉 追加で解く'}<small>忘れた頃の問題が自動で戻ってきます（間隔反復）</small></button>
+    </div>
+    <h3 class="sec">習得の内訳</h3>
+    <div class="card">
+      <div class="layers" role="img" aria-label="定着 ${counts.mast}問、定着間近 ${counts.near}問、学習中 ${counts.learn}問、未学習 ${counts.new}問">
+        <i class="lg-mast" style="width:${counts.mast/total*100}%"></i>
+        <i class="lg-near" style="width:${counts.near/total*100}%"></i>
+        <i class="lg-learn" style="width:${counts.learn/total*100}%"></i>
+        <i class="lg-new" style="width:${counts.new/total*100}%"></i>
+      </div>
+      <div class="legend">
+        <span><i class="lg-mast"></i>定着 ${counts.mast}</span>
+        <span><i class="lg-near"></i>定着間近 ${counts.near}</span>
+        <span><i class="lg-learn"></i>学習中 ${counts.learn}</span>
+        <span><i class="lg-new"></i>未学習 ${counts.new}</span>
+      </div>
+    </div>
+    <div class="quickgrid">
+      <button class="quick" data-act="review"><span class="ic">🎯</span><b>弱点を復習</b><span>${QUESTIONS.filter(q=>isWeak(q.id)).length}問が対象</span></button>
+      <button class="quick" data-act="lookup"><span class="ic">🔎</span><b>逆引きで調べる</b><span>状況→根拠を即提示</span></button>
+      <button class="quick" data-act="map"><span class="ic">🗺️</span><b>関係図</b><span>資料のつながり</span></button>
+      <button class="quick" data-act="ref"><span class="ic">📚</span><b>要点</b><span>13資料・出典付き</span></button>
+    </div>`;
+  el.querySelector('#ctaDaily').addEventListener('click',()=>{go('quiz');startQuiz('daily');});
+  el.querySelectorAll('.quick').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.act;if(a==='review'){go('quiz');startQuiz('review');}else go(a);}));
+}
+
+//==================== MAP ====================
+function renderMap(){
+  const m=document.getElementById('map');
+  const get=id=>REF.find(x=>x.id===id);
+  const node=r=>`<button class="node ${r.cls}" data-id="${r.id}"><h2>${r.name}<span class="tag">${r.tag}</span></h2><div class="pt">${r.points[0]}<br><span style="opacity:.85">▶ もう一度タップで詳細(要点)へ</span></div></button>`;
+  let h=`<p class="hint">タップ＝要約 / もう一度タップ＝要点へ</p>`;
+  h+=`<div class="two">${node(get('law'))}${node(get('cs'))}</div>`;
+  h+=`<div class="arrow">▼<small>法令・要領を踏まえて県の計画を策定</small></div>`;
+  h+=`<div class="two">${node(get('vision'))}<button class="node daikou" data-id="_d"><h2>沖縄県教育大綱<span class="tag">地教行法・首長</span></h2><div class="pt">首長が定める教育の方向性。ビジョンと教育振興基本計画を橋渡し。</div></button></div>`;
+  h+=`<div class="arrow">▼<small>ビジョン・大綱・教育基本法を踏まえた教育分野の基本計画</small></div>`;
+  h+=node(get('plan'));
+  h+=`<div class="arrow">▼<small>基本計画を毎年度の学校現場の指針に具体化</small></div>`;
+  h+=node(get('doryoku'));
+  h+=`<div class="arrow">▼<small>「確かな学力」を授業改善で実現する中核施策</small></div>`;
+  h+=node(get('proj'));
+  m.innerHTML=h;
+  m.querySelectorAll('.node').forEach(n=>n.addEventListener('click',()=>{
+    if(!n.classList.contains('open')){n.classList.add('open');return;}
+    const id=n.dataset.id;if(get(id)){go('ref');const d=document.getElementById('acc-'+id);if(d){d.open=true;setTimeout(()=>d.scrollIntoView({behavior:'smooth',block:'center'}),60);}}
+  }));
+}
+
+//==================== REF ====================
+let refFilter='all';
+function renderRef(){
+  const el=document.getElementById('ref');
+  const cats=['all',...new Set(REF.map(r=>r.cat))];
+  el.innerHTML=`<div class="tagrow">${cats.map(c=>`<button class="filt ${c===refFilter?'on':''}" data-c="${c}">${c==='all'?'すべて':c}</button>`).join('')}</div><div id="refList"></div>`;
+  el.querySelectorAll('.filt').forEach(b=>b.addEventListener('click',()=>{refFilter=b.dataset.c;renderRef();}));
+  const list=REF.filter(r=>refFilter==='all'||r.cat===refFilter);
+  document.getElementById('refList').innerHTML=list.map(r=>`
+   <details class="acc" id="acc-${r.id}">
+     <summary><span class="dot" style="background:${COLORS[r.cls]}"></span>${r.name}<span class="chev">›</span></summary>
+     <div class="body"><ul>${r.points.map(p=>`<li>${p}</li>`).join('')}</ul>
+       <div class="src"><span>出典：${r.src}</span><button class="copybtn" data-id="${r.id}">📋 根拠をコピー</button></div></div>
+   </details>`).join('');
+  document.querySelectorAll('#refList .copybtn').forEach(b=>b.addEventListener('click',ev=>{
+    ev.preventDefault();const r=REF.find(x=>x.id===b.dataset.id);
+    const txt=`【${r.name}】\n`+r.points.map(p=>'・'+p.replace(/<[^>]+>/g,'')).join('\n')+`\n（出典：${r.src}）`;
+    navigator.clipboard.writeText(txt).then(()=>toast('根拠をコピーしました 📋')).catch(()=>toast('コピーできませんでした'));
+  }));
+}
+
+//==================== LOOKUP ====================
+function renderLookup(){
+  const el=document.getElementById('lookup');
+  el.innerHTML=`<div class="searchwrap"><span class="mag" aria-hidden="true">🔎</span>
+    <input class="search" id="lkin" placeholder="状況・キーワードで検索（例：不登校、ICT、研修）" aria-label="逆引き検索"></div>
+    <div class="chips" id="lkchips"></div><div id="lkres"></div>`;
+  const chips=el.querySelector('#lkchips');
+  LOOKUP.forEach(l=>{const b=document.createElement('button');b.textContent=l.sit;
+    b.addEventListener('click',()=>{el.querySelector('#lkin').value='';show([l]);[...chips.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');});chips.appendChild(b);});
+  el.querySelector('#lkin').addEventListener('input',e=>{const q=e.target.value.trim();[...chips.children].forEach(c=>c.classList.remove('on'));
+    show(!q?LOOKUP:LOOKUP.filter(l=>(l.sit+l.kw+l.based.map(b=>b.join('')).join('')).includes(q)));});
+  show(LOOKUP);
+  function show(list){el.querySelector('#lkres').innerHTML=list.length?list.map(l=>`<div class="lk"><h4>${l.sit}</h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}</div>`).join('')}</div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`;}
+}
+
+//==================== QUIZ ====================
+let quizCat='all',quizMode=null,quizPool=[],quizIdx=0,sCorrect=0,sAnswered=0;
+function renderQuiz(){
+  const el=document.getElementById('quiz');
+  const due=dueList().length,weak=QUESTIONS.filter(q=>isWeak(q.id)).length;
+  el.innerHTML=`
+   <div class="modegrid" id="modes">
+     <button class="mode daily" data-m="daily"><span class="ic">⚡</span><b>今日の学習（${Math.min(due,12)||'+'}問）</b><span>期日が来た問題を優先・間隔反復</span></button>
+     <button class="mode review" data-m="review"><span class="ic">🎯</span><b>弱点だけ復習（${weak}）</b><span>box1〜2の不安定な問題</span></button>
+     <button class="mode" data-m="qa"><span class="ic">💬</span><b>一問一答</b><span>答えを想起→自己評価</span></button>
+     <button class="mode" data-m="mc"><span class="ic">🔠</span><b>4択選択</b><span>本番に近い形式</span></button>
+     <button class="mode" data-m="cloze"><span class="ic">🟥</span><b>穴埋め（赤シート）</b><span>キーワードを想起</span></button>
+     <button class="mode" data-m="order"><span class="ic">🔀</span><b>並べ替え</b><span>体系・手順</span></button>
+     <button class="mode" data-m="match"><span class="ic">🔗</span><b>関係づけ</b><span>用語と意味</span></button>
+   </div>
+   <div class="catbar" id="cats" aria-label="分野で絞り込み"></div>
+   <div id="quizarea"></div>`;
+  const cats=['all',...new Set(QUESTIONS.map(q=>q.cat))];
+  const cb=el.querySelector('#cats');
+  cats.forEach(c=>{const b=document.createElement('button');b.textContent=c==='all'?'全分野':c;if(c===quizCat)b.classList.add('on');
+    b.addEventListener('click',()=>{quizCat=c;[...cb.children].forEach(x=>x.classList.remove('on'));b.classList.add('on');});cb.appendChild(b);});
+  el.querySelector('#modes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;startQuiz(b.dataset.m);});
+  quizMode=null;
+}
+function quizarea(){return document.getElementById('quizarea');}
+function startQuiz(mode){
+  quizMode=mode;quizIdx=0;sCorrect=0;sAnswered=0;
+  const cats=document.getElementById('cats');
+  const typeMode=['qa','mc','cloze','order','match'].includes(mode);
+  if(cats)cats.hidden=!typeMode;
+  if(mode==='daily'){quizPool=dueList().slice(0,12);if(!quizPool.length)quizPool=shuffle(QUESTIONS).slice(0,8);}
+  else if(mode==='review'){quizPool=shuffle(QUESTIONS.filter(q=>isWeak(q.id)));
+    if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard result"><div class="emoji">✨</div><div class="msg">弱点はありません。「今日の学習」で新しい問題に挑戦しましょう。</div></div>`;return;}}
+  else{quizPool=shuffle(QUESTIONS.filter(q=>q.type===mode&&(quizCat==='all'||q.cat===quizCat)));
+    if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard"><p class="hint">この分野×形式の問題はありません。分野を「全分野」に。</p></div>`;return;}}
+  showQ();
+}
+function showQ(){
+  const area=quizarea();
+  if(quizIdx>=quizPool.length){
+    const pct=sAnswered?Math.round(sCorrect/sAnswered*100):0;
+    const e=pct>=80?'🏆':pct>=50?'👍':'📚';
+    const msg=pct>=80?'お見事。定着が進みました。':pct>=50?'いい調子。弱点を復習しましょう。':'反復が力に。忘れた頃に自動で戻ってきます。';
+    area.innerHTML=`<div class="quizcard result"><div class="emoji">${e}</div><div class="big">${sCorrect}/${sAnswered}</div>
+      <div class="msg">正答率 ${pct}%　—　${msg}</div>
+      <button class="btn wide" id="again">もう一度</button>
+      <button class="btn ghost wide" id="back" style="margin-top:9px">モード選択へ</button></div>`;
+    area.querySelector('#again').addEventListener('click',()=>startQuiz(quizMode));
+    area.querySelector('#back').addEventListener('click',()=>renderQuiz());
+    renderHome();if(gSignedIn)cloudSync();return;
+  }
+  const q=quizPool[quizIdx];
+  const prog=`<div class="progressbar"><i style="width:${quizIdx/quizPool.length*100}%"></i></div>`;
+  const meta=`<div class="qmeta"><span class="badge">${q.cat}・${typeName(q.type)}</span><span>${quizIdx+1} / ${quizPool.length}</span></div>`;
+  area.innerHTML=prog;const card=document.createElement('div');area.appendChild(card);
+  const r={qa:renderQA,mc:renderMC,cloze:renderCloze,order:renderOrder,match:renderMatch}[q.type];
+  if(!r){quizIdx++;return showQ();}
+  r(q,meta,q.id,card);
+  const h=card.querySelector('h2,.qtext');if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
+}
+function typeName(t){return{qa:'一問一答',mc:'4択',cloze:'穴埋め',order:'並べ替え',match:'関係づけ'}[t];}
+function nextBtn(){return `<button class="btn wide" style="margin-top:14px" id="nextQ">次へ →</button>`;}
+function bindNext(s){const n=s.querySelector('#nextQ');if(n)n.addEventListener('click',()=>{quizIdx++;showQ();});}
+function srcLine(q){return `<div class="src"><span>出典：${q.src}</span></div>`;}
+function answer(id,ok){review(id,ok);sAnswered++;if(ok)sCorrect++;}
+
+function renderQA(q,meta,id,card){
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
+    <button class="btn ghost wide" id="showA">答えを表示</button>
+    <div class="reveal ok" id="A"><b>A.</b> ${q.a}${srcLine(q)}
+      <div style="margin-top:11px;display:flex;gap:9px">
+        <button class="btn ok" style="flex:1" id="g1">✓ 言えた</button>
+        <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div></div></div>`;
+  card.querySelector('#showA').addEventListener('click',()=>card.querySelector('#A').classList.add('show'));
+  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);toast('✓ 正解として記録');quizIdx++;showQ();});
+  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);toast('🎯 弱点として記録（また戻します）');quizIdx++;showQ();});
+}
+function renderMC(q,meta,id,card){
+  const ks=['A','B','C','D'];
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
+    <div id="ch">${q.choices.map((c,i)=>`<button class="choice" data-i="${i}"><span class="k">${ks[i]}</span><span>${c}</span></button>`).join('')}</div>
+    <div class="reveal" id="R"></div></div>`;
+  const wrap=card.querySelector('#ch');
+  wrap.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>{
+    const i=+b.dataset.i,ok=i===q.ans;
+    wrap.querySelectorAll('.choice').forEach((x,j)=>{x.disabled=true;
+      if(j===q.ans){x.classList.add('correct');x.querySelector('.k').textContent='✓';}
+      if(j===i&&!ok){x.classList.add('wrong');x.querySelector('.k').textContent='✗';}});
+    answer(id,ok);const R=card.querySelector('#R');R.className='reveal show '+(ok?'ok':'ng');
+    R.innerHTML=`<b>${ok?'✅ 正解':'❌ 不正解'}</b>　正答：${ks[q.ans]}. ${q.choices[q.ans]}<br>${q.exp}${srcLine(q)}${nextBtn()}`;bindNext(card);
+  }));
+}
+function renderCloze(q,meta,id,card){
+  const html=q.parts.map(p=>typeof p==='string'?p:`<span class="blank" tabindex="0" role="button" aria-label="空欄をめくる">${p.b}</span>`).join('');
+  card.innerHTML=`<div class="quizcard cloze">${meta}
+    <div class="redtoggle"><button class="btn ghost" id="allrev">全部めくる</button><span style="font-size:.72rem;color:var(--sub)">赤い部分をタップ/Enterで表示</span></div>
+    <div class="qtext" style="font-weight:500;font-size:1rem">${html}</div>
+    <div style="margin-top:14px;display:flex;gap:9px"><button class="btn ok" style="flex:1" id="g1">✓ 言えた</button><button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div>${srcLine(q)}</div>`;
+  const toggle=b=>b.classList.toggle('show');
+  card.querySelectorAll('.blank').forEach(b=>{b.addEventListener('click',()=>toggle(b));b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(b);}});});
+  card.querySelector('#allrev').addEventListener('click',()=>card.querySelectorAll('.blank').forEach(b=>b.classList.add('show')));
+  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);toast('✓ 正解として記録');quizIdx++;showQ();});
+  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);toast('🎯 弱点として記録');quizIdx++;showQ();});
+}
+function renderOrder(q,meta,id,card){
+  const sh=shuffle(q.items.map((t,i)=>({t,i})));
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
+    <ul class="orderlist" id="ol">${sh.map(o=>`<li draggable="true" data-i="${o.i}"><span class="num" aria-hidden="true">≡</span><span class="txt">${o.t}</span><span class="mv"><button class="up" aria-label="上へ">▲</button><button class="dn" aria-label="下へ">▼</button></span></li>`).join('')}</ul>
+    <button class="btn wide" id="ck">答え合わせ</button><div class="reveal" id="R"></div></div>`;
+  const ul=card.querySelector('#ol');let drag=null,answered=false;
+  const move=(li,dir)=>{if(answered)return;if(dir<0&&li.previousElementSibling)ul.insertBefore(li,li.previousElementSibling);if(dir>0&&li.nextElementSibling)ul.insertBefore(li.nextElementSibling,li);};
+  ul.addEventListener('click',e=>{const li=e.target.closest('li');if(!li)return;if(e.target.classList.contains('up'))move(li,-1);if(e.target.classList.contains('dn'))move(li,1);});
+  ul.addEventListener('dragstart',e=>{if(answered)return;drag=e.target.closest('li');drag.classList.add('dragging');});
+  ul.addEventListener('dragend',e=>{if(drag)drag.classList.remove('dragging');drag=null;});
+  ul.addEventListener('dragover',e=>{e.preventDefault();if(!drag)return;const a=after(e.clientY);if(a==null)ul.appendChild(drag);else ul.insertBefore(drag,a);});
+  ul.addEventListener('touchmove',e=>{if(!drag)return;e.preventDefault();const a=after(e.touches[0].clientY);if(a==null)ul.appendChild(drag);else ul.insertBefore(drag,a);},{passive:false});
+  ul.querySelectorAll('.num').forEach(n=>{n.addEventListener('touchstart',e=>{drag=e.target.closest('li');drag.classList.add('dragging');},{passive:true});});
+  ul.addEventListener('touchend',()=>{if(drag){drag.classList.remove('dragging');drag=null;}});
+  function after(y){return [...ul.querySelectorAll('li:not(.dragging)')].reduce((c,ch)=>{const box=ch.getBoundingClientRect();const off=y-box.top-box.height/2;return off<0&&off>c.off?{off,el:ch}:c;},{off:-Infinity}).el;}
+  card.querySelector('#ck').addEventListener('click',()=>{
+    if(answered)return;answered=true;
+    const order=[...ul.children].map(li=>+li.dataset.i),ok=order.every((v,i)=>v===i);
+    answer(id,ok);ul.querySelectorAll('li').forEach(li=>li.setAttribute('draggable','false'));
+    const R=card.querySelector('#R');R.className='reveal show '+(ok?'ok':'ng');
+    R.innerHTML=`<b>${ok?'✅ 正しい順です':'❌ 違います'}</b>${ok?'':'　正しい順：<br>'+q.items.map((t,i)=>`${i+1}. ${t}`).join('<br>')}<br>${q.exp}${srcLine(q)}${nextBtn()}`;bindNext(card);
+    card.querySelector('#ck').disabled=true;
+  });
+}
+function renderMatch(q,meta,id,card){
+  const left=q.pairs.map((p,i)=>({t:p[0],i})),right=shuffle(q.pairs.map((p,i)=>({t:p[1],i})));
+  card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${q.q}</div>
+    <div class="matchwrap"><div class="matchcol" id="L">${left.map(o=>`<button data-i="${o.i}">${o.t}</button>`).join('')}</div>
+      <div class="matchcol" id="R">${right.map(o=>`<button data-i="${o.i}">${o.t}</button>`).join('')}</div></div><div class="reveal" id="RR"></div></div>`;
+  let selL=null,done=0,miss=false;const L=card.querySelector('#L'),R=card.querySelector('#R');
+  L.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.classList.contains('done'))return;L.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selL=b;});
+  R.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.classList.contains('done')||!selL)return;
+    if(+b.dataset.i===+selL.dataset.i){b.classList.add('done');b.textContent='✓ '+b.textContent;selL.classList.add('done');selL.classList.remove('sel');selL=null;done++;
+      if(done===q.pairs.length){answer(id,!miss);const r=card.querySelector('#RR');r.className='reveal show '+(miss?'ng':'ok');r.innerHTML=`<b>${miss?'クリア（ミスあり→弱点に記録）':'✅ 全問正解！'}</b>${srcLine(q)}${nextBtn()}`;bindNext(card);}
+    }else{miss=true;b.classList.add('wrong');setTimeout(()=>b.classList.remove('wrong'),450);toast('不一致');}
+  });
+}
+
+//==================== PROGRESS ====================
+function renderProg(){
+  const el=document.getElementById('prog');
+  const total=QUESTIONS.length;
+  const mast=QUESTIONS.filter(q=>isMastered(q.id)).length;
+  const seen=QUESTIONS.filter(q=>getCard(q.id)).length;
+  const weak=QUESTIONS.filter(q=>isWeak(q.id));
+  const due=dueList().length;
+  const cats=[...new Set(QUESTIONS.map(q=>q.cat))];
+  el.innerHTML=`
+    <div id="syncMount"></div>
+    <div class="stat">
+      <div class="box a"><div class="n">${due}</div><div class="l">今日の復習</div></div>
+      <div class="box b"><div class="n">${mast}</div><div class="l">定着(box4+)</div></div>
+      <div class="box c"><div class="n">${weak.length}</div><div class="l">弱点(box1-2)</div></div>
+    </div>
+    <h3 class="sec">直近7日の学習</h3><div class="card"><div class="heat" id="heat"></div></div>
+    <h3 class="sec">分野別の定着</h3><div class="card">${cats.map(c=>{
+      const qs=QUESTIONS.filter(q=>q.cat===c),m=qs.filter(q=>isMastered(q.id)).length,p=Math.round(m/qs.length*100);
+      return `<div class="catrow"><div class="top"><span>${c}</span><span>${m}/${qs.length}</span></div><div class="bar"><i style="width:${p}%"></i></div></div>`;}).join('')}</div>
+    <h3 class="sec">弱点リスト（${weak.length}）</h3>
+    ${weak.length?weak.map(q=>{const c=getCard(q.id);const nd=Math.max(0,Math.ceil((c.due-Date.now())/DAY));return `<div class="wrongitem">[${q.cat}] ${(q.q||(q.parts?'穴埋め：'+q.parts.filter(p=>p.b).map(p=>p.b).join('／'):'')).replace(/<[^>]+>/g,'')}<br><span style="color:var(--sub);font-size:.7rem">box${c.box}・次回 ${nd===0?'今日':nd+'日後'}</span></div>`;}).join(''):'<div class="card"><p class="hint" style="margin:0">弱点なし。素晴らしい！</p></div>'}
+    ${weak.length?`<button class="btn wide" style="margin-top:12px" id="revBtn">弱点を今すぐ復習</button>`:''}
+    <button class="btn ghost wide" style="margin-top:10px" id="resetBtn">進捗をリセット</button>`;
+  // heatmap: last 7 days
+  const heat=el.querySelector('#heat');const days=['日','月','火','水','木','金','土'];
+  const allHist=[];Object.values(store.cards).forEach(c=>c.hist&&c.hist.forEach(h=>allHist.push(h.t)));
+  for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*DAY);const key=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
+    const done=allHist.some(t=>{const dd=new Date(t);return dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate()===key;});
+    const div=document.createElement('div');if(done)div.className='done';div.textContent=days[d.getDay()];heat.appendChild(div);}
+  const rv=el.querySelector('#revBtn');if(rv)rv.addEventListener('click',()=>{go('quiz');startQuiz('review');});
+  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('進捗をすべて消去しますか？')){const th=store.theme;store={cards:{},streak:0,lastDate:null,theme:th,dailyDate:null};save();renderProg();toast('リセットしました');}});
+  mountSync();
+}
+
+//==================== 論文・面接 ====================
+function renderRonbun(){
+  const el=document.getElementById('ronbun');
+  el.innerHTML=`<p class="hint">頻出テーマの「型（序論→本論→結論）＋使える根拠＋自校の具体策」。面接の口頭回答の骨子にも。</p>`+
+   RONBUN.map((r,i)=>`<details class="rb"><summary>📝 ${r.t}<span class="chev">›</span></summary>
+     <div class="body">
+       <div class="qx"><b>出題例：</b>${r.q}</div>
+       <h5>序論</h5><p>${r.jo}</p>
+       <h5>本論</h5>${r.hon.map(h=>`<p>${h}</p>`).join('')}
+       <h5>結論</h5><p>${r.ketsu}</p>
+       <h5>使える根拠</h5><div class="konkyo">${r.konkyo.map(k=>`<span>${k}</span>`).join('')}</div>
+       <h5>自校の具体策（例）</h5><p>${r.jisaku}</p>
+       <h5>避けたいNG答案</h5><div class="ng">${r.ng}</div>
+       <div class="src" style="border-top:1px dashed var(--line2);padding-top:9px;margin-top:12px"><span>※論点整理のテンプレート。最新の県・国の施策に合わせて加筆を。</span>
+         <button class="copybtn" data-i="${i}">📋 骨子をコピー</button></div>
+     </div></details>`).join('');
+  el.querySelectorAll('.copybtn').forEach(b=>{
+    b.addEventListener('click',ev=>{
+      ev.preventDefault();const r=RONBUN[+b.dataset.i];
+      const txt=`【${r.t}】\n出題例：${r.q}\n\n■序論\n${r.jo}\n\n■本論\n${r.hon.map(h=>h.replace(/<[^>]+>/g,'')).join('\n')}\n\n■結論\n${r.ketsu}\n\n■使える根拠\n${r.konkyo.map(k=>'・'+k).join('\n')}\n\n■自校の具体策\n${r.jisaku}`;
+      navigator.clipboard.writeText(txt).then(()=>toast('骨子をコピーしました 📋')).catch(()=>toast('コピーできませんでした'));
+    });
+  });
+}
+
+//==================== GOOGLE DRIVE 同期 ====================
+const GSCOPE='https://www.googleapis.com/auth/drive.appdata';
+let tokenClient=null,accessToken=null,gSignedIn=false;
+function getClientId(){return localStorage.getItem('gclient')||(typeof DEFAULT_CLIENT_ID!=='undefined'?DEFAULT_CLIENT_ID:'');}
+function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
+function initGoogle(){
+  if(!gReady()||!getClientId())return false;
+  tokenClient=google.accounts.oauth2.initTokenClient({client_id:getClientId(),scope:GSCOPE,
+    callback:async(resp)=>{if(resp&&resp.access_token){accessToken=resp.access_token;gSignedIn=true;await cloudSync();toast('Googleと同期しました ✓');renderProg();}else{toast('ログインできませんでした');}}});
+  return true;
+}
+function signInGoogle(){if(!tokenClient&&!initGoogle()){toast('先にClient IDを設定してください');return;}tokenClient.requestAccessToken({prompt:gSignedIn?'':'consent'});}
+function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;renderProg();toast('サインアウトしました');}
+async function driveFind(){const r=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q="+encodeURIComponent("name='progress.json'"),{headers:{Authorization:'Bearer '+accessToken}});const j=await r.json();return j.files&&j.files[0];}
+async function driveGet(id){const r=await fetch('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media',{headers:{Authorization:'Bearer '+accessToken}});return await r.json();}
+async function driveSave(obj){const file=await driveFind();const meta=file?{}:{name:'progress.json',parents:['appDataFolder']};const b='----edu'+Date.now();
+  const body=`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n--${b}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(obj)}\r\n--${b}--`;
+  const url=file?`https://www.googleapis.com/upload/drive/v3/files/${file.id}?uploadType=multipart`:`https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+  await fetch(url,{method:file?'PATCH':'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'multipart/related; boundary='+b},body});}
+function lastAct(c){return c&&c.hist&&c.hist.length?c.hist[c.hist.length-1].t:(c&&c.due)||0;}
+function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));out.cards=out.cards||{};
+  const ids=new Set([...Object.keys(a.cards||{}),...Object.keys(b.cards||{})]);
+  ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];if(!ca){out.cards[id]=cb;return;}if(!cb){out.cards[id]=ca;return;}out.cards[id]=lastAct(cb)>lastAct(ca)?cb:ca;});
+  out.streak=Math.max(a.streak||0,b.streak||0);out.lastDate=[a.lastDate,b.lastDate].filter(Boolean).sort().pop()||null;return out;}
+async function cloudSync(){if(!accessToken)return;try{const f=await driveFind();const cloud=f?await driveGet(f.id):null;store=mergeStore(store,cloud);save();await driveSave(store);renderHome();}catch(e){console.warn(e);toast('同期に失敗しました');}}
+function mountSync(){
+  const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
+  mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
+    <div class="st"><span class="dotg"></span>${gSignedIn?'Googleと同期中':'Google Driveに進捗を保存'}</div>
+    <small>${gSignedIn?'進捗はDriveのアプリ専用フォルダに保存され、複数の端末で引き継げます。':'ログインすると、スマホとPCで進捗を共有できます（Driveの隠しアプリフォルダに保存）。'}</small>
+    ${cid?'':`<input id="cidIn" placeholder="Google OAuth クライアントIDを貼り付け（…apps.googleusercontent.com）" aria-label="クライアントID">`}
+    <div class="syncrow" style="margin-top:10px">
+      ${cid?'':'<button class="btn" id="saveCid">IDを保存</button>'}
+      ${gSignedIn?'<button class="btn" id="syncNow">今すぐ同期</button><button class="btn ghost" id="signOut">サインアウト</button>'
+        :(cid?'<button class="btn" id="signIn">Googleでログイン</button>':'')}
+      ${cid?'<button class="btn ghost" id="clrCid" style="flex:0 0 auto">ID変更</button>':''}
+    </div></div>`;
+  const q=s=>mt.querySelector(s);
+  if(q('#saveCid'))q('#saveCid').addEventListener('click',()=>{const v=q('#cidIn').value.trim();if(!v){toast('IDを入力してください');return;}localStorage.setItem('gclient',v);tokenClient=null;mountSync();toast('保存しました。ログインできます');});
+  if(q('#clrCid'))q('#clrCid').addEventListener('click',()=>{localStorage.removeItem('gclient');tokenClient=null;accessToken=null;gSignedIn=false;mountSync();});
+  if(q('#signIn'))q('#signIn').addEventListener('click',signInGoogle);
+  if(q('#syncNow'))q('#syncNow').addEventListener('click',async()=>{await cloudSync();toast('同期しました ✓');});
+  if(q('#signOut'))q('#signOut').addEventListener('click',signOutGoogle);
+}
+
+//==================== PWA ====================
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
+
+//==================== UTIL ====================
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1600);}
+
+//==================== INIT ====================
+renderHome();renderMap();renderRef();renderLookup();renderQuiz();
+</script>
+</body>
+</html>

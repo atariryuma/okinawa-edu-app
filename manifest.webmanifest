@@ -1,0 +1,15 @@
+{
+  "name": "沖縄県 教育法規・計画アプリ",
+  "short_name": "教育法規",
+  "description": "沖縄県の管理職試験対策。関係図・要点・逆引き・間隔反復クイズ・論文対策を1つに。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef2f7",
+  "theme_color": "#0e7490",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
