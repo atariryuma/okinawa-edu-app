@@ -179,7 +179,7 @@
   .progressbar{height:7px;background:var(--chip);border-radius:6px;overflow:hidden;margin-bottom:14px;}
   .progressbar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s;}
   .quizcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:20px 17px;box-shadow:var(--shadow);animation:fade .3s;}
-  .qmeta{font-size:.72rem;color:var(--sub);display:flex;justify-content:space-between;margin-bottom:12px;font-weight:700;}
+  .qmeta{font-size:.72rem;color:var(--sub);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px;font-weight:700;}
   .badge{background:var(--chip);padding:4px 10px;border-radius:20px;}
   .qtext{font-size:1.06rem;font-weight:700;margin-bottom:16px;line-height:1.55;}
   .choice{display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:13px;padding:14px 13px;margin-bottom:9px;cursor:pointer;font-size:.92rem;transition:.15s;box-shadow:var(--shadow-sm);min-height:52px;}
@@ -644,7 +644,7 @@ function buildSearchIndex(){const idx=[];
   REF.forEach(r=>idx.push({k:'要点',t:r.name,b:(r.points||[]).join(' ')+' '+(r.tag||'')+' '+(r.cat||'')+' '+(r.src||''),go:()=>openRef(r.id)}));
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
   RONBUN.forEach((r,i)=>idx.push({k:'論文',t:r.t,b:(r.q||'')+' '+(r.hon||[]).join(' ')+' '+(r.konkyo||[]).join(' '),go:()=>{go('ronbun');setTimeout(()=>{const ds=document.querySelectorAll('#ronbun details');if(ds[i]){ds[i].open=true;ds[i].scrollIntoView({behavior:'smooth',block:'start'});}},70);}}));
-  QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),go:()=>{quizMode='qa';quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;store.session=null;go('quiz');setTimeout(showQ,50);}});});
+  QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),_up:q.up||0,go:()=>{quizMode='qa';quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;store.session=null;go('quiz');setTimeout(showQ,50);}});});
   idx.forEach(it=>{it._hay=(it.t+' '+it.b).toLowerCase();it._ht=(it.t||'').toLowerCase();}); // 検索用に小文字連結＋タイトル単体を事前計算（打鍵毎の再計算を回避／関連度採点用）
   return idx;}
 let _searchTimer=null;
@@ -663,6 +663,7 @@ function runSearch(qstr){
     else terms.forEach(t=>{const p=ht.indexOf(t);if(p>=0)sc+=300-Math.min(p,200);}); // タイトルに各語
     if(hay.indexOf(s)>=0)sc+=120;                                               // 連続一致ボーナス
     terms.forEach(t=>{if(hay.indexOf(t)>=0)sc+=20;});                           // 本文に各語
+    sc+=Math.min((it._up||0)*15,150);                                           // みんなの👍が多い良問を上位へ
     return sc+Math.max(0,40-ht.length/4);};                                     // 短いタイトル微優遇
   const order=['要点','逆引き','問題','論文'],groups={};hits.forEach(h=>{(groups[h.k]=groups[h.k]||[]).push(h);});
   Object.keys(groups).forEach(k=>groups[k].sort((a,b)=>score(b)-score(a)));      // 各グループ内を関連度順に並べ替え
@@ -937,12 +938,24 @@ function showQ(){
   if(store.session){store.session.idx=quizIdx;save();} // 中断復帰用に現在位置を保存
   const q=quizPool[quizIdx];
   const prog=`<div class="progressbar" role="progressbar" aria-valuemin="0" aria-valuemax="${quizPool.length}" aria-valuenow="${quizIdx+1}" aria-label="${quizPool.length}問中 ${quizIdx+1}問目"><i style="width:${quizIdx/quizPool.length*100}%"></i></div>`;
-  const commBadge=COMMUNITY_IDS.has(q.id)?`<span class="badge" style="background:#f59e0b;color:#1a1a1a">みんなの問題・未検証</span> <button type="button" class="qreport" data-id="${esc(q.id)}" aria-label="この問題を通報する" style="font-size:.68rem;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:10px;padding:1px 8px;min-height:auto;cursor:pointer">⚠️通報</button>`:'';
+  let commBadge='';
+  if(COMMUNITY_IDS.has(q.id)){
+    const up=q.up||0;
+    const badge=q.v
+      ?`<span class="badge" style="background:#16a34a;color:#fff">みんなの問題・✓検証済み</span>`
+      :`<span class="badge" style="background:#f59e0b;color:#1a1a1a">みんなの問題・未検証</span>`;
+    const cnt=up>0?`<span style="font-size:.7rem;color:var(--sub)">👍${up}</span>`:'';
+    const bst='font-size:.68rem;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:1px 8px;min-height:auto;cursor:pointer';
+    const vote=`<button type="button" class="qvote" data-id="${esc(q.id)}" aria-label="この問題は役に立った" style="${bst};color:var(--accent)">👍 役に立った</button>`;
+    const rep=`<button type="button" class="qreport" data-id="${esc(q.id)}" aria-label="この問題を通報する" style="${bst};color:var(--sub)">⚠️通報</button>`;
+    commBadge=`${badge}${cnt}${vote}${rep}`;
+  }
   const meta=`<div class="qmeta"><span class="badge">${esc(q.cat)}・${typeName(q.type)}</span>${commBadge}<span>${quizIdx+1} / ${quizPool.length}</span></div>`;
   area.innerHTML=prog;const card=document.createElement('div');area.appendChild(card);
   const r={qa:renderQA,mc:renderMC,cloze:renderCloze,order:renderOrder,match:renderMatch}[q.type];
   if(!r){quizIdx++;return showQ();}
   r(q,meta,q.id,card);
+  const vb=card.querySelector('.qvote');if(vb)vb.addEventListener('click',()=>voteCommunity(q.id,vb)); // 👍役に立った（良問の浮上→検証済み昇格の起点）
   const rep=card.querySelector('.qreport');if(rep)rep.addEventListener('click',()=>reportCommunity(q.id,rep)); // 共有問題の通報（誤り/不適切→自動降格の起点）
   const h=card.querySelector('h2,.qtext');if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
 }
@@ -1319,6 +1332,17 @@ async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw n
   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
   let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
   if(!j.ok)throw new Error(j.error||'送信に失敗しました');return j;}
+// 共有問題への👍（良問の浮上）。一定数で GAS が「✓検証済み(コミュニティ)」を返すようになる。
+async function voteCommunity(id,btn){
+  const url=getCommunityUrl();if(!url)return;
+  if(btn){btn.disabled=true;btn.textContent='👍 ありがとう';btn.style.opacity=.7;}
+  try{
+    const body=JSON.stringify({action:'vote',id,device:deviceId()});
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
+    let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
+    toast('「役に立った」を送りました 🙏');
+  }catch(e){elog({type:'community',msg:'投票失敗:'+((e&&e.message)||e)});toast('送信に失敗しました');if(btn){btn.disabled=false;btn.textContent='👍 役に立った';btn.style.opacity=1;}}
+}
 // 共有問題の通報。一定数集まると GAS 側が approved→pending に自動降格し運営が再確認する。
 async function reportCommunity(id,btn){
   const url=getCommunityUrl();if(!url)return;

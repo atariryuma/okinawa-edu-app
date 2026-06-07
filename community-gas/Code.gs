@@ -23,7 +23,7 @@
 
 /* ===== 設定値 ===== */
 var SHEET_NAME      = 'questions';      // データシート名（無ければ作成）
-var HEADERS         = ['timestamp', 'status', 'id', 'type', 'cat', 'json', 'q', 'src', 'device', 'reports'];
+var HEADERS         = ['timestamp', 'status', 'id', 'type', 'cat', 'json', 'q', 'src', 'device', 'reports', 'up'];
 var VALID_TYPES     = ['qa', 'mc', 'cloze', 'order', 'match'];
 var MAX_BODY_BYTES  = 16 * 1024;        // 本文(text/plain)全体の上限 16KB
 var MAX_FIELD_LEN   = 4000;             // 任意の文字列フィールド1個の上限
@@ -43,12 +43,14 @@ var BLOCKLIST       = ['<script', 'javascript:', 'onerror=', 'onload=', 'onclick
 var REP_TRUST       = 2;     // この端末の「承認済み」実績がこの数以上なら、匿名でも自動公開の資格（段階信頼）
 var REPORT_LIMIT    = 3;     // 通報がこの数に達したら approved→pending へ自動降格（可逆）
 var REPORT_RATE_HR  = 30;    // 1端末あたり1時間の通報上限（通報の悪用対策）
+var UP_VERIFY       = 3;     // 👍がこの数以上（かつ通報が限度未満）で「✓検証済み(コミュニティ)」に自動昇格
+var VOTE_RATE_HR    = 60;    // 1端末あたり1時間の👍上限
 // 出典が公式ソースに解決するかの判定パターン（アプリの LAW_LINKS/DOC_LINKS の p を移植）。
 // src がこのいずれかを含めば「出典あり」とみなし、自動公開の必須条件にする（正確さの門番）。
 var SRC_PATTERNS = ["義務教育の段階における普通教育に相当する教育の機会の確保等に関する法律","公立義務教育諸学校の学級編制及び教職員定数の標準に関する法律","公立の義務教育諸学校等の教育職員の給与等に関する特別措置法","教育職員等による児童生徒性暴力等の防止等に関する法律","義務教育諸学校の教科用図書の無償措置に関する法律","障害を理由とする差別の解消の推進に関する法律","地方教育行政の組織及び運営に関する法律","児童虐待の防止等に関する法律","個人情報の保護に関する法律","市町村立学校職員給与負担法","学校教育法施行令（政令）","学校保健安全法施行規則","児童生徒性暴力等防止法","いじめ防止対策推進法","わいせつ教員対策新法","学校教育法施行規則","学校保健安全法施規","保健安全法施行規則","わいせつ教員対策法","教育公務員特例法","教科書無償措置法","障害者差別解消法","教員性暴力防止法","学校教育法施行令","発達障害者支援法","学校法施行規則","学教法施行規則","地方教育行政法","教育職員免許法","学校保健安全法","教育機会確保法","児童虐待防止法","個人情報保護法","労働安全衛生法","行政不服審査法","地方公務員法","いじめ防止法","こども基本法","子ども基本法","性暴力防止法","学教法施行令","障害者基本法","教育基本法","学校教育法","学校保健法","機会確保法","虐待防止法","児童福祉法","国家賠償法","義務標準法","無償措置法","差別解消法","社会教育法","給与負担法","県費負担法","日本国憲法","労働基準法","行政手続法","学校給食法","食育基本法","地教行法","労安衛法","著作権法","教基法","学教法","学校法","地公法","教特法","免許法","教免法","学保法","児福法","個情法","国賠法","給特法","標準法","社教法","労基法","安衛法","行手法","行審法","行服法","熱中症対策ガイドライン","GIGAスクール構想","中教審答申(H27)","チームとしての学校","個別の教育支援計画","GIGAスクール","中教審第185号","個別の指導計画","特別支援教育","熱中症","中央教育審議会答申(令和3年1月)","教育振興基本計画（第4期","教育振興基本計画（第４期","中教審答申(R3.1)","令和答申","「自立した学習者」育成プロジェクト","新・沖縄21世紀ビジョン基本計画","学校教育における指導の努力点","沖縄県キャリア教育の基本方針","学校安全の推進に関する計画","学校事故対応に関する指針","第4期教育振興基本計画","第４期教育振興基本計画","沖縄県教育振興基本計画","キャリア教育の基本方針","令和の日本型学校教育","沖縄21世紀ビジョン","危機管理マニュアル","学習指導要領解説","いじめの重大事態","学校環境衛生基準","幼稚園教育要領","地域クラブ活動","重大事態の調査","食物アレルギー","勤務時間の上限","第3次学校安全","自立した学習者","学習指導要領","生徒指導提要","COCOLO","指導の努力点","生成AI","学習評価","指導要録","部活動"];
 
 /* 列インデックス（0始まり）。HEADERS と一致させる */
-var COL = { ts:0, status:1, id:2, type:3, cat:4, json:5, q:6, src:7, device:8, reports:9 };
+var COL = { ts:0, status:1, id:2, type:3, cat:4, json:5, q:6, src:7, device:8, reports:9, up:10 };
 
 /* スタンドアロン（clasp 等）でデプロイする場合は、ここに対象スプレッドシートの
    ID を入れる。空ならコンテナバインド（拡張機能→Apps Script で作成）として
@@ -100,11 +102,18 @@ function doGet(e) {
       if (!raw) continue;
       try {
         var q = JSON.parse(raw);            // 壊れた行は catch でスキップ
-        if (q && typeof q === 'object') out.push(q);
+        if (q && typeof q === 'object') {
+          var up = parseInt(row[COL.up] || '0', 10) || 0;
+          var rep = parseInt(row[COL.reports] || '0', 10) || 0;
+          q.up = up;                                              // 👍の数（人気の度合い）
+          q.v = (up >= UP_VERIFY && rep < REPORT_LIMIT) ? 1 : 0;  // ✓検証済み(コミュニティ)＝十分な👍かつ通報少
+          out.push(q);
+        }
       } catch (parseErr) {
         try { console.warn('doGet skip broken row ' + (r + 2)); } catch (_ig) {}
       }
     }
+    out.sort(function (a, b) { return (b.up || 0) - (a.up || 0); }); // 人気順（👍が多い良問を上位に）
     var payload = JSON.stringify({ ok: true, questions: out });
     if (cache) { try { cache.put('doget', payload, DOGET_CACHE_SEC); } catch (_p) {} }
     return ContentService.createTextOutput(payload).setMimeType(ContentService.MimeType.JSON);
@@ -135,6 +144,10 @@ function doPost(e) {
     // 通報アクション（共有問題の誤り報告→自動降格の起点）。問題投稿とは別経路で先に処理。
     if (env && typeof env === 'object' && env.action === 'report') {
       return handleReport_(String(env.id || ''), String(env.device || ''));
+    }
+    // 👍アクション（良問の浮上→検証済み昇格の起点）。
+    if (env && typeof env === 'object' && env.action === 'vote') {
+      return handleVote_(String(env.id || ''), String(env.device || ''));
     }
     // 新形式 {q, idtoken, device}（旧 token はアクセストークンだったが廃止。両キー受けるが検証はIDトークンとして行う）
     var q, idtoken = '', device = '';
@@ -199,6 +212,7 @@ function doPost(e) {
       newRow[COL.src]     = deformula_(clean.src);
       newRow[COL.device]  = deformula_(device || '');
       newRow[COL.reports] = 0;
+      newRow[COL.up]      = 0;
 
       sh.getRange(sh.getLastRow() + 1, 1, 1, HEADERS.length).setValues([newRow]);
       // 自動公開した場合は doGet キャッシュを破棄して即時反映
@@ -270,6 +284,50 @@ function handleReport_(id, device) {
           try { var c2 = CacheService.getScriptCache(); if (c2) c2.remove('doget'); } catch (_g) {}
         }
         return json_({ ok: true, status: 'reported', reports: n });
+      }
+    }
+    return json_({ ok: false, error: 'not found' });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* ============================================================================
+ *  handleVote_(id, device): 共有問題への👍。UP_VERIFY 到達で doGet が「✓検証済み」を返す。
+ *   - 端末ごとのレート制限＋同一問題の二重投票抑止（CacheService）
+ *   - up を加算し doGet キャッシュを破棄（バッジ/人気順が変わるため即時反映）
+ * ========================================================================== */
+function handleVote_(id, device) {
+  if (!ID_RE.test(String(id || ''))) return json_({ ok: false, error: 'bad id' });
+  if (!device) return json_({ ok: false, error: 'no device' });
+  try {
+    var c = CacheService.getScriptCache();
+    if (c) {
+      var rk = 'vrl_' + device, rn = parseInt(c.get(rk) || '0', 10);
+      if (rn >= VOTE_RATE_HR) return json_({ ok: false, error: 'rate limited' });
+      var dk = 'vd_' + device + '_' + id;
+      if (c.get(dk)) return json_({ ok: true, status: 'already' }); // 同端末×同一問題の二重投票は無視（成功扱い）
+      c.put(rk, String(rn + 1), 3600);
+      c.put(dk, '1', 21600); // 6時間は同一問題の再投票を抑止
+    }
+  } catch (e) { /* キャッシュ不可でも続行 */ }
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(LOCK_WAIT_MS)) return json_({ ok: false, error: 'busy, retry later' });
+  try {
+    var sh = getSheet_(false);
+    if (!sh) return json_({ ok: false, error: 'no sheet' });
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return json_({ ok: false, error: 'not found' });
+    var ids = sh.getRange(2, COL.id + 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === id) {
+        var rowNum = i + 2;
+        var upCell = sh.getRange(rowNum, COL.up + 1);
+        var n = parseInt(upCell.getValue() || '0', 10) + 1;
+        upCell.setValue(n);
+        try { var c2 = CacheService.getScriptCache(); if (c2) c2.remove('doget'); } catch (_g) {} // バッジ/順位が変わるので破棄
+        return json_({ ok: true, status: 'voted', up: n });
       }
     }
     return json_({ ok: false, error: 'not found' });
