@@ -103,16 +103,15 @@
 `:focus-visible`、`#toast`/`#gsres`/`#srlive` の `aria-live`（採点結果：mc/order/match は結果領域の `role=status`＋フォーカス移動で通知、即遷移する qa/cloze は `#quiz` 外の永続領域 `#srlive` を `srSay()` で通知）、cloze空欄の `tabindex/role=button`＋Enter/Space、並べ替えの ▲▼ ボタン（キーボード代替・タップ目標42×36px）、正誤は色＋✓✗、`prefers-reduced-motion`、`env(safe-area-inset-*)`、タップ目標44px。
 
 ## 開発・検証フロー
+**変更したら必ず `node test.js`**（依存ゼロのロジックテスト。`index.html`の実コードを軽量DOMスタブ上で評価して検証＝抽出コピーでなく本体そのものをテスト）。構文エラーもここで弾ける。push/PRで GitHub Actions(`.github/workflows/ci.yml`)が自動実行。`npm test` でも可。
+```
+node test.js   # SRS(review)/mergeStore/sanitizeImport/validQuestion/srcLink/付箋/デイリー 等を検証
+```
+**テストの育て方**：バグを直したら、その再現を `test.js` に1ケース足す（回帰固定）。新しい純粋関数は `EXPORTS` 配列に名前を足せばテストから呼べる（本体改変不要）。DOM/同期に強く依存する処理は preview 実機（下記）で確認。
 ローカル確認（`file://` だとSW/Googleが動かないのでサーバ必須）：
 ```
 cd okinawa-edu-app
 python3 -m http.server 8000   # → http://localhost:8000
-```
-JS構文・データ検証（CIにしてもよい）：
-```
-awk '/<script src="https:\/\/accounts/{next}/<script>/{f=1;next}/<\/script>/{f=0}f' index.html > /tmp/app.js
-node --check /tmp/app.js
-# 必要なら QUESTIONS を eval して ans範囲/cloze空欄/一意id/出典 をチェック
 ```
 デプロイ：`git add -A && git commit && git push`（mainへ）。**その際 `sw.js` の CACHE を上げる**。Pages有効化はREADME手順1。
 

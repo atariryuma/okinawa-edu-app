@@ -1,0 +1,10 @@
+{
+  "name": "okinawa-edu-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "沖縄 教育法規ナビ — 依存ゼロの単一ページPWA（管理職試験対策＆学校経営の判断の根拠）",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "comment": "依存ゼロ・ビルドなし。test.js は index.html の実コードを軽量DOMスタブ上で評価してロジックを検証する（npm install 不要）。"
+}

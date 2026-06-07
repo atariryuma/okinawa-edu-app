@@ -1,0 +1,18 @@
+name: CI
+# push / PR ごとにロジックの回帰テストを自動実行（依存ゼロ・npm install不要）。
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      # test.js は index.html の実コードを評価して検証するため、構文エラーもここで弾ける。
+      - name: Run logic tests
+        run: node test.js
