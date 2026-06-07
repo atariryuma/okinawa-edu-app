@@ -654,6 +654,7 @@ tabs.addEventListener('keydown',e=>{
   if(j>=0){e.preventDefault();btns[j].focus();go(btns[j].dataset.v,true);}
 });
 function go(v,focusPanel){
+  if(typeof _ronTimerId!=='undefined'&&_ronTimerId&&v!=='ronbun'){clearInterval(_ronTimerId);_ronTimerId=null;} // 論文タブを離れたらタイマー停止
   if(v==='quiz'){const ab=document.getElementById('a2hsBar');if(ab)ab.remove();} // クイズの「次へ」と重ならないようA2HSバナーを退避
   if(mockTimerId&&store.session&&store.session.mode==='mock'){store.session.mockElapsed=Math.floor((Date.now()-quizMockStart)/1000);save();} // 離脱時点の経過を保存（再開で続きから・離脱中は加算しない）
   if(typeof stopMockTimer==='function')stopMockTimer();   // タブ移動で模試タイマーを停止
@@ -914,9 +915,11 @@ function renderLookup(){
   const lkSorted=LOOKUP.slice().sort((a,b)=>(isBM('lk',b.sit)?1:0)-(isBM('lk',a.sit)?1:0)); // 付箋を先頭に
   lkSorted.forEach(l=>{const b=document.createElement('button');b.textContent=(isBM('lk',l.sit)?'⭐ ':'')+l.sit;
     b.addEventListener('click',()=>{el.querySelector('#lkin').value='';show([l]);[...chips.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');});chips.appendChild(b);});
+  const LKHINT=`<p class="hint" style="margin:10px 2px">↑ 状況のボタンを選ぶ、または検索すると、根拠条文が表示されます（${LOOKUP.length}件）。</p>`;
   el.querySelector('#lkin').addEventListener('input',e=>{const terms=norm(e.target.value.trim()).split(/\s+/).filter(Boolean);[...chips.children].forEach(c=>c.classList.remove('on'));
-    show(!terms.length?LOOKUP:LOOKUP.filter(l=>{const hay=norm(l.sit+' '+l.kw+' '+l.based.map(b=>b.join(' ')).join(' '));return terms.every(t=>hay.indexOf(t)>=0);}));}); // 表記ゆれ吸収＋複数語AND
-  show(LOOKUP);
+    if(!terms.length){el.querySelector('#lkres').innerHTML=LKHINT;return;}
+    show(LOOKUP.filter(l=>{const hay=norm(l.sit+' '+l.kw+' '+l.based.map(b=>b.join(' ')).join(' '));return terms.every(t=>hay.indexOf(t)>=0);}));}); // 表記ゆれ吸収＋複数語AND
+  el.querySelector('#lkres').innerHTML=LKHINT;   // 初期＝メニュー（全カード展開でなくボタンから選ぶFAQ型）
   function show(list){const box=el.querySelector('#lkres');
     if(list.length===1)pushRecent('lk',list[0].sit,list[0].sit); // 特定状況を開いたら「最近見た」に記録
     box.innerHTML=list.length?list.map(l=>`<div class="lk"><h4 style="display:flex;align-items:center;gap:6px">${l.sit}<button class="lkstar" data-sit="${esc(l.sit)}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('lk',l.sit)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;padding:0">${isBM('lk',l.sit)?'⭐':'☆'}</button></h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}${srcChk(b[0])}</div>`).join('')}<div style="margin-top:8px"><button class="btn ghost lkcopy" data-sit="${esc(l.sit)}" style="padding:4px 11px;min-height:auto">📋 根拠をコピー</button></div></div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`;
@@ -1427,8 +1430,10 @@ function renderProg(){
 }
 
 //==================== 論文・面接 ====================
+let _ronTimerId=null; // 論文の本番タイマー（60分カウントダウン・タブ離脱/再描画で停止）
 function renderRonbun(){
   const el=document.getElementById('ronbun');
+  if(_ronTimerId){clearInterval(_ronTimerId);_ronTimerId=null;} // 再描画で前回のタイマーを停止
   el.innerHTML=`<p class="hint">頻出テーマの「型（序論→本論→結論）＋使える根拠＋自校の具体策」。面接の口頭回答の骨子にも。</p>`+
    RONBUN.map((r,i)=>`<details class="rb"><summary>📝 ${r.t}<span class="chev">›</span></summary>
      <div class="body">
@@ -1444,6 +1449,8 @@ function renderRonbun(){
        <textarea class="rbdraft" data-t="${esc(r.t)}" rows="8" placeholder="ここに自分の答案を書く…" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;line-height:1.7">${esc((store.ronbunDrafts||{})[r.t]||'')}</textarea>
        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
          <span class="rbcount" style="font-size:.82rem;font-weight:700;color:var(--sub)">0字</span>
+         <span class="rbtimedisp" style="font-size:.82rem;font-weight:700;color:var(--accent)"></span>
+         <button class="btn ghost rbtimer" style="padding:4px 11px;min-height:auto">⏱ 60分で書く</button>
          <button class="btn ghost rbskel" data-t="${esc(r.t)}" style="padding:4px 11px;min-height:auto">▼ 型を流し込む</button>
          <button class="btn ghost rbcopy" data-t="${esc(r.t)}" style="padding:4px 11px;min-height:auto">📋 コピー</button>
          <button class="btn ghost rbclear" data-t="${esc(r.t)}" style="padding:4px 11px;min-height:auto">クリア</button>
@@ -1469,6 +1476,14 @@ function renderRonbun(){
   el.querySelectorAll('.rbdraft').forEach(ta=>{cnt(ta);ta.addEventListener('input',()=>{store.ronbunDrafts=store.ronbunDrafts||{};store.ronbunDrafts[ta.dataset.t]=ta.value;save();cnt(ta);});});
   el.querySelectorAll('.rbchk').forEach(cb=>cb.addEventListener('change',()=>{store.ronbunChecks=store.ronbunChecks||{};const t=cb.dataset.t;store.ronbunChecks[t]=store.ronbunChecks[t]||{};store.ronbunChecks[t][cb.dataset.k]=cb.checked;save();})); // 自己チェックを保存（再描画で消えない）
   el.querySelectorAll('.rbskel').forEach(b=>b.addEventListener('click',()=>{const det=b.closest('details'),ta=det.querySelector('.rbdraft');if(ta.value.trim()&&!confirm('入力済みです。型のひな形で上書きしますか？'))return;ta.value='■序論（150字目安）\n\n\n■本論（500字目安）\n\n\n■結論（150字目安）\n\n';store.ronbunDrafts=store.ronbunDrafts||{};store.ronbunDrafts[ta.dataset.t]=ta.value;save();ta.dispatchEvent(new Event('input'));ta.focus();})); // 型スケルトンを流し込む
+  el.querySelectorAll('.rbtimer').forEach(b=>b.addEventListener('click',()=>{ // 本番タイマー（60分）＝クイズ模試と対称
+    const det=b.closest('details'),disp=det.querySelector('.rbtimedisp');
+    if(_ronTimerId){clearInterval(_ronTimerId);_ronTimerId=null;el.querySelectorAll('.rbtimedisp').forEach(d=>d.textContent='');el.querySelectorAll('.rbtimer').forEach(x=>x.textContent='⏱ 60分で書く');return;}
+    let end=Date.now()+60*60000,warned=false;el.querySelectorAll('.rbtimer').forEach(x=>x.textContent='⏱ 60分で書く');b.textContent='⏹ 停止';
+    const upd=()=>{const left=Math.max(0,Math.round((end-Date.now())/1000));if(disp)disp.textContent='⏱ '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0');
+      if(left<=300&&!warned){warned=true;toast('論文タイマー：残り5分');if(navigator.vibrate)try{navigator.vibrate([20,40,20]);}catch(_){}}
+      if(left<=0){clearInterval(_ronTimerId);_ronTimerId=null;b.textContent='⏱ 60分で書く';toast('60分終了 おつかれさまでした');if(navigator.vibrate)try{navigator.vibrate([30,60,30,60,30]);}catch(_){}}};
+    upd();_ronTimerId=setInterval(upd,1000);}));
   el.querySelectorAll('.rbcopy').forEach(b=>b.addEventListener('click',()=>{const t=(store.ronbunDrafts||{})[b.dataset.t]||'';if(!t){toast('まだ何も書かれていません');return;}(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('答案をコピーしました'),()=>toast('コピーできませんでした'));}));
   el.querySelectorAll('.rbclear').forEach(b=>b.addEventListener('click',()=>{if(!confirm('この答案の下書きを消去しますか？'))return;const det=b.closest('details'),ta=det.querySelector('.rbdraft');if(store.ronbunDrafts)delete store.ronbunDrafts[b.dataset.t];save();if(ta){ta.value='';cnt(ta);}}));
 }
