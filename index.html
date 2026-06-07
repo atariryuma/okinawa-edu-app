@@ -620,6 +620,7 @@ tabs.addEventListener('keydown',e=>{
   if(j>=0){e.preventDefault();btns[j].focus();go(btns[j].dataset.v,true);}
 });
 function go(v,focusPanel){
+  if(mockTimerId&&store.session&&store.session.mode==='mock'){store.session.mockElapsed=Math.floor((Date.now()-quizMockStart)/1000);save();} // 離脱時点の経過を保存（再開で続きから・離脱中は加算しない）
   if(typeof stopMockTimer==='function')stopMockTimer();   // タブ移動で模試タイマーを停止
   [...tabs.children].forEach(x=>{const sel=x.dataset.v===v;x.setAttribute('aria-selected',sel);x.tabIndex=sel?0:-1;if(sel&&x.scrollIntoView)try{x.scrollIntoView({inline:'center',block:'nearest'});}catch(_){}}); // 選択タブを常に可視域へ（末尾タブの存在に気づける）
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
@@ -643,7 +644,7 @@ function buildSearchIndex(){const idx=[];
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
   RONBUN.forEach((r,i)=>idx.push({k:'論文',t:r.t,b:(r.q||'')+' '+(r.hon||[]).join(' ')+' '+(r.konkyo||[]).join(' '),go:()=>{go('ronbun');setTimeout(()=>{const ds=document.querySelectorAll('#ronbun details');if(ds[i]){ds[i].open=true;ds[i].scrollIntoView({behavior:'smooth',block:'start'});}},70);}}));
   QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),go:()=>{quizMode='qa';quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;store.session=null;go('quiz');setTimeout(showQ,50);}});});
-  idx.forEach(it=>it._hay=(it.t+' '+it.b).toLowerCase()); // 検索用に小文字連結を事前計算（打鍵毎の再計算を回避）
+  idx.forEach(it=>{it._hay=(it.t+' '+it.b).toLowerCase();it._ht=(it.t||'').toLowerCase();}); // 検索用に小文字連結＋タイトル単体を事前計算（打鍵毎の再計算を回避／関連度採点用）
   return idx;}
 let _searchTimer=null;
 function runSearchDebounced(qstr){clearTimeout(_searchTimer);_searchTimer=setTimeout(()=>runSearch(qstr),130);} // IME・連打対策のデバウンス
@@ -652,9 +653,18 @@ function runSearch(qstr){
   const s=String(qstr||'').trim().toLowerCase();
   if(!s){res.innerHTML='';return;}
   if(!SEARCH_INDEX)SEARCH_INDEX=buildSearchIndex();
-  const hits=SEARCH_INDEX.filter(it=>it._hay.indexOf(s)>=0);
+  const terms=s.split(/\s+/).filter(Boolean);                                   // 空白区切りは複数語AND
+  const hits=SEARCH_INDEX.filter(it=>terms.every(t=>it._hay.indexOf(t)>=0));
   if(!hits.length){res.innerHTML=`<p class="hint" style="margin:8px 2px">「${esc(qstr)}」に一致なし。別の語で試してください。</p>`;return;}
+  // 関連度スコア：タイトル一致＞本文一致、一致位置が前ほど高い、短いタイトルを微優遇
+  const score=it=>{let sc=0;const ht=it._ht,hay=it._hay;
+    const tp=ht.indexOf(s);if(tp>=0)sc+=1000-Math.min(tp,300);                  // タイトルにクエリ全体
+    else terms.forEach(t=>{const p=ht.indexOf(t);if(p>=0)sc+=300-Math.min(p,200);}); // タイトルに各語
+    if(hay.indexOf(s)>=0)sc+=120;                                               // 連続一致ボーナス
+    terms.forEach(t=>{if(hay.indexOf(t)>=0)sc+=20;});                           // 本文に各語
+    return sc+Math.max(0,40-ht.length/4);};                                     // 短いタイトル微優遇
   const order=['要点','逆引き','問題','論文'],groups={};hits.forEach(h=>{(groups[h.k]=groups[h.k]||[]).push(h);});
+  Object.keys(groups).forEach(k=>groups[k].sort((a,b)=>score(b)-score(a)));      // 各グループ内を関連度順に並べ替え
   const flat=[];let html='';
   order.forEach(k=>{const g=groups[k];if(!g)return;html+=`<h5>${k}（${g.length}）</h5>`;g.slice(0,5).forEach(h=>{const gi=flat.length;flat.push(h);html+=`<button class="gsitem" data-gi="${gi}"><span class="gsk">${k}</span>${esc(h.t).slice(0,80)}</button>`;});if(g.length>5)html+=`<div class="hint" style="margin:4px 2px;font-size:.7rem">他 ${g.length-5} 件…語を足すと絞れます</div>`;});
   res.innerHTML=html;
@@ -866,7 +876,7 @@ function quizarea(){return document.getElementById('quizarea');}
 let quizMockStart=0,mockTimerId=null;
 function stopMockTimer(){if(mockTimerId){clearInterval(mockTimerId);mockTimerId=null;}const t=document.getElementById('mockTimer');if(t)t.remove();}
 function fmtSec(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
-function startMockTimer(){stopMockTimer();quizMockStart=Date.now();const t=document.createElement('div');t.id='mockTimer';t.setAttribute('role','timer');t.setAttribute('aria-label','経過時間');t.style.cssText='position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:60;background:var(--accent);color:#fff;padding:5px 12px;border-radius:20px;font-weight:700;font-size:.85rem;box-shadow:var(--shadow)';document.body.appendChild(t);const upd=()=>{t.textContent='⏱ '+fmtSec(Math.floor((Date.now()-quizMockStart)/1000));};upd();mockTimerId=setInterval(upd,1000);}
+function startMockTimer(resumeSec){stopMockTimer();quizMockStart=Date.now()-(resumeSec||0)*1000;const t=document.createElement('div');t.id='mockTimer';t.setAttribute('role','timer');t.setAttribute('aria-label','経過時間');t.style.cssText='position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:60;background:var(--accent);color:#fff;padding:5px 12px;border-radius:20px;font-weight:700;font-size:.85rem;box-shadow:var(--shadow)';document.body.appendChild(t);const upd=()=>{t.textContent='⏱ '+fmtSec(Math.floor((Date.now()-quizMockStart)/1000));};upd();mockTimerId=setInterval(upd,1000);}
 function startQuiz(mode){
   quizMode=mode;quizIdx=0;sCorrect=0;sAnswered=0;
   const cats=document.getElementById('cats');
@@ -876,8 +886,8 @@ function startQuiz(mode){
   if(mode==='mock'){
     quizPool=shuffle(QUESTIONS).slice(0,20);            // 全分野ミックス20問
     if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard"><p class="hint">問題がありません。</p></div>`;return;}
-    store.session=null;save();                          // 模試は中断復帰の対象外
-    startMockTimer();showQ();return;
+    store.session={mode:'mock',ids:quizPool.map(q=>q.id),idx:0,cat:'all',mockElapsed:0};save(); // 模試も中断復帰の対象（離脱で消えない）
+    startMockTimer(0);showQ();return;
   }
   if(mode==='daily'){
     const due=dueList();                                   // due昇順（期日超過が先）
@@ -901,6 +911,7 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
   quizIdx=Math.min(s.idx||0,quizPool.length);sCorrect=0;sAnswered=0;
   const cats=document.getElementById('cats');if(cats)cats.hidden=!['qa','mc','cloze','order','match'].includes(quizMode);
   if(!quizPool.length){store.session=null;save();return;}
+  if(quizMode==='mock')startMockTimer(s.mockElapsed||0);   // 模試はタイマーを保存済み経過から再開
   showQ();
 }
 function openCreate(){go('prog');setTimeout(()=>{const b=document.querySelector('#uqBox');if(b){b.open=true;b.scrollIntoView({behavior:'smooth',block:'start'});const f=b.querySelector('#uqQ');if(f)f.focus({preventScroll:true});}},60);}
@@ -1090,10 +1101,15 @@ function bindUserQ(el){
       obj={id,type:'mc',cat,q:qt,choices,ans,exp:(q('#uqExp').value||'').trim(),src};}
     store.userQuestions=store.userQuestions||[];store.userQuestions.push(obj);save();rebuildQuestions();
     if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();
-    const share=q('#uqShare');
+    const share=q('#uqShare');let shared=false;
     if(share&&share.checked&&getCommunityUrl()){
-      submitCommunity(obj).then(r=>toast(r&&r.status==='approved'?'追加し、みんなに共有しました ✓':'追加し、共有に出しました（承認後に公開）')).catch(err=>{elog({type:'community',msg:'投稿失敗:'+err.message});toast('追加しました（共有の送信は失敗）');});
-    }else{toast('追加しました（自作 '+store.userQuestions.length+'問）');}
+      // 初回だけ明示的に同意を取り、以降は確認なし（＝無意識共有を維持）
+      if(localStorage.getItem('oki_shareok')==='1'||confirm('この問題を「みんなの問題」として共有します。\n問題文・選択肢・解説・出典が他の利用者にも公開されます（ログイン時は自動公開）。\n実名・校内限りの情報・市販教材の転載は含めないでください。\n\n共有しますか？（今後この確認は表示しません）')){
+        localStorage.setItem('oki_shareok','1');shared=true;
+        submitCommunity(obj).then(r=>toast(r&&r.status==='approved'?'追加し、みんなに共有しました ✓':'追加し、共有に出しました（承認後に公開）')).catch(err=>{elog({type:'community',msg:'投稿失敗:'+err.message});toast('追加しました（共有の送信は失敗）');});
+      }
+    }
+    if(!shared)toast('追加しました（自作 '+store.userQuestions.length+'問）');
     renderProg();
     // フォーム再生成後、アコーディオンを開いたまま問題文入力にフォーカスを戻す（連続追加しやすく）
     const box=document.querySelector('#uqBox');if(box){box.open=true;const f=box.querySelector('#uqQ');if(f)f.focus();}
