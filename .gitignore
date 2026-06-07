@@ -14,5 +14,9 @@ Thumbs.db
 # 任意：クライアントIDを別ファイルに分けて秘匿したい場合
 # config.local.js
 
+# GAS デプロイのローカル設定・ビルド（SHEET_ID/デプロイID 等を含むため非公開）
+community-gas/.deploy.env
+community-gas/.deploy/
+
 # Claude Code ローカル設定
 .claude/

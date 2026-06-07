@@ -84,6 +84,15 @@
 - **プリキャッシュは `cache:'reload'`** でHTTPキャッシュをバイパス（GitHub Pages の `max-age` 越しに古い実体を焼き直す事故を防止）。
 - **更新通知UX**：`install` で自動 `skipWaiting()` せず待機。ページ側(`swUpdateReady`)が待機中の新SWを検知し**トースト「🆕 新しい版があります（タップで更新）」**を出す→タップで `postMessage({type:'SKIP_WAITING'})`→`controllerchange`で**適用時のみ**`location.reload()`（`_swSkip` ガードで初回インストール時の誤リロードを防止）。アイコンは `icon-192/512.png`＋`icon-maskable.png`＋`apple-touch-icon.png`（SVGは `icon.svg`、source は `icon-maskable.svg`）。
 
+## GAS（みんなの問題）のデプロイと clasp アカウント（重要・取り違え厳禁）
+このマシンの clasp は**複数 Google アカウント**を名前付きプロファイルで保持（`~/.clasprc.json`、永続）。**プロジェクトごとに使うアカウントが違う**。取り違えると `The caller does not have permission` で全操作が弾かれる（APIトグルやトークン期限ではなく**アカウント不一致**が主因）。
+- **`--user gmail`** = `ryuma.atari@gmail.com` … **community-gas プロジェクトの所有者**。みんなの問題のGASは必ずこれ。
+- **`--user school`** = `t260781p@naha-okinawa.ed.jp` … 学校アカウントの別プロジェクト（スタディクエスト等10件）。community-gas には**権限なし**。
+- 素の `clasp login`（=`default` プロファイル）は上書きされやすい。**常に `--user gmail` / `--user school` を明示**すること。`default`/`organization` にも同じ実体が入っているが名前が紛らわしいので使わない。プロファイルが壊れたら `clasp login --user gmail`（or `--user school`）で入れ直す（`clasp show-authorized-user --user gmail` で確認）。
+- **デプロイは helper 一発**：`bash community-gas/deploy.sh "更新メモ"`。中で①gmailアカウント検証→②正本 `Code.gs` に `SHEET_ID` を注入（公開リポジトリにIDを出さない）→③`clasp push --user gmail`→④**既存デプロイを `-i <DEPLOYMENT_ID>` で新バージョン更新**（`/exec` URL 不変＝アプリの `DEFAULT_COMMUNITY_URL` 変更不要）。
+- 秘密値（`SCRIPT_ID`/`SHEET_ID`/`DEPLOYMENT_ID`）は **`community-gas/.deploy.env`（git管理外）** に置く。雛形は `community-gas/.deploy.env.example`（コミット済）。
+- コード更新後の初回のみ、シートのエディタで関数 `setup` を1回実行（`device`/`reports` 列のヘッダ整備。コードは列番号で動くので未実行でも機能はする）。`script.external_request` の承認も初回必要。
+
 ## ナビ / 描画
 - ビュー：`home / map / ref / lookup / quiz / ronbun / prog`。`go(v)` が表示切替＋該当 `render*` を呼ぶ。タブは `role=tablist`、`aria-selected` 更新。
 - 描画関数：`renderHome / renderMap / renderRef / renderLookup / renderQuiz / renderRonbun / renderProg`。クイズは `showQ()` が `type` で `renderQA/MC/Cloze/Order/Match` に分岐。
