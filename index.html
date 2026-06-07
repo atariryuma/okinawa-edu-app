@@ -907,7 +907,8 @@ function renderQuiz(){
      <button class="mode mock" data-m="mock"><span class="ic">📝</span><b>模試（20問・時間計測）</b><span>全分野ミックス・本番形式</span></button>
      <button class="mode" data-m="__create"><span class="ic">✍️</span><b>問題を作る・共有</b><span>自作／みんなの問題</span></button>
    </div>
-   <div class="catbar" id="cats" aria-label="分野で絞り込み"></div>
+   <div id="catwrap"><div class="hint" style="margin:2px 2px 6px;font-size:.72rem">出題する分野（一問一答・4択など「形式モード」に適用）</div><div class="catbar" id="cats" aria-label="分野で絞り込み"></div></div>
+   <button class="btn ghost" id="qback" hidden style="margin:0 0 10px;padding:4px 12px;min-height:auto">← モード選択へ戻る</button>
    <div id="quizarea"></div>`;
   const cats=['all',...new Set(QUESTIONS.map(q=>q.cat))];
   const cb=el.querySelector('#cats');
@@ -916,9 +917,12 @@ function renderQuiz(){
       if(['qa','mc','cloze','order','match'].includes(quizMode))startQuiz(quizMode);}); // 形式モード中はその場で絞り込みを反映
     cb.appendChild(b);});
   el.querySelector('#modes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.m==='__create'){openCreate();return;}startQuiz(b.dataset.m);});
+  el.querySelector('#qback').addEventListener('click',()=>renderQuiz()); // 出題中→モード選択へ戻る（グリッド復帰）
   quizMode=null;
 }
 function quizarea(){return document.getElementById('quizarea');}
+// クイズ開始時：モードグリッドと分野バーを退避し、出題が画面を占有するようにする（タップ後に出題が画面外に隠れる問題の解消）
+function enterQuizView(){['modes','catwrap'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});const b=document.getElementById('qback');if(b)b.hidden=false;try{window.scrollTo(0,0);}catch(_){}}
 // 模試モードの経過タイマー
 let quizMockStart=0,mockTimerId=null;
 function stopMockTimer(){if(mockTimerId){clearInterval(mockTimerId);mockTimerId=null;}const t=document.getElementById('mockTimer');if(t)t.remove();}
@@ -926,9 +930,7 @@ function fmtSec(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%
 function startMockTimer(resumeSec){stopMockTimer();quizMockStart=Date.now()-(resumeSec||0)*1000;const t=document.createElement('div');t.id='mockTimer';t.setAttribute('role','timer');t.setAttribute('aria-label','経過時間');t.style.cssText='position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:60;background:var(--accent);color:#fff;padding:5px 12px;border-radius:20px;font-weight:700;font-size:.85rem;box-shadow:var(--shadow)';document.body.appendChild(t);const upd=()=>{t.textContent='⏱ '+fmtSec(Math.floor((Date.now()-quizMockStart)/1000));};upd();mockTimerId=setInterval(upd,1000);}
 function startQuiz(mode){
   quizMode=mode;quizIdx=0;sCorrect=0;sAnswered=0;
-  const cats=document.getElementById('cats');
-  const typeMode=['qa','mc','cloze','order','match'].includes(mode);
-  if(cats)cats.hidden=!typeMode;
+  enterQuizView();   // モードグリッド退避＋出題を画面先頭へ
   stopMockTimer();
   if(mode==='mock'){
     quizPool=shuffle(QUESTIONS).slice(0,20);            // 全分野ミックス20問
@@ -959,7 +961,7 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
   quizMode=s.mode;quizCat=s.cat||'all';
   quizPool=s.ids.map(id=>QUESTIONS.find(q=>q.id===id)).filter(Boolean);
   quizIdx=Math.min(s.idx||0,quizPool.length);sCorrect=0;sAnswered=0;
-  const cats=document.getElementById('cats');if(cats)cats.hidden=!['qa','mc','cloze','order','match'].includes(quizMode);
+  enterQuizView();   // 復帰時もモードグリッドを退避して出題を前面に
   if(!quizPool.length){store.session=null;save();return;}
   if(quizMode==='mock')startMockTimer(s.mockElapsed||0);   // 模試はタイマーを保存済み経過から再開
   showQ();
@@ -980,6 +982,7 @@ function showQ(){
       <button class="btn ghost wide" id="back" style="margin-top:9px">モード選択へ</button></div>`;
     area.querySelector('#again').addEventListener('click',()=>startQuiz(quizMode));
     area.querySelector('#back').addEventListener('click',()=>renderQuiz());
+    try{window.scrollTo(0,0);}catch(_){}
     renderHome();if(gSignedIn)cloudSync();return;
   }
   if(store.session){store.session.idx=quizIdx;save();} // 中断復帰用に現在位置を保存
@@ -1007,6 +1010,7 @@ function showQ(){
   const vb=card.querySelector('.qvote');if(vb)vb.addEventListener('click',()=>voteCommunity(q.id,vb)); // 👍役に立った（良問の浮上→検証済み昇格の起点）
   const rep=card.querySelector('.qreport');if(rep)rep.addEventListener('click',()=>reportCommunity(q.id,rep)); // 共有問題の通報（誤り/不適切→自動降格の起点）
   const h=card.querySelector('h2,.qtext');if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
+  try{window.scrollTo(0,0);}catch(_){}   // 各問を画面先頭に（出題が下に隠れない）
 }
 function typeName(t){return{qa:'一問一答',mc:'4択',cloze:'穴埋め',order:'並べ替え',match:'関係づけ'}[t];}
 function nextBtn(){return `<button class="btn wide qstick" style="margin-top:14px" id="nextQ">次へ →</button>`;}
