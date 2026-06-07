@@ -351,8 +351,9 @@ function okLen_(v) { return String(v).length <= MAX_FIELD_LEN; }
 function isInt_(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v) === v; }
 
 // ── 投稿の身元判定（自動公開のための門番）──────────────────────────────────
-// IDトークン(JWT)を Google の tokeninfo で検証。発行先 aud が本アプリの CLIENT_ID で、
-// 発行者 iss が Google、かつ未失効なら true（=本人確認OK）。それ以外/外部呼び出し失敗は false（=審査へ）。
+// IDトークン(JWT)を Google の tokeninfo で検証。発行先 aud／認可当事者 azp が本アプリの CLIENT_ID、
+// 発行者 iss が Google、メール確認済み(email_verified)、かつ未失効なら true（=本人確認OK）。
+// それ以外/外部呼び出し失敗は false（=審査へ）。aud だけの検証は azp 偽装に弱いため azp/email も併せて見る。
 // ※IDトークンは身元アサーションのみでアクセス権を持たない（旧: アクセストークン送信を廃止）。
 function verifyToken_(idtoken) {
   try {
@@ -361,9 +362,11 @@ function verifyToken_(idtoken) {
     var info = JSON.parse(resp.getContentText());
     var iss = String(info.iss || '');
     var audOk = (String(info.aud || '') === CLIENT_ID);
+    var azpOk = !info.azp || (String(info.azp) === CLIENT_ID);          // 認可された当事者(azp)も本アプリに限定（aud のみ検証の素通しを塞ぐ）
     var issOk = (iss === 'accounts.google.com' || iss === 'https://accounts.google.com');
+    var emailOk = (String(info.email_verified) === 'true');             // 確認済みメールの本人のみ自動公開（未確認/不明は審査へ）
     var notExpired = !info.exp || (parseInt(info.exp, 10) * 1000 > Date.now());
-    return audOk && issOk && notExpired;
+    return audOk && azpOk && issOk && emailOk && notExpired;
   } catch (e) { return false; }
 }
 // 検査対象の全文字列を連結

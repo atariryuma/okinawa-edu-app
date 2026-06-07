@@ -20,7 +20,7 @@
 `QUESTIONS` は **`questions.json`（外部・正本）**。`REF/LOOKUP/RONBUN/COLORS` は `index.html` 内のJS配列リテラル（編集はそこ）。現状 Q218（法規59/指導要領28/生徒指導27/危機管理20/自立15/時事15/働き方9/服務9/計画7/学校経営6/学校運営5/ビジョン4/体系4/情報管理4/苦情対応3/努力点3） / REF / LOOKUP / RONBUN8。**出典→公式ソース直リンク**（`srcChk`/`LAW_LINKS`=e-Gov・`DOC_LINKS`=文科省/県、法令優先・長い順照合）。
 - **問題の編集・追加** → `questions.json` を直接編集（JSON配列）。検証はリポジトリ同梱の手順 or `node -e`（下記「検証」）。編集後は `sw.js` の `CACHE` を上げる。
 - **ユーザー作成問題** … アプリ内「✍️ 問題の作成・共有」フォームで追加 → `store.userQuestions[]` に保存（Drive同期対象）。`mergeStore` が id で和集合。エクスポート(JSON DL)/インポート(file)で共有。
-- **みんなの問題（コミュニティ共有）** … `DEFAULT_COMMUNITY_URL`（GAS /exec）で有効。受け取り＝起動時 `fetchCommunity()` GET→`COMMUNITY_QUESTIONS`キャッシュ。投稿＝`submitCommunity()` が `{q,token,device}` を `text/plain` POST。**無意識共有モデル**：サインイン済みは既存アクセストークンを黙って同梱→GASが `aud`=`CLIENT_ID` を tokeninfo で検証し **trusted＝自動公開(approved)**、匿名は審査(pending)。裏でスパム対策（URL禁止/NGワード/端末レート制限/数式無害化/上限）。共有問題は出題時に「みんなの問題・未検証」バッジ（`COMMUNITY_IDS`）。GAS更新後は `setup` 再実行で `script.external_request` 承認が必要。契約: GET→`{ok,questions:[]}`／POST→`{ok,status}`。
+- **みんなの問題（コミュニティ共有）** … `DEFAULT_COMMUNITY_URL`（GAS /exec）で有効。受け取り＝起動時 `fetchCommunity()` GET→`COMMUNITY_QUESTIONS`キャッシュ。投稿＝`submitCommunity()` が `{q,idtoken,device}` を `text/plain` POST（旧 `token` キーも後方互換受理）。**無意識共有モデル**：サインイン済みは**IDトークン(JWT・身元のみ／アクセス権なし)**を黙って同梱→GASが `aud`/`azp`=`CLIENT_ID`＋`email_verified` を tokeninfo で検証し **trusted＝自動公開(approved)**、匿名は審査(pending)。裏でスパム対策（URL禁止/NGワード/端末レート制限/数式無害化/上限）。共有問題は出題時に「みんなの問題・未検証」バッジ（`COMMUNITY_IDS`）。GAS更新後は `setup` 再実行で `script.external_request` 承認が必要。契約: GET→`{ok,questions:[]}`／POST→`{ok,status}`。
 - **合成順（dedup by id）**：`QUESTIONS = BASE_QUESTIONS(公式) ＞ COMMUNITY_QUESTIONS(共有) ＞ store.userQuestions(自作)`（`rebuildQuestions()`）。
 - **セキュリティ規約（重要・回帰厳禁）**：問題文は**第三者由来（共有/自作/インポート）**を含むため、**描画は必ず `esc()` でHTMLエスケープ**（`render*`/`srcLine`/`showQ`のmeta）。新しい描画コードを足す時も第三者フィールドは `esc()` 必須（公式 REF/RONBUN はHTML可で別扱い）。`rebuildQuestions`/import/fetchCommunity は `validQuestion()` で**型検証して不正は除外**（描画/採点クラッシュ防止）。GAS側は `deformula_`(数式インジェクション無害化)＋`pick_`(未知/プロト汚染キー除去)＋`ID_RE`(id形式)＋行/未承認上限。
 - **4択(mc)は出題時に選択肢をシャッフル**（`renderMC`：`{c,orig}` 配列＋`ansPos`で正答追跡）。データの `ans` は元の並びのindexのまま。
@@ -76,15 +76,18 @@
 - OAuth設定はユーザー作業（README手順2）。承認済みJSオリジン＝公開オリジンと完全一致が必須。個人利用は同意画面「テスト」状態＋テストユーザー登録でOK。
 
 ## PWA / デプロイ時の注意
-- **`sw.js` の `CACHE` 名（現 `okinawa-edu-v4`）を、index.html等を変更するたびに必ず上げる**（例 `v5`）。上げ忘れると利用者に旧版がキャッシュから出続ける。最重要のデプロイ作法。
+- **`sw.js` の `CACHE` 名（現 `okinawa-edu-v36`）を、index.html等を変更するたびに必ず上げる**（例 `v37`）。上げ忘れると利用者に旧版がキャッシュから出続ける。最重要のデプロイ作法。
 - `sw.js` は同一オリジンGETのみキャッシュ。Google系(別オリジン)は素通し。
+- **キャッシュ戦略＝stale-while-revalidate**：キャッシュを即返しつつ裏でネットワーク取得→キャッシュ更新。これにより `CACHE` バンプを忘れても `questions.json` 等の更新が次回起動で追従する（保険）。それでも index.html 等の確実な反映には CACHE バンプが正道。
+- **プリキャッシュは `cache:'reload'`** でHTTPキャッシュをバイパス（GitHub Pages の `max-age` 越しに古い実体を焼き直す事故を防止）。
+- **更新通知UX**：`install` で自動 `skipWaiting()` せず待機。ページ側(`swUpdateReady`)が待機中の新SWを検知し**トースト「🆕 新しい版があります（タップで更新）」**を出す→タップで `postMessage({type:'SKIP_WAITING'})`→`controllerchange`で**適用時のみ**`location.reload()`（`_swSkip` ガードで初回インストール時の誤リロードを防止）。アイコンは `icon-192/512.png`＋`icon-maskable.png`＋`apple-touch-icon.png`（SVGは `icon.svg`、source は `icon-maskable.svg`）。
 
 ## ナビ / 描画
 - ビュー：`home / map / ref / lookup / quiz / ronbun / prog`。`go(v)` が表示切替＋該当 `render*` を呼ぶ。タブは `role=tablist`、`aria-selected` 更新。
 - 描画関数：`renderHome / renderMap / renderRef / renderLookup / renderQuiz / renderRonbun / renderProg`。クイズは `showQ()` が `type` で `renderQA/MC/Cloze/Order/Match` に分岐。
 
 ## アクセシビリティ（回帰させない）
-`:focus-visible`、`#quiz`/`#toast` の `aria-live`、cloze空欄の `tabindex/role=button`＋Enter/Space、並べ替えの ▲▼ ボタン（キーボード代替）、正誤は色＋✓✗、`prefers-reduced-motion`、`env(safe-area-inset-*)`、タップ目標44px。
+`:focus-visible`、`#toast`/`#gsres`/`#srlive` の `aria-live`（採点結果：mc/order/match は結果領域の `role=status`＋フォーカス移動で通知、即遷移する qa/cloze は `#quiz` 外の永続領域 `#srlive` を `srSay()` で通知）、cloze空欄の `tabindex/role=button`＋Enter/Space、並べ替えの ▲▼ ボタン（キーボード代替・タップ目標42×36px）、正誤は色＋✓✗、`prefers-reduced-motion`、`env(safe-area-inset-*)`、タップ目標44px。
 
 ## 開発・検証フロー
 ローカル確認（`file://` だとSW/Googleが動かないのでサーバ必須）：
@@ -107,8 +110,8 @@ node --check /tmp/app.js
 - 関係図に項目が出ない → REFに `map:1` があるか、`renderMap` の id 指定に含めたか。
 
 ## 既知のTODO / 伸びしろ
-- 問題量：202問（200問規模を達成）。論文は「書く/自己添削」化済(`store.ronbunDrafts`)・模試モード(`mock`,時間計測)・苦手の分野別正答率可視化あり。`QUESTIONS`(questions.json)追記で拡張可。
-- 残課題：自己採点(qa)の客観化、共有投稿の認可をIDトークン(JWT)化（現在はアクセストークンの aud 検証＋privacy.htmlで開示）。
+- 問題量：218問。論文は「書く/自己添削」化済(`store.ronbunDrafts`)・模試モード(`mock`,時間計測)・苦手の分野別正答率可視化あり。`QUESTIONS`(questions.json)追記で拡張可。
+- 残課題：自己採点(qa)の客観化。※共有投稿の認可は**IDトークン(JWT)化済**（`aud`/`azp`＋`email_verified` を tokeninfo 検証、アクセストークンは送らない／privacy.htmlで開示）。
 - 模試モード（時間制限・本番形式）、論文の字数別モデル答案、年度バッジでの絞り込み。
 - 自己採点(qa/cloze)の客観化（テキスト入力照合）。
 - 進捗のエクスポート/インポート（Google未使用者向け）。

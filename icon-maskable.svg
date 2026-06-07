@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="教育法規アプリ">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0e7490"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#g)"/>
+  <g fill="#ffffff" transform="translate(256 266) scale(0.82) translate(-256 -266)">
+    <path d="M256 120 L150 168 L256 216 L362 168 Z"/>
+    <path d="M150 168 v44 c0 36 47 60 106 60 s106 -24 106 -60 v-44 l-30 14 v36 c0 20 -34 34 -76 34 s-76 -14 -76 -34 v-36 z"/>
+    <rect x="356" y="182" width="10" height="78" rx="5"/>
+    <circle cx="361" cy="270" r="12"/>
+  </g>
+  <g fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.95" transform="translate(256 266) scale(0.82) translate(-256 -266)">
+    <path d="M176 320 h160"/>
+    <path d="M176 360 h160"/>
+    <path d="M176 400 h104"/>
+  </g>
+</svg>

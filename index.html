@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- CSP：万一エスケープ漏れが将来混入した場合の多層防御。インラインJS/CSS構成のため script/style は 'unsafe-inline' 必須だが、object/base/form を封じ、接続先・フレーム元を Google 連携に限定する。
+     ※frame-ancestors/X-Frame-Options は <meta> では効かない（HTTPヘッダ専用）ため GitHub Pages では適用不可。 -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleusercontent.com https://www.gstatic.com; font-src 'self'; connect-src 'self' https://accounts.google.com https://oauth2.googleapis.com https://www.googleapis.com https://script.google.com https://script.googleusercontent.com https://www.gstatic.com; frame-src https://accounts.google.com https://*.googleusercontent.com; base-uri 'none'; object-src 'none'; form-action 'none'">
 <title>沖縄 教育法規ナビ — 管理職試験＆学校経営の判断の根拠</title>
 <meta name="description" content="沖縄県の教頭・校長試験の対策と、日々の学校経営で“判断の根拠”を出典つきで引けるアプリ。間隔反復クイズ・要点・関係図・逆引き・論文/面接、条文への直リンク。">
 <meta property="og:title" content="沖縄 教育法規ナビ — 管理職試験＆学校経営">
@@ -11,7 +14,8 @@
 <meta name="theme-color" content="#0e7490">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="教育法規">
 <style>
@@ -61,6 +65,8 @@
   nav.tabs button{flex:1 0 auto;background:transparent;color:var(--sub);border:none;padding:10px 14px;min-height:44px;
     border-radius:12px;font-size:.82rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:.2s;}
   nav.tabs button[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(14,116,144,.35);}
+  /* 右端のフェード＝横スクロールで隠れたタブがあることのアフォーダンス（末尾の「論文・面接／進捗」への気づき） */
+  nav.tabs::after{content:"";position:sticky;right:0;flex:0 0 22px;align-self:stretch;margin-left:-22px;background:linear-gradient(to right,transparent,var(--card));pointer-events:none;border-radius:0 12px 12px 0;}
 
   main{padding:6px 16px 0;}
   .view{display:none;}
@@ -206,7 +212,7 @@
   .reveal.ok{background:var(--ok-soft);border:1px solid var(--ok);}
   .reveal.ng{background:var(--ng-soft);border:1px solid var(--ng);}
   .reveal .src{border:none;padding:0;margin-top:8px;}
-  .cloze .blank{background:var(--ng);color:transparent;border-radius:5px;padding:1px 8px;cursor:pointer;transition:.18s;font-weight:800;text-decoration:underline;text-decoration-color:rgba(255,255,255,.5);}
+  .cloze .blank{background:var(--ng);color:transparent;border-radius:5px;padding:1px 8px;cursor:pointer;transition:.18s;font-weight:800;text-decoration:underline;text-decoration-color:#fff;text-decoration-thickness:2px;text-underline-offset:2px;box-shadow:0 0 0 1.5px rgba(0,0,0,.22);}
   .cloze .blank.show{background:var(--ok-soft);color:var(--ink);text-decoration:none;}
   .redtoggle{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;}
   .orderlist{list-style:none;padding:0;margin:0 0 14px;}
@@ -214,7 +220,7 @@
   .orderlist li .num{width:26px;height:26px;border-radius:9px;background:var(--chip);display:flex;align-items:center;justify-content:center;font-size:.86rem;flex:0 0 auto;color:var(--sub);cursor:grab;}
   .orderlist li .txt{flex:1;font-size:.88rem;}
   .orderlist li .mv{display:flex;flex-direction:column;gap:2px;}
-  .orderlist li .mv button{width:34px;height:24px;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:7px;font-size:.7rem;cursor:pointer;line-height:1;}
+  .orderlist li .mv button{width:42px;height:36px;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:8px;font-size:.82rem;cursor:pointer;line-height:1;}
   .orderlist li.dragging{opacity:.4;}
   .matchwrap{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:14px;}
   .matchcol button{display:block;width:100%;border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:11px;padding:13px 10px;margin-bottom:8px;font-size:.8rem;cursor:pointer;box-shadow:var(--shadow-sm);min-height:52px;}
@@ -307,6 +313,8 @@
   </footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<!-- 採点結果のSR通知用（#quizarea の外に置くことで次問への遷移で読み上げが途切れない） -->
+<div id="srlive" class="sr-only" role="status" aria-live="assertive"></div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 <script>
@@ -528,7 +536,7 @@ function selfCheck(){const issues=[],ids=new Set();
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
 function getCard(id){return store.cards[id];}
 function boxFromIvl(ivl){if(ivl>=30)return 5;if(ivl>=10)return 4;if(ivl>=3)return 3;if(ivl>=1)return 2;return 1;}
-function examDaysLeft(){if(!store.examDate)return null;return Math.ceil((new Date(store.examDate+'T23:59:59').getTime()-Date.now())/DAY);}
+function examDaysLeft(){if(!store.examDate)return null;const p=String(store.examDate).split('-');const ex=new Date(+p[0],(+p[1]||1)-1,(+p[2]||1));ex.setHours(0,0,0,0);const now=new Date();now.setHours(0,0,0,0);return Math.round((ex.getTime()-now.getTime())/DAY);} // 暦日ベースの残日数（当日=0／翌日=1）。表示・キャップ・自動解除で同一定義を共有
 function clampIvl(ivl){ivl=Math.min(IVL_MAX,Math.max(1,Math.round(ivl)));const dl=examDaysLeft();if(dl!=null&&dl>=0)ivl=Math.min(ivl,Math.max(1,dl));return ivl;} // 試験当日(dl=0)も1日にクランプ（dl>0条件だと当日キャップが外れていた）
 function isMastered(id){const c=getCard(id);return c&&c.box>=4;}
 function stateOf(id){const c=getCard(id);if(!c)return'new';if(c.box>=4)return'mast';if(c.box===3)return'near';return'learn';}
@@ -547,6 +555,7 @@ function review(id,ok){
     else ivl=c.ivl*c.ef;                           // 3回目以降 → 間隔×ease（指数的に拡大）
     if(ivl>=4)ivl=ivl*(1+(Math.random()*0.1-0.05));// fuzz ±5%（復習日の集中を緩和）
     c.reps++;c.ef=Math.min(EF_MAX,c.ef+0.03);
+    if(recovered)c.reps=Math.max(c.reps,2);        // 復帰後の次回正解は固定3日でなく指数拡大(ivl×ef)経路へ＝間隔の逆行を防ぐ
     c.ivl=clampIvl(ivl);c.due=Date.now()+c.ivl*DAY;c.last='pass';
     // 失敗復帰直後は定着(mast=box4+)に跳ねさせない（弱点克服の誤表示を防ぐ）
     c.box=recovered?Math.min(boxFromIvl(c.ivl),3):boxFromIvl(c.ivl);
@@ -577,7 +586,7 @@ function validQuestion(q){
   if(['qa','mc','cloze','order','match'].indexOf(q.type)<0)return false;
   switch(q.type){
     case'qa':return typeof q.q==='string'&&typeof q.a==='string';
-    case'mc':return typeof q.q==='string'&&Array.isArray(q.choices)&&q.choices.length>=2&&typeof q.ans==='number'&&q.ans>=0&&q.ans<q.choices.length;
+    case'mc':return typeof q.q==='string'&&Array.isArray(q.choices)&&q.choices.length>=2&&q.choices.length<=6&&typeof q.ans==='number'&&q.ans>=0&&q.ans<q.choices.length;
     case'cloze':return Array.isArray(q.parts)&&q.parts.length>0&&q.parts.some(p=>p&&typeof p==='object'&&typeof p.b==='string'&&p.b);
     case'order':return typeof q.q==='string'&&Array.isArray(q.items)&&q.items.length>=2;
     case'match':return typeof q.q==='string'&&Array.isArray(q.pairs)&&q.pairs.length>=1&&q.pairs.every(p=>Array.isArray(p)&&p.length===2);
@@ -612,7 +621,7 @@ tabs.addEventListener('keydown',e=>{
 });
 function go(v,focusPanel){
   if(typeof stopMockTimer==='function')stopMockTimer();   // タブ移動で模試タイマーを停止
-  [...tabs.children].forEach(x=>{const sel=x.dataset.v===v;x.setAttribute('aria-selected',sel);x.tabIndex=sel?0:-1;});
+  [...tabs.children].forEach(x=>{const sel=x.dataset.v===v;x.setAttribute('aria-selected',sel);x.tabIndex=sel?0:-1;if(sel&&x.scrollIntoView)try{x.scrollIntoView({inline:'center',block:'nearest'});}catch(_){}}); // 選択タブを常に可視域へ（末尾タブの存在に気づける）
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
   if(v==='home')renderHome();
   if(v==='prog')renderProg();
@@ -628,6 +637,7 @@ function go(v,focusPanel){
 let SEARCH_INDEX=null;
 function openRef(id){refFilter='all';renderRef();go('ref');setTimeout(()=>{const d=document.getElementById('acc-'+id);if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});}},70);}
 function openSync(){go('prog');setTimeout(()=>{const d=[...document.querySelectorAll('#prog details')].find(x=>/同期・データ管理/.test((x.querySelector('summary')||{}).textContent||''));if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'});}},70);}
+function openExamSetting(){go('prog');setTimeout(()=>{const i=document.getElementById('examIn');if(i){i.scrollIntoView({behavior:'smooth',block:'center'});try{i.focus({preventScroll:true});}catch(_){}}},80);} // 試験日の恒常的な設定入口（進捗タブの日付欄へ誘導）
 function buildSearchIndex(){const idx=[];
   REF.forEach(r=>idx.push({k:'要点',t:r.name,b:(r.points||[]).join(' ')+' '+(r.tag||'')+' '+(r.cat||'')+' '+(r.src||''),go:()=>openRef(r.id)}));
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
@@ -664,7 +674,7 @@ function renderHome(){
   const seen=QUESTIONS.filter(q=>getCard(q.id)).length;                 // 学習に着手した問題数
   const todayDone=(store.dailyDone&&store.dailyDone[todayStr()])||0;     // 今日解いた数
   const dl=examDaysLeft();
-  const examChip=dl!=null?(dl>0?`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験まであと${dl}日</span>`:`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験当日</span>`):'';
+  const examChip=dl!=null?(dl>0?`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験まであと${dl}日</span>`:`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験当日</span>`):`<span class="streak" id="examSetChip" role="button" tabindex="0" style="background:rgba(255,255,255,.2);cursor:pointer" title="試験日を設定">🎯 試験日を設定</span>`; // 未設定時は常設の入口（「あとで」で消えても再設定できる）
   const studiedToday=store.lastDate===todayStr();
   const nudge=(!studiedToday&&(store.streak||0)>0)?`<div class="card" style="border-left:4px solid var(--warn);font-size:.86rem;color:var(--ink)">🔥 ${store.streak}日連続中。今日はまだ未学習です——1問だけでも続けて記録を伸ばしましょう。</div>`:'';
   const sess=store.session;
@@ -759,6 +769,7 @@ function renderHome(){
   const exi=el.querySelector('#examPromptIn');if(exi)exi.addEventListener('change',e=>{if(e.target.value){store.examDate=e.target.value;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderHome();toast('試験日を設定しました 🎯');}});
   const exs=el.querySelector('#examSkip');if(exs)exs.addEventListener('click',()=>{localStorage.setItem('oki_exam_skip','1');const n=el.querySelector('#examPrompt');if(n)n.remove();});
   const hs=el.querySelector('#homeSyncBtn');if(hs)hs.addEventListener('click',openSync);
+  const esChip=el.querySelector('#examSetChip');if(esChip){esChip.addEventListener('click',openExamSetting);esChip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openExamSetting();}});}
   el.querySelectorAll('.quick').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.act;if(a==='review'){go('quiz');startQuiz('review');}else go(a);}));
 }
 
@@ -954,16 +965,16 @@ function renderQA(q,meta,id,card){
         <button class="btn ok" style="flex:1" id="g1">✓ 言えた</button>
         <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div></div></div>`;
   card.querySelector('#showA').addEventListener('click',()=>{const a=card.querySelector('#A');a.classList.add('show');a.setAttribute('role','status');a.tabIndex=-1;a.focus({preventScroll:true});});
-  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);toast('✓ 正解として記録');quizIdx++;showQ();});
-  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);toast('🎯 弱点として記録（また戻します）');quizIdx++;showQ();});
+  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);srSay('正解として記録しました。次の問題に進みます。');toast('✓ 正解として記録');quizIdx++;showQ();});
+  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);srSay('あいまい。弱点として記録しました。後日また出題します。次の問題に進みます。');toast('🎯 弱点として記録（また戻します）');quizIdx++;showQ();});
 }
 function renderMC(q,meta,id,card){
-  const ks=['A','B','C','D','E','F'];
+  const ks=['A','B','C','D','E','F'],kl=i=>ks[i]||String(i+1); // 7択以上でもラベルが undefined にならないようフォールバック
   // 選択肢をシャッフル（位置で答えを覚えるのを防ぐ）。orig=元のインデックス、ansPos=正答の表示位置。
   const opts=shuffle(q.choices.map((c,i)=>({c,orig:i})));
   const ansPos=opts.findIndex(o=>o.orig===q.ans);
   card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
-    <div id="ch">${opts.map((o,i)=>`<button class="choice" data-i="${i}"><span class="k">${ks[i]}</span><span>${esc(o.c)}</span></button>`).join('')}</div>
+    <div id="ch">${opts.map((o,i)=>`<button class="choice" data-i="${i}"><span class="k">${kl(i)}</span><span>${esc(o.c)}</span></button>`).join('')}</div>
     <div class="reveal" id="R"></div></div>`;
   const wrap=card.querySelector('#ch');
   wrap.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>{
@@ -972,7 +983,7 @@ function renderMC(q,meta,id,card){
       if(j===ansPos){x.classList.add('correct');x.querySelector('.k').textContent='✓';}
       if(j===i&&!ok){x.classList.add('wrong');x.querySelector('.k').textContent='✗';}});
     answer(id,ok);const R=card.querySelector('#R');R.className='reveal show '+(ok?'ok':'ng');
-    R.innerHTML=`<b>${ok?'✅ 正解':'❌ 不正解'}</b>　正答：${ks[ansPos]}. ${esc(opts[ansPos].c)}<br>${esc(q.exp)}${srcLine(q)}${nextBtn()}`;bindNext(card);
+    R.innerHTML=`<b>${ok?'✅ 正解':'❌ 不正解'}</b>　正答：${kl(ansPos)}. ${esc(opts[ansPos].c)}<br>${esc(q.exp)}${srcLine(q)}${nextBtn()}`;bindNext(card);
     R.setAttribute('role','status');R.tabIndex=-1;R.focus({preventScroll:true}); // 採点結果をSRへ通知＋フォーカス移動
   }));
 }
@@ -987,8 +998,8 @@ function renderCloze(q,meta,id,card){
   const toggle=b=>{b.classList.toggle('show');setLbl(b);};
   card.querySelectorAll('.blank').forEach(b=>{b.addEventListener('click',()=>toggle(b));b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(b);}});});
   card.querySelector('#allrev').addEventListener('click',()=>card.querySelectorAll('.blank').forEach(b=>{b.classList.add('show');setLbl(b);}));
-  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);toast('✓ 正解として記録');quizIdx++;showQ();});
-  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);toast('🎯 弱点として記録');quizIdx++;showQ();});
+  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);srSay('正解として記録しました。次の問題に進みます。');toast('✓ 正解として記録');quizIdx++;showQ();});
+  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);srSay('あいまい。弱点として記録しました。次の問題に進みます。');toast('🎯 弱点として記録');quizIdx++;showQ();});
 }
 function renderOrder(q,meta,id,card){
   const sh=shuffle(q.items.map((t,i)=>({t,i})));
@@ -1128,6 +1139,7 @@ function renderProg(){
       <div class="box b"><div class="n">${mast}</div><div class="l">定着</div></div>
       <div class="box c"><div class="n">${weak.length}</div><div class="l">要復習</div></div>
     </div>
+    <div class="hint" style="margin:2px 2px 10px;text-align:left">定着＝間隔をあけても思い出せる状態／要復習＝まだあやふやで近く再出題されます。</div>
     <div class="card" style="display:flex;justify-content:space-around;text-align:center;gap:8px;flex-wrap:wrap">
       <div><b style="font-size:1.25rem">🔥 ${store.streak||0}</b><div style="font-size:.72rem;color:var(--sub)">連続日数</div></div>
       <div><b style="font-size:1.25rem">${todayDone}</b><div style="font-size:.72rem;color:var(--sub)">今日解いた</div></div>
@@ -1316,9 +1328,10 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
   {const seen={},merged=[];[...(a.userQuestions||[]),...(b.userQuestions||[])].forEach(q=>{if(q&&q.id&&!seen[q.id]){seen[q.id]=1;merged.push(q);}});out.userQuestions=merged;}
   // 論文の下書きはタイトル毎に「長い方」を採用（端末間でより書き込んだ版を保持）
   {const dr=Object.assign({},a.ronbunDrafts||{});const bd=b.ronbunDrafts||{};Object.keys(bd).forEach(k=>{if(!dr[k]||String(bd[k]).length>String(dr[k]).length)dr[k]=bd[k];});out.ronbunDrafts=dr;}
-  // 累積統計は端末間で大きい方を採用（同一行動の同期による二重計上を避ける近似）
-  out.totalAnswered=Math.max(a.totalAnswered||0,b.totalAnswered||0);
-  out.totalCorrect=Math.max(a.totalCorrect||0,b.totalCorrect||0);
+  // 累積統計：両端末値に加え、マージ後カードの履歴和集合からの集計も下限に採用（端末B単独の解答が Math.max に飲まれて欠落するのを緩和。値は単調増加のみ）
+  {let ua=0,uc=0;Object.values(out.cards||{}).forEach(c=>(c.hist||[]).forEach(h=>{ua++;if(h&&h.ok)uc++;}));
+   out.totalAnswered=Math.max(a.totalAnswered||0,b.totalAnswered||0,ua);
+   out.totalCorrect=Math.max(a.totalCorrect||0,b.totalCorrect||0,uc);}
   {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});out.dailyDone=dd;}
   return out;}
 async function cloudSync(quiet){if(!accessToken)return;try{
@@ -1349,11 +1362,33 @@ function mountSync(){
 }
 
 //==================== PWA ====================
-if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
+let _swSkip=false;
+// 新しい版が待機中になったら、控えめなトーストで通知（タップで適用）。無視すれば現行のまま使い続けられる。
+function swUpdateReady(reg){
+  const t=document.getElementById('toast');if(!t||!reg.waiting)return;
+  t.textContent='🆕 新しい版があります（タップで更新）';t.style.pointerEvents='auto';t.style.cursor='pointer';t.classList.add('show');
+  const reset=()=>{t.style.pointerEvents='';t.style.cursor='';t.removeEventListener('click',apply);};
+  function apply(){_swSkip=true;reset();t.classList.remove('show');if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});}
+  t.addEventListener('click',apply);
+  clearTimeout(window._swHideT);window._swHideT=setTimeout(()=>{if(_swSkip)return;reset();t.classList.remove('show');},9000);
+}
+if('serviceWorker' in navigator){
+  // 更新を「適用」した時だけリロード（初回インストールの controllerchange では何もしない＝勝手なリロードを防ぐ）。
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(_swSkip){_swSkip=false;location.reload();}});
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      if(reg.waiting&&navigator.serviceWorker.controller)swUpdateReady(reg);   // 既に待機中の更新があれば通知
+      reg.addEventListener('updatefound',()=>{const nw=reg.installing;if(!nw)return;
+        nw.addEventListener('statechange',()=>{if(nw.state==='installed'&&navigator.serviceWorker.controller)swUpdateReady(reg);});});
+    }).catch(()=>{});
+  });
+}
 
 //==================== UTIL ====================
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1600);}
+// スクリーンリーダー専用の通知（次問へ即遷移する qa/cloze で採点結果が途切れないよう、永続領域に出す）
+function srSay(m){const s=document.getElementById('srlive');if(!s)return;s.textContent='';setTimeout(()=>{s.textContent=m;},30);}
 
 //==================== INIT ====================
 // 問題の正本は questions.json（同一オリジン＝CORSなし、SWでオフラインキャッシュ）。
@@ -1380,12 +1415,12 @@ async function boot(){
   loadCommunityCache();                 // 前回取得した共有問題（オフライン/初速のため）
   // 通算統計の後付けフィールド導入前の履歴をカードのhistからバックフィル（既存ユーザーの過小表示を是正・1回のみ）
   if(!store._statMig){let ta=0,tc=0;Object.values(store.cards||{}).forEach(c=>{(c.hist||[]).forEach(h=>{ta++;if(h&&h.ok)tc++;});});if(ta>(store.totalAnswered||0)){store.totalAnswered=ta;store.totalCorrect=tc;}store._statMig=1;save();}
-  if(store.examDate){const dl=examDaysLeft();if(dl!=null&&dl<=0){store.examDate=null;store.examDateT=Date.now();save();}} // 試験日を過ぎたら自動解除（通常SRSへ）
+  if(store.examDate){const dl=examDaysLeft();if(dl!=null&&dl<0){store.examDate=null;store.examDateT=Date.now();save();}} // 試験日翌日に自動解除（当日dl=0は維持＝「試験当日」表示）
   try{
     const res=await fetch('questions.json');
     if(!res.ok)throw new Error('HTTP '+res.status);
     BASE_QUESTIONS=await res.json();
-    try{localStorage.setItem(QJSON_CACHE,JSON.stringify(BASE_QUESTIONS));}catch(_){} // 最後に成功した版を保持
+    try{const s=JSON.stringify(BASE_QUESTIONS);if(localStorage.getItem(QJSON_CACHE)!==s)localStorage.setItem(QJSON_CACHE,s);}catch(_){} // 最後に成功した版を保持（内容不変なら書込み省略＝毎起動の大容量同期書込みを回避）
   }catch(e){
     elog({type:'load',msg:'questions.json 読み込み失敗: '+((e&&e.message)||e)});console.warn('questions.json 読み込み失敗',e);
     try{const c=JSON.parse(localStorage.getItem(QJSON_CACHE)||'[]');if(Array.isArray(c)&&c.length){BASE_QUESTIONS=c;console.warn('前回キャッシュの問題で起動');}}catch(_){}  // 読込失敗時は前回版にフォールバック

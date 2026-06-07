@@ -1,10 +1,17 @@
 // 沖縄県 教育法規アプリ — Service Worker（オフライン対応）
-const CACHE = 'okinawa-edu-v35';
-const ASSETS = ['./', './index.html', './questions.json', './privacy.html', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'okinawa-edu-v36';
+const ASSETS = ['./', './index.html', './questions.json', './privacy.html', './manifest.webmanifest',
+  './icon.svg', './icon-192.png', './icon-512.png', './icon-maskable.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache:'reload' でブラウザHTTPキャッシュをバイパスし、デプロイ直後に必ず「最新実体」をプリキャッシュする。
+  // （GitHub Pages の max-age により古い index.html / questions.json を焼き直す事故を防ぐ）
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))));
+  // 自動 skipWaiting はしない：更新の適用はページ側の通知→ユーザー操作で行う（旧HTML＋新データの世代ズレ防止）。
 });
+
+// ページから「更新を今すぐ適用」と指示されたら待機を解除（待機中の新SWが activate される）。
+self.addEventListener('message', e => { if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting(); });
 
 self.addEventListener('activate', e => {
   e.waitUntil(
@@ -15,18 +22,22 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const req = e.request;
-  // 同一オリジンの GET のみキャッシュ対象。Google API 等の外部はそのままネットワークへ。
+  // 同一オリジンの GET のみ扱う。Google API 等の外部はそのままネットワークへ（素通し）。
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      const copy = res.clone();
-      caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
-      return res;
-    }).catch(() => {
-      // オフライン時のフォールバックはページ遷移(ナビゲーション)のみ index.html を返す。
-      // questions.json 等のデータ取得失敗時に HTML を返さない（boot() の JSON パース誤動作を防ぐ）。
-      if (req.mode === 'navigate') return caches.match('./index.html');
-      return Response.error();
-    }))
+    caches.match(req).then(hit => {
+      // stale-while-revalidate：キャッシュを即返しつつ、裏でネットワーク取得してキャッシュを更新する。
+      // → 次回起動で新版が反映され、CACHE バンプを忘れても questions.json 等のデータ更新に追従できる。
+      const net = fetch(req).then(res => {
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {}); }
+        return res;
+      }).catch(() => {
+        // オフライン時のフォールバックはページ遷移(ナビゲーション)のみ index.html を返す。
+        // questions.json 等のデータ取得失敗時に HTML を返さない（boot() の JSON パース誤動作を防ぐ）。
+        if (req.mode === 'navigate') return caches.match('./index.html');
+        return Response.error();
+      });
+      return hit || net;
+    })
   );
 });
