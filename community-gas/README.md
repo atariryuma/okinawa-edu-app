@@ -11,9 +11,14 @@
 - `doGet()` → `{"ok":true,"questions":[ <問題オブジェクト>, ... ]}`（approved のみ）
 - `doPost()` → 本文は `Content-Type: text/plain` の JSON。新形式 `{"q":<問題>, "idtoken":"<IDトークン(JWT)|空>", "device":"<端末ID>"}`（旧 `token` キー／問題そのものも後方互換）。送るのは身元アサーションのみの**IDトークン**で、Drive 等へのアクセス権は持たない。成功 `{"ok":true,"status":"approved"|"pending"}` / 失敗 `{"ok":false,"error":"..."}`
 
-## 自動公開モデル（無意識な共有）
-- **サインイン済みユーザーの投稿**：IDトークンの発行先(`aud`)・認可当事者(`azp`)が本アプリの `CLIENT_ID` と一致し、`email_verified` が真・未失効なら **trusted＝自動で `approved`**（人手の承認なしで全員に配信）。ログイン画面は新たに出ない（同期用の既存ログインを黙って再利用）。`verifyToken_()` が `aud`/`azp`/`email_verified`/`iss`/`exp` を検証する。
-- **匿名（未ログイン）の投稿**：`pending`。あなたがシートで `approved` にした時だけ配信。
+## 自動公開モデル（段階可視性＋可逆）
+自動公開(`approved`)の条件は **`sourceOk && (trusted || rep>=REP_TRUST)`**。本人確認(identity)だけでなく「公式出典」を必須にして、誤った条文の即時拡散を防ぐ。
+- **出典ゲート `srcResolves_`**：`src` が公式ソース（アプリの `LAW_LINKS`/`DOC_LINKS` を移植した `SRC_PATTERNS`＝e-Gov/文科省/県）に解決する時だけ自動公開の資格。解決しない曖昧出典は `pending`（人手へ）。
+- **本人確認 `trusted`**：IDトークンの `aud`/`azp`=`CLIENT_ID`、`email_verified` 真、`iss`=Google、未失効を `verifyToken_()` が検証。
+- **段階信頼 `rep`**：その端末(`device`)の「承認済み」実績が `REP_TRUST(=2)` 以上なら、匿名でも自動公開の資格（新規/匿名の一発毒入れは `pending` で止め、実績が貯まれば無人で流れる）。
+- **匿名・出典なし・実績不足の投稿**：`pending`。あなたがシートで `approved` にした時だけ配信。
+- **通報→自動降格（可逆）**：アプリ出題画面の「⚠️通報」が `{action:'report',id,device}` を送る。`reports` が `REPORT_LIMIT(=3)` に達すると `approved`→`pending` に自動降格して配信停止＝再審査へ（端末ごと通報レート制限＋同一問題の二重通報抑止）。
+- シート列：`timestamp,status,id,type,cat,json,q,src,device,reports`（`device`/`reports` を追加。コード更新後は **`setup` を再実行**してヘッダを整える）。
 - **裏側のスパム対策（全投稿に適用）**：リンク(URL)禁止・NGワード・端末ごとレート制限（`RATE_PER_HOUR`）・id形式・重複排除・行/未承認上限・数式インジェクション無害化。
 - IDトークン検証は Google の tokeninfo を `UrlFetchApp` で叩くため **`script.external_request` 権限が必要**。コード更新後は **新しいデプロイを作成**（既存デプロイの「編集」→バージョン更新）し、必要なら **一度 `setup` を再実行**して追加権限（外部リクエスト）を承認すること（承認するまで自動公開は働かず、全投稿が安全に `pending` になります）。
 

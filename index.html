@@ -937,12 +937,13 @@ function showQ(){
   if(store.session){store.session.idx=quizIdx;save();} // 中断復帰用に現在位置を保存
   const q=quizPool[quizIdx];
   const prog=`<div class="progressbar" role="progressbar" aria-valuemin="0" aria-valuemax="${quizPool.length}" aria-valuenow="${quizIdx+1}" aria-label="${quizPool.length}問中 ${quizIdx+1}問目"><i style="width:${quizIdx/quizPool.length*100}%"></i></div>`;
-  const commBadge=COMMUNITY_IDS.has(q.id)?`<span class="badge" style="background:#f59e0b;color:#1a1a1a">みんなの問題・未検証</span>`:'';
+  const commBadge=COMMUNITY_IDS.has(q.id)?`<span class="badge" style="background:#f59e0b;color:#1a1a1a">みんなの問題・未検証</span> <button type="button" class="qreport" data-id="${esc(q.id)}" aria-label="この問題を通報する" style="font-size:.68rem;border:1px solid var(--line);background:var(--card);color:var(--sub);border-radius:10px;padding:1px 8px;min-height:auto;cursor:pointer">⚠️通報</button>`:'';
   const meta=`<div class="qmeta"><span class="badge">${esc(q.cat)}・${typeName(q.type)}</span>${commBadge}<span>${quizIdx+1} / ${quizPool.length}</span></div>`;
   area.innerHTML=prog;const card=document.createElement('div');area.appendChild(card);
   const r={qa:renderQA,mc:renderMC,cloze:renderCloze,order:renderOrder,match:renderMatch}[q.type];
   if(!r){quizIdx++;return showQ();}
   r(q,meta,q.id,card);
+  const rep=card.querySelector('.qreport');if(rep)rep.addEventListener('click',()=>reportCommunity(q.id,rep)); // 共有問題の通報（誤り/不適切→自動降格の起点）
   const h=card.querySelector('h2,.qtext');if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
 }
 function typeName(t){return{qa:'一問一答',mc:'4択',cloze:'穴埋め',order:'並べ替え',match:'関係づけ'}[t];}
@@ -1318,6 +1319,18 @@ async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw n
   const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
   let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
   if(!j.ok)throw new Error(j.error||'送信に失敗しました');return j;}
+// 共有問題の通報。一定数集まると GAS 側が approved→pending に自動降格し運営が再確認する。
+async function reportCommunity(id,btn){
+  const url=getCommunityUrl();if(!url)return;
+  if(!confirm('この問題に誤りや不適切な内容がある場合に通報します。\n一定数の通報が集まると自動で非公開になり、運営が再確認します。\n通報しますか？'))return;
+  if(btn){btn.disabled=true;btn.textContent='通報済み';btn.style.opacity=.6;}
+  try{
+    const body=JSON.stringify({action:'report',id,device:deviceId()});
+    const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
+    let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
+    toast(j&&j.ok?'通報しました。ご協力ありがとうございます':'通報を受け付けました');
+  }catch(e){elog({type:'community',msg:'通報失敗:'+((e&&e.message)||e)});toast('通報の送信に失敗しました');if(btn){btn.disabled=false;btn.textContent='⚠️通報';btn.style.opacity=1;}}
+}
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
 let gSilent=false; // 起動時のサイレント再ログイン中はトーストを出さない
 function initGoogle(){
