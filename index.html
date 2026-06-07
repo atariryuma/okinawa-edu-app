@@ -664,6 +664,9 @@ function go(v,focusPanel){
   if(v==='prog')renderProg();
   if(v==='quiz')renderQuiz();
   if(v==='ronbun')renderRonbun();
+  if(v==='map')renderMap();
+  if(v==='ref')renderRef();      // 都度再描画＝付箋・tag・検索を最新に
+  if(v==='lookup')renderLookup();// 都度再描画＝最近見た・付箋を最新に
   const rm=matchMedia('(prefers-reduced-motion:reduce)').matches;
   window.scrollTo({top:0,behavior:rm?'auto':'smooth'});
   if(focusPanel){const p=document.getElementById(v);if(p){p.setAttribute('tabindex','-1');p.focus({preventScroll:true});}} // タブ操作時はパネル先頭へフォーカス移動
@@ -672,7 +675,7 @@ function go(v,focusPanel){
 //==================== HOME ====================
 //==================== 横断検索（要点/逆引き/論文/問題） ====================
 let SEARCH_INDEX=null;
-function openRef(id){refFilter='all';renderRef();go('ref');setTimeout(()=>{const d=document.getElementById('acc-'+id);if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});}},70);}
+function openRef(id){refFilter='all';go('ref');setTimeout(()=>{const d=document.getElementById('acc-'+id);if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});}},70);}
 function openSync(){go('prog');setTimeout(()=>{const d=[...document.querySelectorAll('#prog details')].find(x=>/同期・データ管理/.test((x.querySelector('summary')||{}).textContent||''));if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'});}},70);}
 function openExamSetting(){go('prog');setTimeout(()=>{const i=document.getElementById('examIn');if(i){i.scrollIntoView({behavior:'smooth',block:'center'});try{i.focus({preventScroll:true});}catch(_){}}},80);} // 試験日の恒常的な設定入口（進捗タブの日付欄へ誘導）
 function openLk(sit){go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);} // 逆引きの特定状況を開く（最近見た/横断検索から）
@@ -904,8 +907,10 @@ function renderLookup(){
   const el=document.getElementById('lookup');
   el.innerHTML=`<div class="searchwrap"><span class="mag" aria-hidden="true">🔎</span>
     <input class="search" id="lkin" placeholder="状況・キーワードで検索（例：不登校、ICT、研修）" aria-label="逆引き検索"></div>
+    ${(()=>{const rec=(store.recent||[]).filter(r=>r.t==='lk').slice(0,6);return rec.length?`<div style="margin:0 2px 8px"><div style="font-size:.72rem;color:var(--sub);font-weight:700;margin-bottom:4px">🕘 最近見た</div><div style="display:flex;gap:6px;flex-wrap:wrap">${rec.map(r=>`<button class="lkrecent" data-sit="${esc(String(r.id))}" style="font-size:.74rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;padding:3px 10px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🔎 ${esc(r.label)}</button>`).join('')}</div></div>`:'';})()}
     <div class="chips" id="lkchips"></div><div id="lkres"></div>`;
   const chips=el.querySelector('#lkchips');
+  el.querySelectorAll('.lkrecent').forEach(b=>b.addEventListener('click',()=>{const l=LOOKUP.find(x=>x.sit===b.dataset.sit);if(l){el.querySelector('#lkin').value='';show([l]);}})); // 最近見た→再オープン
   const lkSorted=LOOKUP.slice().sort((a,b)=>(isBM('lk',b.sit)?1:0)-(isBM('lk',a.sit)?1:0)); // 付箋を先頭に
   lkSorted.forEach(l=>{const b=document.createElement('button');b.textContent=(isBM('lk',l.sit)?'⭐ ':'')+l.sit;
     b.addEventListener('click',()=>{el.querySelector('#lkin').value='';show([l]);[...chips.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');});chips.appendChild(b);});
@@ -1051,6 +1056,12 @@ function showQ(){
 function typeName(t){return{qa:'一問一答',mc:'4択',cloze:'穴埋め',order:'並べ替え',match:'関係づけ'}[t];}
 function nextBtn(){return `<button class="btn wide qstick" style="margin-top:14px" id="nextQ">次へ →</button>`;}
 function bindNext(s){const n=s.querySelector('#nextQ');if(n)n.addEventListener('click',()=>{quizIdx++;showQ();});}
+// 採点の取り消し（MCの誤タップ救済）：採点前の状態を退避→復元して同じ問題を再描画
+function snapAnswer(id){return {card:store.cards[id]?JSON.parse(JSON.stringify(store.cards[id])):null,sA:sAnswered,sC:sCorrect,sS:sStreak,sW:sWrongIds.length,tA:store.totalAnswered||0,tC:store.totalCorrect||0,dd:(store.dailyDone&&store.dailyDone[todayStr()])||0,streak:store.streak,lastDate:store.lastDate};}
+function undoAnswer(snap,id){if(snap.card==null)delete store.cards[id];else store.cards[id]=snap.card;
+  sAnswered=snap.sA;sCorrect=snap.sC;sStreak=snap.sS;sWrongIds=sWrongIds.slice(0,snap.sW);
+  store.totalAnswered=snap.tA;store.totalCorrect=snap.tC;store.streak=snap.streak;store.lastDate=snap.lastDate;
+  store.dailyDone=store.dailyDone||{};store.dailyDone[todayStr()]=snap.dd;save();showQ();}
 // 結果画面：間違えた問題だけをもう一周（最も学習効果が高い瞬間。Quizlet/UWorld流）
 function reviewWrong(){const ids=[...new Set(sWrongIds)];const pool=ids.map(id=>QUESTIONS.find(q=>q.id===id)).filter(Boolean);if(!pool.length)return;quizPool=pool;quizIdx=0;sCorrect=0;sAnswered=0;sStreak=0;sWrongIds=[];store.session=null;enterQuizView();showQ();}
 // 出題中のキーボード操作（PC学習の定番：MC=1〜6 / 表示・採点=Space・1・0 / 次へ=Enter・→）
@@ -1126,12 +1137,14 @@ function renderMC(q,meta,id,card){
     <div class="reveal" id="R"></div></div>`;
   const wrap=card.querySelector('#ch');
   wrap.querySelectorAll('.choice').forEach(b=>b.addEventListener('click',()=>{
+    const snap=snapAnswer(id);   // 採点前の状態を退避（取り消し用）
     const i=+b.dataset.i,ok=i===ansPos;
     wrap.querySelectorAll('.choice').forEach((x,j)=>{x.disabled=true;
       if(j===ansPos){x.classList.add('correct');x.querySelector('.k').textContent='✓';}
       if(j===i&&!ok){x.classList.add('wrong');x.querySelector('.k').textContent='✗';}});
     answer(id,ok);const R=card.querySelector('#R');R.className='reveal show '+(ok?'ok':'ng');
-    R.innerHTML=`<b>${ok?'✅ 正解':'❌ 不正解'}</b>　正答：${kl(ansPos)}. ${esc(opts[ansPos].c)}<br>${esc(q.exp)}${srcLine(q)}${nextBtn()}`;bindNext(card);
+    R.innerHTML=`<b>${ok?'✅ 正解':'❌ 不正解'}</b>　正答：${kl(ansPos)}. ${esc(opts[ansPos].c)}<br>${esc(q.exp)}${srcLine(q)}<button class="btn ghost" id="mcundo" style="margin-top:8px;padding:3px 11px;min-height:auto;font-size:.74rem">← 回答を取り消す</button>${nextBtn()}`;bindNext(card);
+    const u=R.querySelector('#mcundo');if(u)u.addEventListener('click',()=>{undoAnswer(snap,id);toast('回答を取り消しました');});
     R.setAttribute('role','status');R.tabIndex=-1;R.focus({preventScroll:true}); // 採点結果をSRへ通知＋フォーカス移動
   }));
 }
@@ -1431,6 +1444,7 @@ function renderRonbun(){
        <textarea class="rbdraft" data-t="${esc(r.t)}" rows="8" placeholder="ここに自分の答案を書く…" style="width:100%;padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;line-height:1.7">${esc((store.ronbunDrafts||{})[r.t]||'')}</textarea>
        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:6px">
          <span class="rbcount" style="font-size:.82rem;font-weight:700;color:var(--sub)">0字</span>
+         <button class="btn ghost rbskel" data-t="${esc(r.t)}" style="padding:4px 11px;min-height:auto">▼ 型を流し込む</button>
          <button class="btn ghost rbcopy" data-t="${esc(r.t)}" style="padding:4px 11px;min-height:auto">📋 コピー</button>
          <button class="btn ghost rbclear" data-t="${esc(r.t)}" style="padding:4px 11px;min-height:auto">クリア</button>
        </div>
@@ -1454,6 +1468,7 @@ function renderRonbun(){
     if(bar){bar.style.width=Math.min(100,n/1000*100)+'%';bar.style.background=n>1000?'var(--ng)':(n>=600?'var(--ok)':'var(--accent)');}};
   el.querySelectorAll('.rbdraft').forEach(ta=>{cnt(ta);ta.addEventListener('input',()=>{store.ronbunDrafts=store.ronbunDrafts||{};store.ronbunDrafts[ta.dataset.t]=ta.value;save();cnt(ta);});});
   el.querySelectorAll('.rbchk').forEach(cb=>cb.addEventListener('change',()=>{store.ronbunChecks=store.ronbunChecks||{};const t=cb.dataset.t;store.ronbunChecks[t]=store.ronbunChecks[t]||{};store.ronbunChecks[t][cb.dataset.k]=cb.checked;save();})); // 自己チェックを保存（再描画で消えない）
+  el.querySelectorAll('.rbskel').forEach(b=>b.addEventListener('click',()=>{const det=b.closest('details'),ta=det.querySelector('.rbdraft');if(ta.value.trim()&&!confirm('入力済みです。型のひな形で上書きしますか？'))return;ta.value='■序論（150字目安）\n\n\n■本論（500字目安）\n\n\n■結論（150字目安）\n\n';store.ronbunDrafts=store.ronbunDrafts||{};store.ronbunDrafts[ta.dataset.t]=ta.value;save();ta.dispatchEvent(new Event('input'));ta.focus();})); // 型スケルトンを流し込む
   el.querySelectorAll('.rbcopy').forEach(b=>b.addEventListener('click',()=>{const t=(store.ronbunDrafts||{})[b.dataset.t]||'';if(!t){toast('まだ何も書かれていません');return;}(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('答案をコピーしました'),()=>toast('コピーできませんでした'));}));
   el.querySelectorAll('.rbclear').forEach(b=>b.addEventListener('click',()=>{if(!confirm('この答案の下書きを消去しますか？'))return;const det=b.closest('details'),ta=det.querySelector('.rbdraft');if(store.ronbunDrafts)delete store.ronbunDrafts[b.dataset.t];save();if(ta){ta.value='';cnt(ta);}}));
 }
