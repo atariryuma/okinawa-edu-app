@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      # test.js は index.html の実コードを評価して検証するため、構文エラーもここで弾ける。
-      - name: Run logic tests
+      # 各 test は実コードを評価して検証するため、構文エラーもここで弾ける。
+      - name: App logic tests (index.html)
         run: node test.js
+      - name: Community backend tests (community-gas/Code.gs)
+        run: node test-gas.js

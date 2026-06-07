@@ -105,7 +105,9 @@
 ## 開発・検証フロー
 **変更したら必ず `node test.js`**（依存ゼロのロジックテスト。`index.html`の実コードを軽量DOMスタブ上で評価して検証＝抽出コピーでなく本体そのものをテスト）。構文エラーもここで弾ける。push/PRで GitHub Actions(`.github/workflows/ci.yml`)が自動実行。`npm test` でも可。
 ```
-node test.js   # SRS(review)/mergeStore/sanitizeImport/validQuestion/srcLink/付箋/デイリー 等を検証
+node test.js       # index.html：SRS(review)/mergeStore/sanitizeImport/validQuestion/srcLink/付箋/デイリー
+node test-gas.js   # community-gas/Code.gs：validate_/srcResolves_/verifyToken_ゲート/自動公開判定/通報降格/👍昇格/pick_/deformula_
+# npm test で両方。GAS は未認証入力の境界なのでこちらの安全網が重要。
 ```
 **テストの育て方**：バグを直したら、その再現を `test.js` に1ケース足す（回帰固定）。新しい純粋関数は `EXPORTS` 配列に名前を足せばテストから呼べる（本体改変不要）。DOM/同期に強く依存する処理は preview 実機（下記）で確認。
 ローカル確認（`file://` だとSW/Googleが動かないのでサーバ必須）：
