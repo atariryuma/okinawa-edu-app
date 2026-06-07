@@ -571,7 +571,7 @@ function isBM(t,id){return (store.bookmarks||[]).indexOf(bmKey(t,id))>=0;}
 function toggleBM(t,id){store.bookmarks=store.bookmarks||[];const k=bmKey(t,id),i=store.bookmarks.indexOf(k);if(i>=0)store.bookmarks.splice(i,1);else store.bookmarks.push(k);save();if(typeof gSignedIn!=='undefined'&&gSignedIn&&accessToken)cloudSync(true);return i<0;}
 function bmCount(t){const arr=(store.bookmarks||[]).filter(k=>k.indexOf(t+':')===0);if(t!=='q')return arr.length;const qids=new Set(QUESTIONS.map(q=>q.id));return arr.filter(k=>qids.has(k.slice(2))).length;} // q: は削除済み孤児を数えない（モード件数と実出題を一致）
 function pushRecent(t,id,label){if(id==null||id==='')return;store.recent=(store.recent||[]).filter(r=>!(r.t===t&&String(r.id)===String(id)));store.recent.unshift({t,id:String(id),label:String(label||'').slice(0,40),ts:Date.now()});store.recent=store.recent.slice(0,12);save();}
-function review(id,ok){
+function review(id,ok,grade){   // grade='easy'(楽勝)で間隔を更に伸ばす（Anki Easy相当）。未指定は従来挙動＝後方互換
   let c=store.cards[id];
   if(!c)c=store.cards[id]={box:1,reps:0,fails:0,due:0,last:null,hist:[],ef:EF_DEFAULT,ivl:0};
   if(!Array.isArray(c.hist))c.hist=[];           // hist欠落/非配列(改竄・片側マージ由来)でも採点が落ちない多層防御
@@ -583,8 +583,9 @@ function review(id,ok){
     else if(c.reps<=0)ivl=1;                       // 初回正解 → 翌日
     else if(c.reps===1)ivl=3;                      // 2回目 → 3日後
     else ivl=c.ivl*c.ef;                           // 3回目以降 → 間隔×ease（指数的に拡大）
+    if(grade==='easy')ivl*=1.3;                    // 楽勝＝間隔を更に伸ばし復習負荷を減らす
     if(ivl>=4)ivl=ivl*(1+(Math.random()*0.1-0.05));// fuzz ±5%（復習日の集中を緩和）
-    c.reps++;c.ef=Math.min(EF_MAX,c.ef+0.03);
+    c.reps++;c.ef=Math.min(EF_MAX,c.ef+(grade==='easy'?0.09:0.03));
     if(recovered)c.reps=Math.max(c.reps,2);        // 復帰後の次回正解は固定3日でなく指数拡大(ivl×ef)経路へ＝間隔の逆行を防ぐ
     c.ivl=clampIvl(ivl);c.due=Date.now()+c.ivl*DAY;c.last='pass';
     // 失敗復帰直後は定着(mast=box4+)に跳ねさせない（弱点克服の誤表示を防ぐ）
@@ -1064,9 +1065,10 @@ document.addEventListener('keydown',e=>{
   if(choices.length&&/^[1-6]$/.test(e.key)){const b=choices[+e.key-1];if(b&&!b.disabled){e.preventDefault();b.click();}return;}
   const showA=area.querySelector('#showA'),allrev=area.querySelector('#allrev');
   if(e.key===' '){if(showA){e.preventDefault();showA.click();return;}if(allrev){e.preventDefault();allrev.click();return;}}
-  const g1=area.querySelector('#g1'),g0=area.querySelector('#g0');
-  if(e.key==='1'&&g1&&!g1.disabled){e.preventDefault();g1.click();return;}
-  if((e.key==='0'||e.key==='2')&&g0&&!g0.disabled){e.preventDefault();g0.click();return;}
+  const g0=area.querySelector('#g0'),g1=area.querySelector('#g1'),g2=area.querySelector('#g2'); // qa/cloze 3段階：1=あいまい 2=できた 3=楽勝
+  if(e.key==='1'&&g0&&!g0.disabled){e.preventDefault();g0.click();return;}
+  if(e.key==='2'&&g1&&!g1.disabled){e.preventDefault();g1.click();return;}
+  if(e.key==='3'&&g2&&!g2.disabled){e.preventDefault();g2.click();return;}
   const ck=area.querySelector('#ck');if(e.key==='Enter'&&ck&&!ck.disabled){e.preventDefault();ck.click();}
 });
 // ===== 出典→公式ソース直リンク（法令=e-Gov / 資料=文科省・県。法令優先・長い順で照合） =====
@@ -1078,7 +1080,7 @@ const DOC_LINKS=[{p:"熱中症対策ガイドライン",u:"https://www.mext.go.j
 function srcLink(src){const s=String(src||'');for(const x of LAW_LINKS){if(s.indexOf(x.p)>=0)return{u:x.u,t:'📖 条文を読む'};}for(const x of DOC_LINKS){if(s.indexOf(x.p)>=0)return{u:x.u,t:'📖 資料を読む'};}return null;}
 function srcChk(src){const l=srcLink(src);const st='margin-left:10px;color:var(--accent);text-decoration:underline;white-space:nowrap';return l?`<a class="srcchk" href="${l.u}" target="_blank" rel="noopener noreferrer" aria-label="出典を新しいタブで開く" style="${st}">${l.t}</a>`:`<a class="srcchk" href="https://www.google.com/search?q=${encodeURIComponent(src||'')}" target="_blank" rel="noopener noreferrer" aria-label="出典を検索して確認（新しいタブ）" style="${st}">🔍 ネットで調べる</a>`;}
 function srcLine(q){return `<div class="src"><span>出典：${esc(q.src)}</span>${srcChk(q.src)}</div>`;}
-function answer(id,ok){review(id,ok);sAnswered++;if(ok){sCorrect++;sStreak++;}else{sStreak=0;sWrongIds.push(id);} // セッション内の連続正解と誤答idを記録
+function answer(id,ok,grade){review(id,ok,grade);sAnswered++;if(ok){sCorrect++;sStreak++;}else{sStreak=0;sWrongIds.push(id);} // セッション内の連続正解と誤答idを記録
   const ss=document.getElementById('sstat');if(ss){const r=ss.querySelector('.sstreak');if(r)r.textContent=sStreak>1?('🔥 '+sStreak+'連続正解'):'';}
   store.totalAnswered=(store.totalAnswered||0)+1;if(ok)store.totalCorrect=(store.totalCorrect||0)+1;
   const d=todayStr();store.dailyDone=store.dailyDone||{};store.dailyDone[d]=(store.dailyDone[d]||0)+1;
@@ -1097,17 +1099,22 @@ function celebrate(msg){try{toast(msg);}catch(_){}
 
 // 自己採点の使い方を初回だけ説明（正直な自己評価を促す）。表示は一度きり。
 function gradeHintHTML(){if(localStorage.getItem('oki_grade_hint')==='1')return '';localStorage.setItem('oki_grade_hint','1');
-  return `<div class="hint" style="font-size:.72rem;margin:8px 2px 0;color:var(--sub)">💡 思い出せたら「✓ 言えた」、自信がなければ「✗ あいまい」。正誤で次に出るタイミングが変わります（正直に押すほど効率的）。</div>`;}
+  return `<div class="hint" style="font-size:.72rem;margin:8px 2px 0;color:var(--sub)">💡 3段階で自己評価（キー 1/2/3）。「あいまい」＝すぐ復習／「できた」＝標準／「楽勝」＝間隔を長めに。正直に押すほど復習が最適化されます。</div>`;}
+const GRADE3=`<div style="margin-top:11px;display:flex;gap:7px">
+        <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button>
+        <button class="btn ok" style="flex:1" id="g1">◯ できた</button>
+        <button class="btn ok" style="flex:1;background:#2563eb;border-color:#2563eb" id="g2">◎ 楽勝</button></div>`;
+function bindGrade3(card,id){
+  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);srSay('あいまい。弱点として記録。後日また出題します。');toast('🎯 弱点として記録（また戻します）');quizIdx++;showQ();});
+  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);srSay('できた。記録しました。次の問題に進みます。');toast('◯ できたと記録');quizIdx++;showQ();});
+  card.querySelector('#g2').addEventListener('click',()=>{answer(id,true,'easy');srSay('楽勝。間隔を長めにしました。次の問題に進みます。');toast('◎ 楽勝（間隔を長く）');quizIdx++;showQ();});
+}
 function renderQA(q,meta,id,card){
   card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
     <button class="btn ghost wide" id="showA">答えを表示</button>
-    <div class="reveal ok" id="A"><b>A.</b> ${esc(q.a)}${srcLine(q)}
-      <div style="margin-top:11px;display:flex;gap:9px">
-        <button class="btn ok" style="flex:1" id="g1">✓ 言えた</button>
-        <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div>${gradeHintHTML()}</div></div>`;
+    <div class="reveal ok" id="A"><b>A.</b> ${esc(q.a)}${srcLine(q)}${GRADE3}${gradeHintHTML()}</div></div>`;
   card.querySelector('#showA').addEventListener('click',()=>{const a=card.querySelector('#A');a.classList.add('show');a.setAttribute('role','status');a.tabIndex=-1;a.focus({preventScroll:true});});
-  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);srSay('正解として記録しました。次の問題に進みます。');toast('✓ 正解として記録');quizIdx++;showQ();});
-  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);srSay('あいまい。弱点として記録しました。後日また出題します。次の問題に進みます。');toast('🎯 弱点として記録（また戻します）');quizIdx++;showQ();});
+  bindGrade3(card,id);
 }
 function renderMC(q,meta,id,card){
   const ks=['A','B','C','D','E','F'],kl=i=>ks[i]||String(i+1); // 7択以上でもラベルが undefined にならないようフォールバック
@@ -1134,15 +1141,14 @@ function renderCloze(q,meta,id,card){
   card.innerHTML=`<div class="quizcard cloze">${meta}
     <div class="redtoggle"><button class="btn ghost" id="allrev">全部めくる</button><span style="font-size:.72rem;color:var(--sub)">下線部をタップ/Enterで表示</span></div>
     <div class="qtext" style="font-weight:500;font-size:1rem">${html}</div>
-    <div style="margin-top:14px;display:flex;gap:9px"><button class="btn ok" style="flex:1" id="g1" disabled>✓ 言えた</button><button class="btn ng" style="flex:1" id="g0" disabled>✗ あいまい</button></div>${gradeHintHTML()}${srcLine(q)}</div>`;
-  const g1=card.querySelector('#g1'),g0=card.querySelector('#g0');
-  const enableGrade=()=>{g1.disabled=false;g0.disabled=false;}; // 答えを見てから採点（qaと同様・自己採点の信頼性向上）
+    ${GRADE3.replace(/id="g0"/,'id="g0" disabled').replace(/id="g1"/,'id="g1" disabled').replace(/id="g2"/,'id="g2" disabled')}${gradeHintHTML()}${srcLine(q)}</div>`;
+  const gbs=[card.querySelector('#g0'),card.querySelector('#g1'),card.querySelector('#g2')];
+  const enableGrade=()=>gbs.forEach(b=>{if(b)b.disabled=false;}); // 答えを見てから採点（qaと同様・自己採点の信頼性向上）
   const setLbl=b=>b.setAttribute('aria-label',b.classList.contains('show')?('答え：'+(b.dataset.ans||'')):'空欄（タップで答えを表示）');
   const toggle=b=>{b.classList.toggle('show');setLbl(b);enableGrade();};
   card.querySelectorAll('.blank').forEach(b=>{b.addEventListener('click',()=>toggle(b));b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(b);}});});
   card.querySelector('#allrev').addEventListener('click',()=>{card.querySelectorAll('.blank').forEach(b=>{b.classList.add('show');setLbl(b);});enableGrade();});
-  card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);srSay('正解として記録しました。次の問題に進みます。');toast('✓ 正解として記録');quizIdx++;showQ();});
-  card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);srSay('あいまい。弱点として記録しました。次の問題に進みます。');toast('🎯 弱点として記録');quizIdx++;showQ();});
+  bindGrade3(card,id);
 }
 function renderOrder(q,meta,id,card){
   const sh=shuffle(q.items.map((t,i)=>({t,i})));
@@ -1366,7 +1372,8 @@ function renderProg(){
       const acc=cats.map(c=>{let ok=0,n=0;QUESTIONS.filter(q=>q.cat===c).forEach(q=>{const cd=getCard(q.id);if(cd&&cd.hist)cd.hist.forEach(h=>{n++;if(h.ok)ok++;});});return{c,n,p:n?Math.round(ok/n*100):null};}).filter(x=>x.n>=3).sort((a,b)=>a.p-b.p).slice(0,3);
       return acc.length?`<h3 class="sec">苦手な分野（正答率が低い順）</h3><div class="card">${acc.map(x=>`<div class="catrow"><div class="top"><span>${esc(x.c)}</span><span>${x.p}%（${x.n}回）</span></div><div class="bar"><i style="width:${x.p}%;background:${x.p<50?'var(--ng)':x.p<75?'var(--warn)':'var(--ok)'}"></i></div></div>`).join('')}<div class="hint" style="margin:8px 2px 0;font-size:.72rem">ここが詰めどころ。「クイズ→分野で絞り込み」で重点復習を。</div></div>`:'';})()}
     <h3 class="sec" id="catmaster">分野別の定着（弱い順）</h3><div class="card">${cats.map(c=>{const qs=QUESTIONS.filter(q=>q.cat===c),m=qs.filter(q=>isMastered(q.id)).length;return{c,qs:qs.length,m,p:Math.round(m/qs.length*100)};}).sort((a,b)=>a.p-b.p).map(x=>`<div class="catrow"><div class="top"><span>${esc(x.c)}</span><span>${x.m}/${x.qs}</span></div><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${x.qs}" aria-valuenow="${x.m}" aria-label="${esc(x.c)} ${x.m}/${x.qs}定着"><i style="width:${x.p}%;background:${x.p<34?'var(--ng)':x.p<67?'var(--warn)':'var(--ok)'}"></i></div></div>`).join('')}</div>
-    <h3 class="sec">直近7日の学習</h3><div class="card"><div class="heat" id="heat"></div></div>
+    <h3 class="sec">今後の復習予定（14日）</h3><div class="card">${(()=>{const fc=new Array(14).fill(0);QUESTIONS.forEach(q=>{const c=getCard(q.id);if(!c)return;let i=Math.ceil((c.due-Date.now())/DAY);if(i<0)i=0;if(i<=13)fc[i]++;});const mx=Math.max(1,...fc);return `<div style="display:flex;align-items:flex-end;gap:3px;height:64px" role="img" aria-label="今後14日の復習予定">${fc.map((n,i)=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%" title="${i===0?'今日':i+'日後'}：${n}問"><div style="width:100%;background:var(--accent);border-radius:3px 3px 0 0;height:${Math.round(n/mx*50)}px;${n?'min-height:2px;':''}"></div></div>`).join('')}</div><div style="display:flex;justify-content:space-between;font-size:.64rem;color:var(--sub);margin-top:4px"><span>今日 ${fc[0]}問</span><span>+7日</span><span>+13日</span></div>`;})()}</div>
+    <h3 class="sec">学習の記録（8週間）</h3><div class="card"><div id="heat" style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px;justify-content:start;overflow-x:auto"></div><div style="display:flex;align-items:center;gap:6px;font-size:.64rem;color:var(--sub);margin-top:8px">少<i style="width:11px;height:11px;border-radius:3px;background:var(--line)"></i><i style="width:11px;height:11px;border-radius:3px;background:rgba(14,116,144,.35)"></i><i style="width:11px;height:11px;border-radius:3px;background:rgba(14,116,144,.65)"></i><i style="width:11px;height:11px;border-radius:3px;background:rgba(14,116,144,1)"></i>多</div></div>
     ${userQSection()}
     <details class="rb" style="margin-top:14px"><summary>⚙️ 同期・データ管理<span class="chev">›</span></summary>
       <div class="body">
@@ -1379,13 +1386,16 @@ function renderProg(){
         <button class="btn ghost wide" style="margin-top:16px;border-color:var(--ng);color:var(--ng)" id="resetBtn">学習の記録を消す</button>
       </div>
     </details>`;
-  // heatmap: 直近7日（その日の学習量で濃淡）
-  const heat=el.querySelector('#heat');const days=['日','月','火','水','木','金','土'];
-  const allHist=[];Object.values(store.cards).forEach(c=>c.hist&&c.hist.forEach(h=>allHist.push(h.t)));
-  for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*DAY);const key=d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();
-    const n=allHist.filter(t=>{const dd=new Date(t);return dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate()===key;}).length;
-    const div=document.createElement('div');if(n>0){div.className='done';div.style.opacity=n>=10?'1':n>=4?'.72':'.42';}
-    div.title=key+'：'+n+'問';div.setAttribute('aria-label',(d.getMonth()+1)+'月'+d.getDate()+'日 '+n+'問学習');div.textContent=days[d.getDay()];heat.appendChild(div);}
+  // heatmap: 8週間（GitHub風コントリビューショングリッド。曜日=行・週=列）
+  const heat=el.querySelector('#heat');
+  if(heat){const cnt={};Object.values(store.cards).forEach(c=>Array.isArray(c.hist)&&c.hist.forEach(h=>{const dd=new Date(h.t);const k=dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate();cnt[k]=(cnt[k]||0)+1;}));
+    const today=new Date();today.setHours(0,0,0,0);const lastSun=new Date(today);lastSun.setDate(today.getDate()-today.getDay());
+    const start=new Date(lastSun);start.setDate(lastSun.getDate()-7*7);
+    for(let w=0;w<8;w++)for(let dow=0;dow<7;dow++){const dt=new Date(start);dt.setDate(start.getDate()+w*7+dow);
+      const future=dt>today,k=dt.getFullYear()+'-'+(dt.getMonth()+1)+'-'+dt.getDate(),n=cnt[k]||0;
+      const bg=future?'transparent':(n===0?'var(--line)':`rgba(14,116,144,${n<4?'.35':n<10?'.65':'1'})`);
+      const cell=document.createElement('i');cell.style.cssText='width:12px;height:12px;border-radius:3px;background:'+bg;
+      cell.title=(dt.getMonth()+1)+'/'+dt.getDate()+'：'+(future?'—':n+'問');cell.setAttribute('aria-label',(dt.getMonth()+1)+'月'+dt.getDate()+'日 '+(future?'':n+'問'));heat.appendChild(cell);}}
   const ex=el.querySelector('#examIn');if(ex)ex.addEventListener('change',e=>{store.examDate=e.target.value||null;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderProg();toast(store.examDate?'試験日を設定しました':'試験日を解除しました');});
   const ecp=el.querySelector('#elogCopy');if(ecp)ecp.addEventListener('click',()=>{const t=el.querySelector('#elogPre').textContent;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('コピーしました'),()=>toast('コピーできませんでした'));});
   const ecl=el.querySelector('#elogClr');if(ecl)ecl.addEventListener('click',()=>{clearElog();renderProg();toast('エラーログを消去しました');});
