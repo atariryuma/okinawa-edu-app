@@ -840,7 +840,7 @@ function renderRef(){
   document.querySelectorAll('#refList .copybtn').forEach(b=>b.addEventListener('click',ev=>{
     ev.preventDefault();const r=REF.find(x=>x.id===b.dataset.id);
     const txt=`【${r.name}】\n`+r.points.map(p=>'・'+p.replace(/<[^>]+>/g,'')).join('\n')+`\n（出典：${r.src}）`;
-    navigator.clipboard.writeText(txt).then(()=>toast('根拠をコピーしました 📋')).catch(()=>toast('コピーできませんでした'));
+    (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('根拠をコピーしました 📋'),()=>toast('コピーできませんでした'));
   }));
 }
 
@@ -983,7 +983,11 @@ function bindNext(s){const n=s.querySelector('#nextQ');if(n)n.addEventListener('
 // ===== 出典→公式ソース直リンク（法令=e-Gov / 資料=文科省・県。法令優先・長い順で照合） =====
 const LAW_LINKS=[{p:"義務教育の段階における普通教育に相当する教育の機会の確保等に関する法律",u:"https://laws.e-gov.go.jp/law/428AC1000000105"},{p:"公立義務教育諸学校の学級編制及び教職員定数の標準に関する法律",u:"https://laws.e-gov.go.jp/law/333AC0000000116"},{p:"公立の義務教育諸学校等の教育職員の給与等に関する特別措置法",u:"https://laws.e-gov.go.jp/law/346AC0000000077"},{p:"教育職員等による児童生徒性暴力等の防止等に関する法律",u:"https://laws.e-gov.go.jp/law/503AC1000000057"},{p:"義務教育諸学校の教科用図書の無償措置に関する法律",u:"https://laws.e-gov.go.jp/law/338AC0000000182"},{p:"障害を理由とする差別の解消の推進に関する法律",u:"https://laws.e-gov.go.jp/law/425AC0000000065"},{p:"地方教育行政の組織及び運営に関する法律",u:"https://laws.e-gov.go.jp/law/331AC0000000162"},{p:"児童虐待の防止等に関する法律",u:"https://laws.e-gov.go.jp/law/412AC1000000082"},{p:"個人情報の保護に関する法律",u:"https://laws.e-gov.go.jp/law/415AC0000000057"},{p:"市町村立学校職員給与負担法",u:"https://laws.e-gov.go.jp/law/323AC0000000135"},{p:"学校教育法施行令（政令）",u:"https://laws.e-gov.go.jp/law/328CO0000000340"},{p:"学校保健安全法施行規則",u:"https://laws.e-gov.go.jp/law/333M50000080018"},{p:"児童生徒性暴力等防止法",u:"https://laws.e-gov.go.jp/law/503AC1000000057"},{p:"いじめ防止対策推進法",u:"https://laws.e-gov.go.jp/law/425AC1000000071"},{p:"わいせつ教員対策新法",u:"https://laws.e-gov.go.jp/law/503AC1000000057"},{p:"学校教育法施行規則",u:"https://laws.e-gov.go.jp/law/322M40000080011"},{p:"学校保健安全法施規",u:"https://laws.e-gov.go.jp/law/333M50000080018"},{p:"保健安全法施行規則",u:"https://laws.e-gov.go.jp/law/333M50000080018"},{p:"わいせつ教員対策法",u:"https://laws.e-gov.go.jp/law/503AC1000000057"},{p:"教育公務員特例法",u:"https://laws.e-gov.go.jp/law/324AC0000000001"},{p:"教科書無償措置法",u:"https://laws.e-gov.go.jp/law/338AC0000000182"},{p:"障害者差別解消法",u:"https://laws.e-gov.go.jp/law/425AC0000000065"},{p:"教員性暴力防止法",u:"https://laws.e-gov.go.jp/law/503AC1000000057"},{p:"学校教育法施行令",u:"https://laws.e-gov.go.jp/law/328CO0000000340"},{p:"発達障害者支援法",u:"https://laws.e-gov.go.jp/law/416AC1000000167"},{p:"学校法施行規則",u:"https://laws.e-gov.go.jp/law/322M40000080011"},{p:"学教法施行規則",u:"https://laws.e-gov.go.jp/law/322M40000080011"},{p:"地方教育行政法",u:"https://laws.e-gov.go.jp/law/331AC0000000162"},{p:"教育職員免許法",u:"https://laws.e-gov.go.jp/law/324AC0000000147"},{p:"学校保健安全法",u:"https://laws.e-gov.go.jp/law/333AC0000000056"},{p:"教育機会確保法",u:"https://laws.e-gov.go.jp/law/428AC1000000105"},{p:"児童虐待防止法",u:"https://laws.e-gov.go.jp/law/412AC1000000082"},{p:"個人情報保護法",u:"https://laws.e-gov.go.jp/law/415AC0000000057"},{p:"労働安全衛生法",u:"https://laws.e-gov.go.jp/law/347AC0000000057"},{p:"行政不服審査法",u:"https://laws.e-gov.go.jp/law/426AC0000000068"},{p:"地方公務員法",u:"https://laws.e-gov.go.jp/law/325AC0000000261"},{p:"いじめ防止法",u:"https://laws.e-gov.go.jp/law/425AC1000000071"},{p:"こども基本法",u:"https://laws.e-gov.go.jp/law/504AC1000000077"},{p:"子ども基本法",u:"https://laws.e-gov.go.jp/law/504AC1000000077"},{p:"性暴力防止法",u:"https://laws.e-gov.go.jp/law/503AC1000000057"},{p:"学教法施行令",u:"https://laws.e-gov.go.jp/law/328CO0000000340"},{p:"障害者基本法",u:"https://laws.e-gov.go.jp/law/345AC1000000084"},{p:"教育基本法",u:"https://laws.e-gov.go.jp/law/418AC0000000120"},{p:"学校教育法",u:"https://laws.e-gov.go.jp/law/322AC0000000026"},{p:"学校保健法",u:"https://laws.e-gov.go.jp/law/333AC0000000056"},{p:"機会確保法",u:"https://laws.e-gov.go.jp/law/428AC1000000105"},{p:"虐待防止法",u:"https://laws.e-gov.go.jp/law/412AC1000000082"},{p:"児童福祉法",u:"https://laws.e-gov.go.jp/law/322AC0000000164"},{p:"国家賠償法",u:"https://laws.e-gov.go.jp/law/322AC0000000125"},{p:"義務標準法",u:"https://laws.e-gov.go.jp/law/333AC0000000116"},{p:"無償措置法",u:"https://laws.e-gov.go.jp/law/338AC0000000182"},{p:"差別解消法",u:"https://laws.e-gov.go.jp/law/425AC0000000065"},{p:"社会教育法",u:"https://laws.e-gov.go.jp/law/324AC0000000207"},{p:"給与負担法",u:"https://laws.e-gov.go.jp/law/323AC0000000135"},{p:"県費負担法",u:"https://laws.e-gov.go.jp/law/323AC0000000135"},{p:"日本国憲法",u:"https://laws.e-gov.go.jp/law/321CONSTITUTION"},{p:"労働基準法",u:"https://laws.e-gov.go.jp/law/322AC0000000049"},{p:"行政手続法",u:"https://laws.e-gov.go.jp/law/405AC0000000088"},{p:"学校給食法",u:"https://laws.e-gov.go.jp/law/329AC0000000160"},{p:"食育基本法",u:"https://laws.e-gov.go.jp/law/417AC1000000063"},{p:"地教行法",u:"https://laws.e-gov.go.jp/law/331AC0000000162"},{p:"労安衛法",u:"https://laws.e-gov.go.jp/law/347AC0000000057"},{p:"著作権法",u:"https://laws.e-gov.go.jp/law/345AC0000000048"},{p:"教基法",u:"https://laws.e-gov.go.jp/law/418AC0000000120"},{p:"学教法",u:"https://laws.e-gov.go.jp/law/322AC0000000026"},{p:"学校法",u:"https://laws.e-gov.go.jp/law/322AC0000000026"},{p:"地公法",u:"https://laws.e-gov.go.jp/law/325AC0000000261"},{p:"教特法",u:"https://laws.e-gov.go.jp/law/324AC0000000001"},{p:"免許法",u:"https://laws.e-gov.go.jp/law/324AC0000000147"},{p:"教免法",u:"https://laws.e-gov.go.jp/law/324AC0000000147"},{p:"学保法",u:"https://laws.e-gov.go.jp/law/333AC0000000056"},{p:"児福法",u:"https://laws.e-gov.go.jp/law/322AC0000000164"},{p:"個情法",u:"https://laws.e-gov.go.jp/law/415AC0000000057"},{p:"国賠法",u:"https://laws.e-gov.go.jp/law/322AC0000000125"},{p:"給特法",u:"https://laws.e-gov.go.jp/law/346AC0000000077"},{p:"標準法",u:"https://laws.e-gov.go.jp/law/333AC0000000116"},{p:"社教法",u:"https://laws.e-gov.go.jp/law/324AC0000000207"},{p:"労基法",u:"https://laws.e-gov.go.jp/law/322AC0000000049"},{p:"安衛法",u:"https://laws.e-gov.go.jp/law/347AC0000000057"},{p:"行手法",u:"https://laws.e-gov.go.jp/law/405AC0000000088"},{p:"行審法",u:"https://laws.e-gov.go.jp/law/426AC0000000068"},{p:"行服法",u:"https://laws.e-gov.go.jp/law/426AC0000000068"}];
 const DOC_LINKS=[{p:"熱中症対策ガイドライン",u:"https://www.mext.go.jp/a_menu/kenko/anzen/1401870_00001.htm"},{p:"GIGAスクール構想",u:"https://www.mext.go.jp/a_menu/other/index_00011111.htm"},{p:"中教審答申(H27)",u:"https://www.mext.go.jp/b_menu/shingi/chukyo/chukyo0/toushin/1365657.htm"},{p:"チームとしての学校",u:"https://www.mext.go.jp/b_menu/shingi/chukyo/chukyo0/toushin/1365657.htm"},{p:"個別の教育支援計画",u:"https://www.mext.go.jp/a_menu/shotou/tokubetu/main.htm"},{p:"GIGAスクール",u:"https://www.mext.go.jp/a_menu/other/index_00011111.htm"},{p:"中教審第185号",u:"https://www.mext.go.jp/b_menu/shingi/chukyo/chukyo0/toushin/1365657.htm"},{p:"個別の指導計画",u:"https://www.mext.go.jp/a_menu/shotou/tokubetu/main.htm"},{p:"特別支援教育",u:"https://www.mext.go.jp/a_menu/shotou/tokubetu/main.htm"},{p:"熱中症",u:"https://www.mext.go.jp/a_menu/kenko/anzen/1401870_00001.htm"},{p:"中央教育審議会答申(令和3年1月)",u:"https://www.mext.go.jp/b_menu/shingi/chukyo/chukyo3/079/sonota/1412985_00002.htm"},{p:"教育振興基本計画（第4期",u:"https://www.mext.go.jp/a_menu/keikaku/index.htm"},{p:"教育振興基本計画（第４期",u:"https://www.mext.go.jp/a_menu/keikaku/index.htm"},{p:"中教審答申(R3.1)",u:"https://www.mext.go.jp/b_menu/shingi/chukyo/chukyo3/079/sonota/1412985_00002.htm"},{p:"令和答申",u:"https://www.mext.go.jp/b_menu/shingi/chukyo/chukyo3/079/sonota/1412985_00002.htm"},{p:"「自立した学習者」育成プロジェクト",u:"https://www.pref.okinawa.jp/kyoiku/edu/1008819/1008876/1008879.html"},{p:"新・沖縄21世紀ビジョン基本計画",u:"https://www.pref.okinawa.jp/kensei/shisaku/1014211/1014223/1014250/index.html"},{p:"学校教育における指導の努力点",u:"https://www.pref.okinawa.jp/edu/gimu/gakuryoku/gakuryoku/sidounodoryokuten.html"},{p:"沖縄県キャリア教育の基本方針",u:"https://www.pref.okinawa.jp/kyoiku/edu/1008819/1008838/1008840.html"},{p:"学校安全の推進に関する計画",u:"https://www.mext.go.jp/a_menu/kenko/anzen/1419593_00001.htm"},{p:"学校事故対応に関する指針",u:"https://www.mext.go.jp/a_menu/kenko/anzen/1419593.htm"},{p:"第4期教育振興基本計画",u:"https://www.mext.go.jp/a_menu/keikaku/index.htm"},{p:"第４期教育振興基本計画",u:"https://www.mext.go.jp/a_menu/keikaku/index.htm"},{p:"沖縄県教育振興基本計画",u:"https://www.pref.okinawa.jp/kyoiku/edu/1008438/1008483/1008488.html"},{p:"キャリア教育の基本方針",u:"https://www.pref.okinawa.jp/kyoiku/edu/1008819/1008838/1008840.html"},{p:"令和の日本型学校教育",u:"https://www.mext.go.jp/b_menu/shingi/chukyo/chukyo3/079/sonota/1412985_00002.htm"},{p:"沖縄21世紀ビジョン",u:"https://www.pref.okinawa.jp/kensei/shisaku/1014211/1014223/1014250/index.html"},{p:"危機管理マニュアル",u:"https://www.mext.go.jp/a_menu/kenko/anzen/1401870.htm"},{p:"学習指導要領解説",u:"https://www.mext.go.jp/a_menu/shotou/new-cs/1387014.htm"},{p:"いじめの重大事態",u:"https://www.mext.go.jp/a_menu/shotou/seitoshidou/1400142_00006.htm"},{p:"学校環境衛生基準",u:"https://www.mext.go.jp/a_menu/kenko/hoken/1353625.htm"},{p:"幼稚園教育要領",u:"https://www.mext.go.jp/a_menu/shotou/youchien/1258019.htm"},{p:"地域クラブ活動",u:"https://www.mext.go.jp/sports/b_menu/sports/mcatetop04/list/1405720_00014.htm"},{p:"重大事態の調査",u:"https://www.mext.go.jp/a_menu/shotou/seitoshidou/1400142_00006.htm"},{p:"食物アレルギー",u:"https://www.mext.go.jp/a_menu/sports/syokuiku/1355536.htm"},{p:"勤務時間の上限",u:"https://www.mext.go.jp/a_menu/shotou/hatarakikata/1412983.htm"},{p:"第3次学校安全",u:"https://www.mext.go.jp/a_menu/kenko/anzen/1419593_00001.htm"},{p:"自立した学習者",u:"https://www.pref.okinawa.jp/kyoiku/edu/1008819/1008876/1008879.html"},{p:"学習指導要領",u:"https://www.mext.go.jp/a_menu/shotou/new-cs/1387014.htm"},{p:"生徒指導提要",u:"https://www.mext.go.jp/a_menu/shotou/seitoshidou/1404008_00001.htm"},{p:"COCOLO",u:"https://www.mext.go.jp/a_menu/shotou/seitoshidou/1397802_00005.htm"},{p:"指導の努力点",u:"https://www.pref.okinawa.jp/edu/gimu/gakuryoku/gakuryoku/sidounodoryokuten.html"},{p:"生成AI",u:"https://www.mext.go.jp/a_menu/other/mext_02412.html"},{p:"学習評価",u:"https://www.mext.go.jp/b_menu/hakusho/nc/1415169.htm"},{p:"指導要録",u:"https://www.mext.go.jp/b_menu/hakusho/nc/1415169.htm"},{p:"部活動",u:"https://www.mext.go.jp/sports/b_menu/sports/mcatetop04/list/1405720_00014.htm"}];
-function srcLink(src){const s=String(src||'');for(const x of LAW_LINKS){if(s.indexOf(x.p)>=0)return{u:x.u,t:'📖 条文を読む'};}for(const x of DOC_LINKS){if(s.indexOf(x.p)>=0)return{u:x.u,t:'📖 資料を読む'};}return null;}
+// 出典の「第N条(の枝番)」を e-Gov の条文アンカー(#Mp-At_19 等)に変換。該当しなければ空（＝法令先頭）。
+function egovAnchor(src){const z2h=s=>String(s).replace(/[０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0));
+  const m=z2h(src).match(/第\s*(\d+)\s*条(?:の\s*(\d+))?(?:の\s*(\d+))?/);
+  if(!m)return '';let a='#Mp-At_'+m[1];if(m[2])a+='_'+m[2];if(m[3])a+='_'+m[3];return a;}
+function srcLink(src){const s=String(src||'');for(const x of LAW_LINKS){if(s.indexOf(x.p)>=0)return{u:x.u+egovAnchor(s),t:'📖 条文を読む'};}for(const x of DOC_LINKS){if(s.indexOf(x.p)>=0)return{u:x.u,t:'📖 資料を読む'};}return null;}
 function srcChk(src){const l=srcLink(src);const st='margin-left:10px;color:var(--accent);text-decoration:underline;white-space:nowrap';return l?`<a class="srcchk" href="${l.u}" target="_blank" rel="noopener noreferrer" aria-label="出典を新しいタブで開く" style="${st}">${l.t}</a>`:`<a class="srcchk" href="https://www.google.com/search?q=${encodeURIComponent(src||'')}" target="_blank" rel="noopener noreferrer" aria-label="出典を検索して確認（新しいタブ）" style="${st}">🔍 ネットで調べる</a>`;}
 function srcLine(q){return `<div class="src"><span>出典：${esc(q.src)}</span>${srcChk(q.src)}</div>`;}
 function answer(id,ok){review(id,ok);sAnswered++;if(ok)sCorrect++;
@@ -1002,13 +1006,16 @@ function celebrate(msg){try{toast(msg);}catch(_){}
   for(let i=0;i<26;i++){const s=document.createElement('i');s.style.left=(Math.random()*100)+'%';s.style.background=cols[i%cols.length];s.style.animationDelay=(Math.random()*0.25).toFixed(2)+'s';n.appendChild(s);}
   document.body.appendChild(n);setTimeout(()=>{n.remove();},1700);}
 
+// 自己採点の使い方を初回だけ説明（正直な自己評価を促す）。表示は一度きり。
+function gradeHintHTML(){if(localStorage.getItem('oki_grade_hint')==='1')return '';localStorage.setItem('oki_grade_hint','1');
+  return `<div class="hint" style="font-size:.72rem;margin:8px 2px 0;color:var(--sub)">💡 思い出せたら「✓ 言えた」、自信がなければ「✗ あいまい」。正誤で次に出るタイミングが変わります（正直に押すほど効率的）。</div>`;}
 function renderQA(q,meta,id,card){
   card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
     <button class="btn ghost wide" id="showA">答えを表示</button>
     <div class="reveal ok" id="A"><b>A.</b> ${esc(q.a)}${srcLine(q)}
       <div style="margin-top:11px;display:flex;gap:9px">
         <button class="btn ok" style="flex:1" id="g1">✓ 言えた</button>
-        <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div></div></div>`;
+        <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div>${gradeHintHTML()}</div></div>`;
   card.querySelector('#showA').addEventListener('click',()=>{const a=card.querySelector('#A');a.classList.add('show');a.setAttribute('role','status');a.tabIndex=-1;a.focus({preventScroll:true});});
   card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);srSay('正解として記録しました。次の問題に進みます。');toast('✓ 正解として記録');quizIdx++;showQ();});
   card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);srSay('あいまい。弱点として記録しました。後日また出題します。次の問題に進みます。');toast('🎯 弱点として記録（また戻します）');quizIdx++;showQ();});
@@ -1038,11 +1045,13 @@ function renderCloze(q,meta,id,card){
   card.innerHTML=`<div class="quizcard cloze">${meta}
     <div class="redtoggle"><button class="btn ghost" id="allrev">全部めくる</button><span style="font-size:.72rem;color:var(--sub)">下線部をタップ/Enterで表示</span></div>
     <div class="qtext" style="font-weight:500;font-size:1rem">${html}</div>
-    <div style="margin-top:14px;display:flex;gap:9px"><button class="btn ok" style="flex:1" id="g1">✓ 言えた</button><button class="btn ng" style="flex:1" id="g0">✗ あいまい</button></div>${srcLine(q)}</div>`;
+    <div style="margin-top:14px;display:flex;gap:9px"><button class="btn ok" style="flex:1" id="g1" disabled>✓ 言えた</button><button class="btn ng" style="flex:1" id="g0" disabled>✗ あいまい</button></div>${gradeHintHTML()}${srcLine(q)}</div>`;
+  const g1=card.querySelector('#g1'),g0=card.querySelector('#g0');
+  const enableGrade=()=>{g1.disabled=false;g0.disabled=false;}; // 答えを見てから採点（qaと同様・自己採点の信頼性向上）
   const setLbl=b=>b.setAttribute('aria-label',b.classList.contains('show')?('答え：'+(b.dataset.ans||'')):'空欄（タップで答えを表示）');
-  const toggle=b=>{b.classList.toggle('show');setLbl(b);};
+  const toggle=b=>{b.classList.toggle('show');setLbl(b);enableGrade();};
   card.querySelectorAll('.blank').forEach(b=>{b.addEventListener('click',()=>toggle(b));b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle(b);}});});
-  card.querySelector('#allrev').addEventListener('click',()=>card.querySelectorAll('.blank').forEach(b=>{b.classList.add('show');setLbl(b);}));
+  card.querySelector('#allrev').addEventListener('click',()=>{card.querySelectorAll('.blank').forEach(b=>{b.classList.add('show');setLbl(b);});enableGrade();});
   card.querySelector('#g1').addEventListener('click',()=>{answer(id,true);srSay('正解として記録しました。次の問題に進みます。');toast('✓ 正解として記録');quizIdx++;showQ();});
   card.querySelector('#g0').addEventListener('click',()=>{answer(id,false);srSay('あいまい。弱点として記録しました。次の問題に進みます。');toast('🎯 弱点として記録');quizIdx++;showQ();});
 }
@@ -1052,14 +1061,16 @@ function renderOrder(q,meta,id,card){
     <ul class="orderlist" id="ol">${sh.map((o,pos)=>`<li draggable="true" data-i="${o.i}" aria-label="${pos+1}番目：${esc(o.t)}"><span class="num" aria-hidden="true">≡</span><span class="txt">${esc(o.t)}</span><span class="mv"><button class="up" aria-label="上へ">▲</button><button class="dn" aria-label="下へ">▼</button></span></li>`).join('')}</ul>
     <button class="btn wide" id="ck">答え合わせ</button><div class="reveal" id="R"></div></div>`;
   const ul=card.querySelector('#ol');let drag=null,answered=false;
-  const move=(li,dir)=>{if(answered)return;if(dir<0&&li.previousElementSibling)ul.insertBefore(li,li.previousElementSibling);if(dir>0&&li.nextElementSibling)ul.insertBefore(li.nextElementSibling,li);};
+  const renumber=()=>{[...ul.children].forEach((li,i)=>{const t=(li.querySelector('.txt')||{}).textContent||'';li.setAttribute('aria-label',(i+1)+'番目：'+t);});}; // 並び替え後にaria-labelの番号を更新
+  const move=(li,dir)=>{if(answered)return;let moved=false;if(dir<0&&li.previousElementSibling){ul.insertBefore(li,li.previousElementSibling);moved=true;}if(dir>0&&li.nextElementSibling){ul.insertBefore(li.nextElementSibling,li);moved=true;}
+    if(moved){renumber();const pos=[...ul.children].indexOf(li)+1,t=(li.querySelector('.txt')||{}).textContent||'';srSay(t+' を '+pos+'番目に移動しました');}};
   ul.addEventListener('click',e=>{const li=e.target.closest('li');if(!li)return;if(e.target.classList.contains('up'))move(li,-1);if(e.target.classList.contains('dn'))move(li,1);});
   ul.addEventListener('dragstart',e=>{if(answered)return;drag=e.target.closest('li');drag.classList.add('dragging');});
-  ul.addEventListener('dragend',e=>{if(drag)drag.classList.remove('dragging');drag=null;});
+  ul.addEventListener('dragend',e=>{if(drag)drag.classList.remove('dragging');drag=null;renumber();});
   ul.addEventListener('dragover',e=>{e.preventDefault();if(!drag)return;const a=after(e.clientY);if(a==null)ul.appendChild(drag);else ul.insertBefore(drag,a);});
   ul.addEventListener('touchmove',e=>{if(!drag)return;e.preventDefault();const a=after(e.touches[0].clientY);if(a==null)ul.appendChild(drag);else ul.insertBefore(drag,a);},{passive:false});
   ul.querySelectorAll('.num').forEach(n=>{n.addEventListener('touchstart',e=>{drag=e.target.closest('li');drag.classList.add('dragging');},{passive:true});});
-  ul.addEventListener('touchend',()=>{if(drag){drag.classList.remove('dragging');drag=null;}});
+  ul.addEventListener('touchend',()=>{if(drag){drag.classList.remove('dragging');drag=null;renumber();}});
   function after(y){return [...ul.querySelectorAll('li:not(.dragging)')].reduce((c,ch)=>{const box=ch.getBoundingClientRect();const off=y-box.top-box.height/2;return off<0&&off>c.off?{off,el:ch}:c;},{off:-Infinity}).el;}
   card.querySelector('#ck').addEventListener('click',()=>{
     if(answered)return;answered=true;
@@ -1074,20 +1085,22 @@ function renderOrder(q,meta,id,card){
 function renderMatch(q,meta,id,card){
   const left=q.pairs.map((p,i)=>({t:p[0],i})),right=shuffle(q.pairs.map((p,i)=>({t:p[1],i})));
   card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
-    <div class="matchwrap"><div class="matchcol" id="L">${left.map(o=>`<button data-i="${o.i}">${esc(o.t)}</button>`).join('')}</div>
-      <div class="matchcol" id="R">${right.map(o=>`<button data-i="${o.i}">${esc(o.t)}</button>`).join('')}</div></div><div class="reveal" id="RR"></div></div>`;
+    <div class="matchwrap"><div class="matchcol" id="L" aria-label="左の項目（選んでから右を選ぶ）">${left.map(o=>`<button data-i="${o.i}" aria-pressed="false">${esc(o.t)}</button>`).join('')}</div>
+      <div class="matchcol" id="R" aria-label="右の項目">${right.map(o=>`<button data-i="${o.i}" aria-pressed="false">${esc(o.t)}</button>`).join('')}</div></div><div class="reveal" id="RR"></div></div>`;
   let selL=null,done=0,miss=false;const L=card.querySelector('#L'),R=card.querySelector('#R');
-  L.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.classList.contains('done'))return;L.querySelectorAll('button').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');selL=b;});
+  L.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.classList.contains('done'))return;L.querySelectorAll('button').forEach(x=>{x.classList.remove('sel');x.setAttribute('aria-pressed','false');});b.classList.add('sel');b.setAttribute('aria-pressed','true');selL=b;srSay('「'+b.textContent+'」を選択。対応する右側の項目を選んでください');});
   R.addEventListener('click',e=>{const b=e.target.closest('button');if(!b||b.classList.contains('done')||!selL)return;
-    if(+b.dataset.i===+selL.dataset.i){b.classList.add('done');b.textContent='✓ '+b.textContent;selL.classList.add('done');selL.classList.remove('sel');selL=null;done++;
-      b.setAttribute('aria-pressed','true');
+    if(+b.dataset.i===+selL.dataset.i){const ltxt=selL.textContent;b.classList.add('done');b.textContent='✓ '+b.textContent;selL.classList.add('done');selL.classList.remove('sel');selL.setAttribute('aria-pressed','true');b.setAttribute('aria-pressed','true');selL=null;done++;
+      srSay('「'+ltxt+'」と「'+b.textContent.replace('✓ ','')+'」を対応づけました。残り '+(q.pairs.length-done)+' 組');
       if(done===q.pairs.length){answer(id,!miss);const r=card.querySelector('#RR');r.className='reveal show '+(miss?'ng':'ok');r.innerHTML=`<b>${miss?'クリア（ミスあり→要復習に記録）':'✅ 全問正解！'}</b>${srcLine(q)}${nextBtn()}`;bindNext(card);r.setAttribute('role','status');r.tabIndex=-1;r.focus({preventScroll:true});}
-    }else{miss=true;b.classList.add('wrong');setTimeout(()=>b.classList.remove('wrong'),450);toast('不一致');}
+    }else{miss=true;b.classList.add('wrong');setTimeout(()=>b.classList.remove('wrong'),450);srSay('不一致です。別の組み合わせを選んでください');toast('不一致');}
   });
 }
 
-//==================== ユーザー作成問題（作成・共有：エクスポート/インポート） ====================
+//==================== ユーザー作成問題（作成・編集・共有：エクスポート/インポート） ====================
 const UQ_INPUT='width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit';
+let uqEditId=null; // 編集中の自作問題id（あれば同idで置換保存＝学習進捗を維持）
+function uqLabel(u){return u.q||(u.parts?u.parts.map(p=>typeof p==='string'?p:('〔'+(p&&p.b||'')+'〕')).join(''):'')||('['+(u.cat||'自作')+']');}
 function userQSection(){
   const n=(store.userQuestions||[]).length;
   const cu=getCommunityUrl(),cn=COMMUNITY_QUESTIONS.length;
@@ -1119,7 +1132,7 @@ function userQSection(){
           <p class="hint" style="margin:4px 2px 0">1行＝1組。左右の区切りは <b>縦棒 |</b>。</p>
         </div>
         <input id="uqSrc" aria-label="出典" placeholder="出典（例：学校教育法第37条）" style="${UQ_INPUT}">
-        ${cu?`<label style="display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--sub)"><input type="checkbox" id="uqShare" ${gSignedIn?'checked':''}> みんなにも共有する${gSignedIn?'（自動で公開されます）':'（ログインすると自動公開／未ログインは承認後）'}</label>`:''}
+        ${cu?`<label style="display:flex;align-items:center;gap:7px;font-size:.82rem;color:var(--sub)"><input type="checkbox" id="uqShare" ${gSignedIn?'checked':''}> みんなにも共有する${gSignedIn?'（出典が公式に確認できれば自動で公開／それ以外は承認後）':'（ログインで自動公開の対象に／未ログインは承認後）'}</label>`:''}
         <button class="btn wide" id="uqAdd">＋ 問題を追加</button>
       </div>
       <div class="syncrow" style="margin-top:12px">
@@ -1129,6 +1142,7 @@ function userQSection(){
         ${n?`<button class="btn ghost" id="uqClear" style="flex:0 0 auto">自作を全削除</button>`:''}
       </div>
       <input type="file" id="uqFile" accept="application/json,.json" style="display:none">
+      ${n?`<div style="margin-top:14px"><div style="font-size:.78rem;font-weight:700;color:var(--sub);margin-bottom:4px">作成した問題（${n}）— ✏️で編集・🗑で削除</div>${(store.userQuestions||[]).map(u=>`<div style="display:flex;gap:6px;align-items:center;padding:6px 2px;border-top:1px solid var(--line)"><span style="flex:1;font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><span style="color:var(--sub);font-size:.7rem">${typeName(u.type)||esc(u.type)}</span> ${esc(uqLabel(u))}</span><button class="btn ghost uqedit" data-id="${esc(u.id)}" aria-label="編集" style="padding:3px 9px;min-height:auto;font-size:.74rem">✏️</button><button class="btn ghost uqdel" data-id="${esc(u.id)}" aria-label="削除" style="padding:3px 9px;min-height:auto;font-size:.74rem">🗑</button></div>`).join('')}</div>`:''}
     </div></details>`;
 }
 function bindUserQ(el){
@@ -1145,7 +1159,7 @@ function bindUserQ(el){
     const cat=(q('#uqCat').value||'自作').trim(),qt=q('#uqQ').value.trim(),src=(q('#uqSrc').value||'自作問題').trim();
     const v=ty.value;
     if(v!=='cloze'&&!qt){toast('問題文を入力してください');return;}   // clozeは穴埋め文を本体に使うので問題文は任意
-    const id='u'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36);
+    const id=uqEditId||('u'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36)); // 編集中は同idを維持
     let obj;
     if(v==='qa'){const a=q('#uqA').value.trim();if(!a){toast('答えを入力してください');return;}obj={id,type:'qa',cat,q:qt,a,src};}
     else if(v==='mc'){const raw=[...el.querySelectorAll('.uqChoice')].map(x=>x.value.trim());
@@ -1166,21 +1180,40 @@ function bindUserQ(el){
       if(pairs.length<2){toast('「左 | 右」の組を2行以上入力してください');return;}
       obj={id,type:'match',cat,q:qt,pairs,src};}
     if(!validQuestion(obj)){toast('入力内容を確認してください');return;}   // 念のため型検証してから保存
-    store.userQuestions=store.userQuestions||[];store.userQuestions.push(obj);save();rebuildQuestions();
+    store.userQuestions=store.userQuestions||[];
+    if(uqEditId){store.userQuestions=store.userQuestions.filter(x=>x.id!==uqEditId);} // 編集＝同idで置換（cards進捗を維持）
+    store.userQuestions.push(obj);save();rebuildQuestions();
+    const wasEdit=!!uqEditId;uqEditId=null;
     if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();
     const share=q('#uqShare');let shared=false;
-    if(share&&share.checked&&getCommunityUrl()){
+    if(!wasEdit&&share&&share.checked&&getCommunityUrl()){
       // 初回だけ明示的に同意を取り、以降は確認なし（＝無意識共有を維持）
       if(localStorage.getItem('oki_shareok')==='1'||confirm('この問題を「みんなの問題」として共有します。\n問題文・選択肢・解説・出典が他の利用者にも公開されます（ログイン時は自動公開）。\n実名・校内限りの情報・市販教材の転載は含めないでください。\n\n共有しますか？（今後この確認は表示しません）')){
         localStorage.setItem('oki_shareok','1');shared=true;
         submitCommunity(obj).then(r=>toast(r&&r.status==='approved'?'追加し、みんなに共有しました ✓':'追加し、共有に出しました（承認後に公開）')).catch(err=>{elog({type:'community',msg:'投稿失敗:'+err.message});toast('追加しました（共有の送信は失敗）');});
       }
     }
-    if(!shared)toast('追加しました（自作 '+store.userQuestions.length+'問）');
+    if(!shared)toast(wasEdit?'保存しました ✓':'追加しました（自作 '+store.userQuestions.length+'問）');
     renderProg();
     // フォーム再生成後、アコーディオンを開いたまま問題文入力にフォーカスを戻す（連続追加しやすく）
     const box=document.querySelector('#uqBox');if(box){box.open=true;const f=box.querySelector('#uqQ');if(f)f.focus();}
   });
+  // 自作問題の編集：フォームに読み込み、保存で同idを置換。削除：1問だけ消す。
+  function loadUqForEdit(eid){const u=(store.userQuestions||[]).find(x=>x.id===eid);if(!u)return;uqEditId=eid;
+    ty.value=u.type;ty.dispatchEvent(new Event('change'));
+    q('#uqCat').value=u.cat||'';q('#uqSrc').value=u.src||'';q('#uqQ').value=u.q||'';
+    if(u.type==='qa')q('#uqA').value=u.a||'';
+    else if(u.type==='mc'){const ch=u.choices||[];[...el.querySelectorAll('.uqChoice')].forEach((inp,i)=>inp.value=ch[i]||'');const rs=el.querySelectorAll('input[name=uqCorrect]');if(rs[u.ans])rs[u.ans].checked=true;q('#uqExp').value=u.exp||'';}
+    else if(u.type==='cloze')q('#uqClozeText').value=(u.parts||[]).map(p=>typeof p==='string'?p:('[['+(p&&p.b||'')+']]')).join('');
+    else if(u.type==='order'){q('#uqOrderItems').value=(u.items||[]).join('\n');q('#uqOrderExp').value=u.exp||'';}
+    else if(u.type==='match')q('#uqMatchPairs').value=(u.pairs||[]).map(p=>p[0]+' | '+p[1]).join('\n');
+    const ab=q('#uqAdd');if(ab)ab.textContent='✓ 保存（編集中）';
+    const box=document.querySelector('#uqBox');if(box)box.open=true;q('#uqQ').scrollIntoView({behavior:'smooth',block:'center'});
+    toast('編集モード：直して「保存」を押してください');}
+  el.querySelectorAll('.uqedit').forEach(b=>b.addEventListener('click',()=>loadUqForEdit(b.dataset.id)));
+  el.querySelectorAll('.uqdel').forEach(b=>b.addEventListener('click',()=>{const u=(store.userQuestions||[]).find(x=>x.id===b.dataset.id);if(!u)return;
+    if(!confirm('この自作問題を削除しますか？\n'+uqLabel(u).slice(0,40)))return;
+    store.userQuestions=(store.userQuestions||[]).filter(x=>x.id!==b.dataset.id);save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderProg();toast('削除しました');}));
   const sa=q('#uqShareAll');if(sa)sa.addEventListener('click',async()=>{
     if(!getCommunityUrl())return;if(!confirm('自作問題を「みんなの問題」に出しますか？（承認後に全員へ表示）'))return;
     let ok=0,ng=0;for(const obj of (store.userQuestions||[])){try{await submitCommunity(obj);ok++;}catch(e){ng++;}}
@@ -1446,7 +1479,9 @@ async function cloudSync(quiet){if(!accessToken)return;try{
   await driveSave(merged);          // 先にクラウドへ書込（失敗時は例外でローカル不変＝データ喪失を防ぐ）
   store=merged;save();              // クラウド成功を確認してからローカルを確定
   renderHome();
-}catch(e){console.warn(e);if(!quiet)toast('同期に失敗しました');}}  // 背景同期(quiet)は失敗トーストを出さない
+}catch(e){console.warn(e);
+  if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;trySilentSignIn();return;} // アクセストークン失効→無音で再取得し次回同期で自動復帰
+  if(!quiet)toast('同期に失敗しました');}}  // 背景同期(quiet)は失敗トーストを出さない
 function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
   mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
