@@ -543,6 +543,12 @@ function isMastered(id){const c=getCard(id);return c&&c.box>=4;}
 function stateOf(id){const c=getCard(id);if(!c)return'new';if(c.box>=4)return'mast';if(c.box===3)return'near';return'learn';}
 function isDue(id){const c=getCard(id);return !c||c.due<=Date.now();}
 function isWeak(id){const c=getCard(id);return c&&c.box<=2;}
+// ===== 付箋（ブックマーク）／最近見た（いずれも加算フィールド・Drive同期対象） =====
+function bmKey(t,id){return t+':'+id;}
+function isBM(t,id){return (store.bookmarks||[]).indexOf(bmKey(t,id))>=0;}
+function toggleBM(t,id){store.bookmarks=store.bookmarks||[];const k=bmKey(t,id),i=store.bookmarks.indexOf(k);if(i>=0)store.bookmarks.splice(i,1);else store.bookmarks.push(k);save();if(typeof gSignedIn!=='undefined'&&gSignedIn&&accessToken)cloudSync(true);return i<0;}
+function bmCount(t){return (store.bookmarks||[]).filter(k=>k.indexOf(t+':')===0).length;}
+function pushRecent(t,id,label){if(id==null||id==='')return;store.recent=(store.recent||[]).filter(r=>!(r.t===t&&String(r.id)===String(id)));store.recent.unshift({t,id:String(id),label:String(label||'').slice(0,40),ts:Date.now()});store.recent=store.recent.slice(0,12);save();}
 function review(id,ok){
   let c=store.cards[id];
   if(!c)c=store.cards[id]={box:1,reps:0,fails:0,due:0,last:null,hist:[],ef:EF_DEFAULT,ivl:0};
@@ -640,6 +646,7 @@ let SEARCH_INDEX=null;
 function openRef(id){refFilter='all';renderRef();go('ref');setTimeout(()=>{const d=document.getElementById('acc-'+id);if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});}},70);}
 function openSync(){go('prog');setTimeout(()=>{const d=[...document.querySelectorAll('#prog details')].find(x=>/同期・データ管理/.test((x.querySelector('summary')||{}).textContent||''));if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'});}},70);}
 function openExamSetting(){go('prog');setTimeout(()=>{const i=document.getElementById('examIn');if(i){i.scrollIntoView({behavior:'smooth',block:'center'});try{i.focus({preventScroll:true});}catch(_){}}},80);} // 試験日の恒常的な設定入口（進捗タブの日付欄へ誘導）
+function openLk(sit){go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);} // 逆引きの特定状況を開く（最近見た/横断検索から）
 function buildSearchIndex(){const idx=[];
   REF.forEach(r=>idx.push({k:'要点',t:r.name,b:(r.points||[]).join(' ')+' '+(r.tag||'')+' '+(r.cat||'')+' '+(r.src||''),go:()=>openRef(r.id)}));
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
@@ -720,6 +727,7 @@ function renderHome(){
   const searchBlock=firstRun?'':`
     <div class="searchwrap" style="margin-bottom:4px"><span class="mag" aria-hidden="true">🔎</span><input type="search" class="search" id="globalSearch" placeholder="要点・逆引き・問題・論文を横断検索" aria-label="アプリ内を横断検索" enterkeyhint="search"></div>
     <div class="gsres" id="gsres" aria-live="polite"></div>`;
+  const recentHTML=(!firstRun&&(store.recent||[]).length)?`<div style="margin:2px 2px 8px"><div style="font-size:.72rem;color:var(--sub);font-weight:700;margin-bottom:4px">🕘 最近見た</div><div style="display:flex;gap:6px;flex-wrap:wrap">${store.recent.slice(0,8).map(rc=>`<button class="rchip" data-t="${esc(rc.t)}" data-id="${esc(String(rc.id))}" style="font-size:.74rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;padding:3px 10px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rc.t==='ref'?'📚':'🔎'} ${esc(rc.label)}</button>`).join('')}</div></div>`:'';
   const examPrompt=(!store.examDate&&localStorage.getItem('oki_exam_skip')!=='1')?`
     <div class="card" id="examPrompt" style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;border-left:4px solid var(--accent)">
       <span style="font-size:.88rem;font-weight:700">🎯 試験日を設定</span>
@@ -735,6 +743,7 @@ function renderHome(){
   el.innerHTML=`
     ${welcome}
     ${searchBlock}
+    ${recentHTML}
     ${examPrompt}
     ${resumeBar?`<div style="margin-bottom:8px">${resumeBar}</div>`:''}
     ${nudge}
@@ -787,6 +796,7 @@ function renderHome(){
       <button class="quick" data-act="ronbun"><span class="ic">📝</span><b>論文・面接</b><span>型と根拠のテンプレ</span></button>
       <button class="quick" data-act="map"><span class="ic">🗺️</span><b>関係図</b><span>資料のつながり</span></button>
     </div>`;
+  el.querySelectorAll('.rchip').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.t,id=b.dataset.id;if(t==='ref')openRef(id);else openLk(id);})); // 最近見た→再オープン
   const gs=el.querySelector('#globalSearch');if(gs){gs.addEventListener('input',e=>runSearchDebounced(e.target.value));
     gs.addEventListener('keydown',e=>{if(e.key==='Enter'){const b=el.querySelector('#gsres .gsitem');if(b){e.preventDefault();b.click();}}});} // Enterで先頭の検索結果へ
   el.querySelector('#ctaDaily').addEventListener('click',()=>{go('quiz');startQuiz('daily');});
@@ -830,13 +840,15 @@ function renderRef(){
   const cats=['all',...new Set(REF.map(r=>r.cat))];
   el.innerHTML=`<div class="tagrow">${cats.map(c=>`<button class="filt ${c===refFilter?'on':''}" data-c="${c}">${c==='all'?'すべて':c}</button>`).join('')}</div><div id="refList"></div>`;
   el.querySelectorAll('.filt').forEach(b=>b.addEventListener('click',()=>{refFilter=b.dataset.c;renderRef();}));
-  const list=REF.filter(r=>refFilter==='all'||r.cat===refFilter);
+  const list=REF.filter(r=>refFilter==='all'||r.cat===refFilter).slice().sort((a,b)=>(isBM('ref',b.id)?1:0)-(isBM('ref',a.id)?1:0)); // 付箋を上部に固定
   document.getElementById('refList').innerHTML=list.map(r=>`
    <details class="acc" id="acc-${r.id}">
-     <summary><span class="dot" style="background:${COLORS[r.cls]}"></span>${r.name}<span class="chev">›</span></summary>
+     <summary><span class="dot" style="background:${COLORS[r.cls]}"></span>${r.name}<button class="refstar" data-id="${r.id}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('ref',r.id)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;margin-left:6px;padding:0">${isBM('ref',r.id)?'⭐':'☆'}</button><span class="chev">›</span></summary>
      <div class="body"><ul>${r.points.map(p=>`<li>${p}</li>`).join('')}</ul>
        <div class="src"><span>出典：${r.src}</span>${srcChk(r.src)}<button class="copybtn" data-id="${r.id}">📋 根拠をコピー</button></div></div>
    </details>`).join('');
+  document.querySelectorAll('#refList .refstar').forEach(b=>b.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();const on=toggleBM('ref',b.dataset.id);b.textContent=on?'⭐':'☆';b.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}));
+  document.querySelectorAll('#refList details.acc').forEach(d=>d.addEventListener('toggle',()=>{if(d.open){const r=REF.find(x=>'acc-'+x.id===d.id);if(r)pushRecent('ref',r.id,r.name);}})); // 開いたら「最近見た」に記録
   document.querySelectorAll('#refList .copybtn').forEach(b=>b.addEventListener('click',ev=>{
     ev.preventDefault();const r=REF.find(x=>x.id===b.dataset.id);
     const txt=`【${r.name}】\n`+r.points.map(p=>'・'+p.replace(/<[^>]+>/g,'')).join('\n')+`\n（出典：${r.src}）`;
@@ -851,13 +863,16 @@ function renderLookup(){
     <input class="search" id="lkin" placeholder="状況・キーワードで検索（例：不登校、ICT、研修）" aria-label="逆引き検索"></div>
     <div class="chips" id="lkchips"></div><div id="lkres"></div>`;
   const chips=el.querySelector('#lkchips');
-  LOOKUP.forEach(l=>{const b=document.createElement('button');b.textContent=l.sit;
+  const lkSorted=LOOKUP.slice().sort((a,b)=>(isBM('lk',b.sit)?1:0)-(isBM('lk',a.sit)?1:0)); // 付箋を先頭に
+  lkSorted.forEach(l=>{const b=document.createElement('button');b.textContent=(isBM('lk',l.sit)?'⭐ ':'')+l.sit;
     b.addEventListener('click',()=>{el.querySelector('#lkin').value='';show([l]);[...chips.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');});chips.appendChild(b);});
   el.querySelector('#lkin').addEventListener('input',e=>{const q=e.target.value.trim();[...chips.children].forEach(c=>c.classList.remove('on'));
     show(!q?LOOKUP:LOOKUP.filter(l=>(l.sit+l.kw+l.based.map(b=>b.join('')).join('')).includes(q)));});
   show(LOOKUP);
   function show(list){const box=el.querySelector('#lkres');
-    box.innerHTML=list.length?list.map(l=>`<div class="lk"><h4>${l.sit}</h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}${srcChk(b[0])}</div>`).join('')}<div style="margin-top:8px"><button class="btn ghost lkcopy" data-sit="${esc(l.sit)}" style="padding:4px 11px;min-height:auto">📋 根拠をコピー</button></div></div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`;
+    if(list.length===1)pushRecent('lk',list[0].sit,list[0].sit); // 特定状況を開いたら「最近見た」に記録
+    box.innerHTML=list.length?list.map(l=>`<div class="lk"><h4 style="display:flex;align-items:center;gap:6px">${l.sit}<button class="lkstar" data-sit="${esc(l.sit)}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('lk',l.sit)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;padding:0">${isBM('lk',l.sit)?'⭐':'☆'}</button></h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}${srcChk(b[0])}</div>`).join('')}<div style="margin-top:8px"><button class="btn ghost lkcopy" data-sit="${esc(l.sit)}" style="padding:4px 11px;min-height:auto">📋 根拠をコピー</button></div></div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`;
+    box.querySelectorAll('.lkstar').forEach(btn=>btn.addEventListener('click',()=>{const on=toggleBM('lk',btn.dataset.sit);btn.textContent=on?'⭐':'☆';btn.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}));
     box.querySelectorAll('.lkcopy').forEach(btn=>btn.addEventListener('click',()=>{const l=LOOKUP.find(x=>x.sit===btn.dataset.sit);if(!l)return;
       const txt=`【${l.sit}】\n`+l.based.map(b=>`・${b[0]}：${String(b[1]).replace(/<[^>]+>/g,'')}`).join('\n');
       (navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('根拠をコピーしました 📋'),()=>toast('コピーできませんでした'));}));}
@@ -873,6 +888,7 @@ function renderQuiz(){
    <div class="modegrid" id="modes">
      <button class="mode daily" data-m="daily"><span class="ic">⚡</span><b>今日の学習（${Math.min(due,12)||'+'}問）</b><span>期日が来た問題を優先・間隔反復</span></button>
      <button class="mode review" data-m="review"><span class="ic">🎯</span><b>弱点だけ復習（${weak}）</b><span>まだ不安定な問題（要復習）</span></button>
+     <button class="mode" data-m="bookmark"><span class="ic">⭐</span><b>付箋（${bmCount('q')}）</b><span>あとで見返す問題</span></button>
      <button class="mode" data-m="qa"><span class="ic">💬</span><b>一問一答</b><span>答えを想起→自己評価</span></button>
      <button class="mode" data-m="mc"><span class="ic">🔠</span><b>4択選択</b><span>本番に近い形式</span></button>
      <button class="mode" data-m="cloze"><span class="ic">🟥</span><b>穴埋め（赤シート）</b><span>キーワードを想起</span></button>
@@ -912,14 +928,16 @@ function startQuiz(mode){
   }
   if(mode==='daily'){
     const due=dueList();                                   // due昇順（期日超過が先）
-    const reviews=due.filter(q=>getCard(q.id));            // 既習＝復習を優先
-    const news=due.filter(q=>!getCard(q.id));              // 未習＝新規は1日6問まで（復習が埋もれない）
+    const reviews=due.filter(q=>getCard(q.id));            // 既習＝復習を優先（due昇順＝期日超過が先）
+    const news=shuffle(due.filter(q=>!getCard(q.id)));     // 未習＝シャッフルして1日6問まで（ファイル先頭がqa偏重なので形式が偏らないよう毎回混ぜる）
     quizPool=reviews.concat(news.slice(0,6)).slice(0,12);
     if(!quizPool.length)quizPool=shuffle(QUESTIONS.filter(q=>!isMastered(q.id))).slice(0,8);
     if(!quizPool.length)quizPool=shuffle(QUESTIONS).slice(0,8);
   }
   else if(mode==='review'){quizPool=shuffle(QUESTIONS.filter(q=>isWeak(q.id)));
     if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard result"><div class="emoji">✨</div><div class="msg">弱点はありません。「今日の学習」で新しい問題に挑戦しましょう。</div></div>`;return;}}
+  else if(mode==='bookmark'){const ids=new Set((store.bookmarks||[]).filter(k=>k.indexOf('q:')===0).map(k=>k.slice(2)));quizPool=shuffle(QUESTIONS.filter(q=>ids.has(q.id)));
+    if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard"><p class="hint">付箋はまだありません。問題の上の ☆ を押すと、ここに集まります。</p></div>`;return;}}
   else{quizPool=shuffle(QUESTIONS.filter(q=>q.type===mode&&(quizCat==='all'||q.cat===quizCat)));
     if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard"><p class="hint">この分野×形式の問題はありません。分野を「全分野」に。</p></div>`;return;}}
   store.session={mode,ids:quizPool.map(q=>q.id),idx:0,cat:quizCat};save(); // 中断復帰用にセッションを保存
@@ -968,11 +986,13 @@ function showQ(){
     const rep=`<button type="button" class="qreport" data-id="${esc(q.id)}" aria-label="この問題を通報する" style="${bst};color:var(--sub)">⚠️通報</button>`;
     commBadge=`${badge}${cnt}${vote}${rep}`;
   }
-  const meta=`<div class="qmeta"><span class="badge">${esc(q.cat)}・${typeName(q.type)}</span>${commBadge}<span>${quizIdx+1} / ${quizPool.length}</span></div>`;
+  const star=`<button type="button" class="qstar" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('q',q.id)}" style="border:none;background:none;cursor:pointer;font-size:1rem;padding:0 2px;line-height:1">${isBM('q',q.id)?'⭐':'☆'}</button>`;
+  const meta=`<div class="qmeta"><span class="badge">${esc(q.cat)}・${typeName(q.type)}</span>${star}${commBadge}<span>${quizIdx+1} / ${quizPool.length}</span></div>`;
   area.innerHTML=prog;const card=document.createElement('div');area.appendChild(card);
   const r={qa:renderQA,mc:renderMC,cloze:renderCloze,order:renderOrder,match:renderMatch}[q.type];
   if(!r){quizIdx++;return showQ();}
   r(q,meta,q.id,card);
+  const sb=card.querySelector('.qstar');if(sb)sb.addEventListener('click',()=>{const on=toggleBM('q',q.id);sb.textContent=on?'⭐':'☆';sb.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}); // 付箋トグル
   const vb=card.querySelector('.qvote');if(vb)vb.addEventListener('click',()=>voteCommunity(q.id,vb)); // 👍役に立った（良問の浮上→検証済み昇格の起点）
   const rep=card.querySelector('.qreport');if(rep)rep.addEventListener('click',()=>reportCommunity(q.id,rep)); // 共有問題の通報（誤り/不適切→自動降格の起点）
   const h=card.querySelector('h2,.qtext');if(h){h.setAttribute('tabindex','-1');h.focus({preventScroll:true});}
@@ -1281,6 +1301,10 @@ function renderProg(){
       <div class="body">
         <div id="syncMount"></div>
         ${(()=>{const elg=getElog();return elg.length?`<h4 style="margin:16px 0 6px">🐞 エラーログ（${elg.length}）</h4><small style="color:var(--sub)">不具合を自動記録（外部送信なし）。コピーして開発者に送ると修正に役立ちます。</small><pre id="elogPre" style="white-space:pre-wrap;font-size:.7rem;max-height:160px;overflow:auto;margin:8px 0;color:var(--ng)">${elg.map(e=>new Date(e.t).toLocaleString()+' ['+(e.type||'?')+'] '+String(e.msg||'').replace(/[<>&]/g,'')).join('\n')}</pre><div class="syncrow"><button class="btn" id="elogCopy">コピー</button><button class="btn ghost" id="elogClr">消去</button></div>`:'';})()}
+        <div style="margin-top:18px"><h4 style="margin:0 0 6px">📦 進捗のバックアップ</h4><small style="color:var(--sub)">Googleを使わなくても、ファイルで進捗を保存・復元できます（機種変更の引き継ぎに）。</small>
+          <div class="syncrow" style="margin-top:8px"><button class="btn ghost" id="bkExport">📤 書き出し</button><button class="btn ghost" id="bkImport">📥 復元（読み込み）</button></div>
+          <input type="file" id="bkFile" accept="application/json,.json" style="display:none"></div>
+        <div style="margin-top:16px;font-size:.8rem;line-height:1.9"><a href="about.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">使い方・このアプリについて</a>　/　<a href="terms.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">利用規約</a>　/　<a href="privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">プライバシー</a></div>
         <button class="btn ghost wide" style="margin-top:16px;border-color:var(--ng);color:var(--ng)" id="resetBtn">学習の記録を消す</button>
       </div>
     </details>`;
@@ -1296,6 +1320,13 @@ function renderProg(){
   const ecl=el.querySelector('#elogClr');if(ecl)ecl.addEventListener('click',()=>{clearElog();renderProg();toast('エラーログを消去しました');});
   const rv=el.querySelector('#revBtn');if(rv)rv.addEventListener('click',()=>{go('quiz');startQuiz('review');});
   bindUserQ(el);
+  {const bx=el.querySelector('#bkExport');if(bx)bx.addEventListener('click',()=>{const blob=new Blob([JSON.stringify(store)],{type:'application/json'}),url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='okinawa-progress-'+todayISO()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('進捗を書き出しました 📤');});
+   const bi=el.querySelector('#bkImport');if(bi)bi.addEventListener('click',()=>el.querySelector('#bkFile').click());
+   const bf=el.querySelector('#bkFile');if(bf)bf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+     rd.onload=()=>{try{const obj=JSON.parse(rd.result);if(!obj||typeof obj!=='object'||!obj.cards)throw 0;
+       if(!confirm('読み込んだ進捗を現在の進捗と統合します。よろしいですか？\n（新しい学習記録を優先し、付箋・自作問題・論文下書きも統合します）'))return;
+       store=mergeStore(store,obj);save();if(typeof gSignedIn!=='undefined'&&gSignedIn&&accessToken)cloudSync(true);rerenderAll();toast('進捗を復元（統合）しました ✓');
+     }catch(err){toast('読み込めないファイルです');}};rd.readAsText(f);e.target.value='';});}
   el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('学習の記録（正誤・定着・連続日数・統計）をすべて消去します。よろしいですか？\n※作成した問題と各種設定は残ります。')){const keep={theme:store.theme,examDate:store.examDate,examDateT:store.examDateT||0,userQuestions:store.userQuestions,fontScale:store.fontScale,dailyGoal:store.dailyGoal,ronbunDrafts:store.ronbunDrafts};store=Object.assign({cards:{},streak:0,lastDate:null,dailyDate:null,totalAnswered:0,totalCorrect:0,dailyDone:{},session:null},keep);save();if(gSignedIn&&accessToken)driveSave(store).catch(()=>{});renderProg();toast('学習の記録を消去しました');}});
   mountSync();
 }
@@ -1472,6 +1503,8 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
    out.totalAnswered=Math.max(a.totalAnswered||0,b.totalAnswered||0,ua);
    out.totalCorrect=Math.max(a.totalCorrect||0,b.totalCorrect||0,uc);}
   {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});out.dailyDone=dd;}
+  out.bookmarks=[...new Set([...(a.bookmarks||[]),...(b.bookmarks||[])])]; // 付箋は和集合
+  {const seen={};out.recent=[...(a.recent||[]),...(b.recent||[])].sort((x,y)=>(y.ts||0)-(x.ts||0)).filter(it=>{const k=it.t+':'+it.id;return seen[k]?false:(seen[k]=1,true);}).slice(0,12);} // 最近見たは時刻新しい順で結合・上位12
   return out;}
 async function cloudSync(quiet){if(!accessToken)return;try{
   const f=await driveFind();const cloud=f?await driveGet(f.id):null;
@@ -1524,6 +1557,28 @@ if('serviceWorker' in navigator){
     }).catch(()=>{});
   });
 }
+// ===== PWAインストール促進（ホーム画面に追加）=====
+let _a2hsPrompt=null;
+function a2hsBar(html,onAdd){
+  if(document.getElementById('a2hsBar')||localStorage.getItem('oki_a2hs')==='off')return;
+  try{if(matchMedia('(display-mode:standalone)').matches||navigator.standalone)return;}catch(_){} // インストール済みは出さない
+  const bar=document.createElement('div');bar.id='a2hsBar';
+  bar.style.cssText='position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:70;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:.84rem';
+  bar.innerHTML=`<span style="flex:1">${html}</span>${onAdd?'<button class="btn" id="a2hsAdd" style="padding:5px 12px;min-height:auto">追加</button>':''}<button class="btn ghost" id="a2hsNo" style="padding:5px 10px;min-height:auto" aria-label="閉じる">✕</button>`;
+  document.body.appendChild(bar);
+  const add=bar.querySelector('#a2hsAdd');if(add&&onAdd)add.addEventListener('click',onAdd);
+  bar.querySelector('#a2hsNo').addEventListener('click',()=>{localStorage.setItem('oki_a2hs','off');bar.remove();});
+}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();_a2hsPrompt=e;
+  a2hsBar('📲 ホーム画面に追加すると、アプリのように一発で開けます',async()=>{const bar=document.getElementById('a2hsBar');if(!_a2hsPrompt){if(bar)bar.remove();return;}_a2hsPrompt.prompt();try{await _a2hsPrompt.userChoice;}catch(_){}_a2hsPrompt=null;if(bar)bar.remove();});});
+window.addEventListener('appinstalled',()=>{_a2hsPrompt=null;const b=document.getElementById('a2hsBar');if(b)b.remove();localStorage.setItem('oki_a2hs','off');});
+// iOS Safari は beforeinstallprompt が無いので、初回学習後に一度だけ手順を案内
+function maybeIOSInstallHint(){try{
+  const iOS=/iP(hone|ad|od)/.test(navigator.platform)||(/Mac/.test(navigator.platform)&&navigator.maxTouchPoints>1);
+  const safari=/Safari/.test(navigator.userAgent)&&!/CriOS|FxiOS|EdgiOS/.test(navigator.userAgent);
+  if(iOS&&safari&&!navigator.standalone&&localStorage.getItem('oki_a2hs')!=='off'&&(store.totalAnswered||0)>=3){
+    a2hsBar('📲 共有ボタン <span aria-hidden="true">⬆️</span> →「ホーム画面に追加」で、アプリのように使えます',null);
+  }}catch(_){}}
 
 //==================== UTIL ====================
 function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
@@ -1571,6 +1626,7 @@ async function boot(){
   rerenderAll();
   fetchCommunity();                     // 背景で最新の共有問題を取得（届いたら再描画）
   trySilentSignIn();                    // 前回ログイン済みなら無音で再認証→クラウドの最新を取り込む
+  setTimeout(maybeIOSInstallHint,1200);  // iOS Safari は beforeinstallprompt が無いので手順を一度だけ案内
 }
 boot();
 </script>
