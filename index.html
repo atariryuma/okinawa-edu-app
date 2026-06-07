@@ -558,6 +558,7 @@ function pushRecent(t,id,label){if(id==null||id==='')return;store.recent=(store.
 function review(id,ok){
   let c=store.cards[id];
   if(!c)c=store.cards[id]={box:1,reps:0,fails:0,due:0,last:null,hist:[],ef:EF_DEFAULT,ivl:0};
+  if(!Array.isArray(c.hist))c.hist=[];           // hist欠落/非配列(改竄・片側マージ由来)でも採点が落ちない多層防御
   if(c.ef==null)c.ef=EF_DEFAULT;                 // 旧スキーマ移行：ease を補完
   if(c.ivl==null)c.ivl=OLD_BOX_IVL[c.box]||0;    // 旧スキーマ移行：間隔を box から推定
   if(ok){
@@ -1263,7 +1264,7 @@ function bindUserQ(el){
     const f=e.target.files[0];if(!f)return;const r=new FileReader();
     r.onload=()=>{try{const arr=JSON.parse(r.result);if(!Array.isArray(arr))throw 0;
       store.userQuestions=store.userQuestions||[];const seen={};store.userQuestions.forEach(x=>seen[x.id]=1);let added=0;
-      let skipped=0;arr.forEach(x=>{if(x&&x.id&&!seen[x.id]&&validQuestion(x)){seen[x.id]=1;store.userQuestions.push(x);added++;}else if(x&&x.id&&!validQuestion(x))skipped++;});
+      let skipped=0;arr.forEach(x=>{if(x&&x.id&&!seen[x.id]&&validQuestion(x)){seen[x.id]=1;if(typeof x.mtime!=='number')x.mtime=Date.now();store.userQuestions.push(x);added++;}else if(x&&x.id&&!validQuestion(x))skipped++;}); // mtime補完＝今インポートした版を同期で勝たせる
       save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderProg();toast(added+'問インポートしました'+(skipped?`（不正 ${skipped}問は除外）`:''));
     }catch(err){toast('読み込めないファイル形式です');}};
     r.readAsText(f);e.target.value='';
@@ -1296,7 +1297,7 @@ function renderProg(){
     </div>
     <div class="card" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <label for="examIn" style="font-size:.9rem;font-weight:700">🎯 試験日</label>
-      <input type="date" id="examIn" value="${store.examDate||''}" min="${todayISO()}" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit">
+      <input type="date" id="examIn" value="${esc(store.examDate||'')}" min="${todayISO()}" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit">
       <span style="font-size:.78rem;color:var(--sub)">${(()=>{const d=examDaysLeft();return d==null?'設定すると試験日に向けて復習間隔を自動調整します。':(d>0?'あと '+d+' 日。これを越えて復習は先送りしません。':'本番当日／経過');})()}</span>
     </div>
     <h3 class="sec">要復習リスト（${weak.length}）</h3>
@@ -1508,6 +1509,7 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
   // examDate は最後に変更した方を採用（設定も解除も端末間で伝播）
   if((b.examDateT||0)>(a.examDateT||0))out.examDate=b.examDate;
   out.examDateT=Math.max(a.examDateT||0,b.examDateT||0);
+  if(out.examDate!=null&&!(typeof out.examDate==='string'&&/^\d{4}-\d{1,2}-\d{1,2}$/.test(out.examDate)))out.examDate=null; // 不正書式(改竄cloud等)は破棄＝描画XSS/日付計算破綻を防ぐ
   // ユーザー作成問題は id で統合。同idは mtime（最終編集時刻）が新しい方を採用＝端末間の編集が巻き戻らない
   {const by={};[...(a.userQuestions||[]),...(b.userQuestions||[])].forEach(q=>{if(q&&q.id){const ex=by[q.id];if(!ex||(q.mtime||0)>=(ex.mtime||0))by[q.id]=q;}});out.userQuestions=Object.values(by);}
   // 論文の下書きはタイトル毎に「長い方」を採用（端末間でより書き込んだ版を保持）
@@ -1522,12 +1524,16 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
   return out;}
 // ファイル復元(信頼できない入力)の浄化：累積統計は信用せずcards履歴から再計算、未来ts履歴を除去、不正フィールドを落とす（巨大値による正答率破綻・乗っ取りを防ぐ）
 function sanitizeImport(o){const s={};o=o||{};
-  s.cards={};if(o.cards&&typeof o.cards==='object'&&!Array.isArray(o.cards)){Object.keys(o.cards).forEach(id=>{const c=o.cards[id];if(!c||typeof c!=='object')return;const hist=Array.isArray(c.hist)?c.hist.filter(h=>h&&typeof h.t==='number'&&h.t<=Date.now()+864e5):[];s.cards[id]=Object.assign({},c,{hist});});}
+  s.cards={};if(o.cards&&typeof o.cards==='object'&&!Array.isArray(o.cards)){const num=(v,d)=>Number.isFinite(v)?v:d;Object.keys(o.cards).forEach(id=>{const c=o.cards[id];if(!c||typeof c!=='object')return;
+    const hist=(Array.isArray(c.hist)?c.hist:[]).filter(h=>h&&typeof h.t==='number'&&h.t<=Date.now()+864e5).slice(-200); // 未来ts除去＋巨大hist上限（マージ前の負荷スパイク回避）
+    const card={box:Math.min(Math.max(Math.round(num(c.box,1))||1,1),5),reps:Math.max(num(c.reps,0),0),fails:Math.max(num(c.fails,0),0),due:num(c.due,0),last:num(c.last,null),ef:Math.min(Math.max(num(c.ef,EF_DEFAULT),EF_MIN),EF_MAX),ivl:Math.min(Math.max(num(c.ivl,0),0),IVL_MAX),hist}; // 数値はホワイトリスト＋範囲チェック（garbageカードの静かな死蔵を防ぐ）
+    if(Number.isFinite(c.pli))card.pli=c.pli;s.cards[id]=card;});}
   let ta=0,tc=0;Object.values(s.cards).forEach(c=>(c.hist||[]).forEach(h=>{ta++;if(h.ok)tc++;}));s.totalAnswered=ta;s.totalCorrect=tc; // 統計は履歴から再計算
   if(typeof o.streak==='number'&&o.streak>=0&&o.streak<100000)s.streak=o.streak;
   if(typeof o.lastDate==='string')s.lastDate=o.lastDate;
-  if(o.examDate)s.examDate=o.examDate;if(typeof o.examDateT==='number')s.examDateT=o.examDateT;
-  if(Array.isArray(o.userQuestions))s.userQuestions=o.userQuestions.filter(validQuestion);
+  if(typeof o.examDate==='string'&&/^\d{4}-\d{1,2}-\d{1,2}$/.test(o.examDate))s.examDate=o.examDate; // 書式厳格化（任意文字列の混入を遮断）
+  if(typeof o.examDateT==='number'&&isFinite(o.examDateT))s.examDateT=o.examDateT;
+  if(Array.isArray(o.userQuestions))s.userQuestions=o.userQuestions.filter(validQuestion).map(x=>Object.assign({},x,{mtime:typeof x.mtime==='number'?x.mtime:Date.now()})); // 自作問題に mtime 補完
   if(o.ronbunDrafts&&typeof o.ronbunDrafts==='object'&&!Array.isArray(o.ronbunDrafts))s.ronbunDrafts=o.ronbunDrafts;
   if(o.dailyDone&&typeof o.dailyDone==='object'&&!Array.isArray(o.dailyDone))s.dailyDone=o.dailyDone;
   if(Array.isArray(o.bookmarks))s.bookmarks=o.bookmarks.filter(k=>typeof k==='string');
