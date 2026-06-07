@@ -67,6 +67,14 @@
   nav.tabs button[aria-selected="true"]{background:var(--accent);color:#fff;box-shadow:0 4px 12px rgba(14,116,144,.35);}
   /* 右端のフェード＝横スクロールで隠れたタブがあることのアフォーダンス（末尾の「論文・面接／進捗」への気づき） */
   nav.tabs::after{content:"";position:sticky;right:0;flex:0 0 22px;align-self:stretch;margin-left:-22px;background:linear-gradient(to right,transparent,var(--card));pointer-events:none;border-radius:0 12px 12px 0;}
+  /* 下部ナビ（モバイルの定番）：スマホでは上部タブを隠してこちらを主役に。デスクトップは上部タブのまま。 */
+  .bnav{display:none;position:fixed;left:0;right:0;bottom:0;z-index:40;background:var(--card);border-top:1px solid var(--line);
+    padding:6px 4px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -2px 12px rgba(0,0,0,.07);}
+  .bnav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;
+    color:var(--sub);font-size:.66rem;font-weight:700;padding:4px 2px;min-height:48px;border-radius:10px;transition:color .15s;}
+  .bnav button .bic{font-size:1.3rem;line-height:1;}
+  .bnav button[aria-current="page"]{color:var(--accent);}
+  @media(max-width:719px){ nav.tabs{display:none;} .bnav{display:flex;} main{padding-bottom:calc(66px + env(safe-area-inset-bottom));} .qstick{bottom:calc(72px + env(safe-area-inset-bottom));} }
 
   main{padding:6px 16px 0;}
   .view{display:none;}
@@ -307,6 +315,13 @@
     <section class="view" id="ronbun" role="tabpanel" aria-label="論文・面接"></section>
     <section class="view" id="prog" role="tabpanel" aria-label="進捗"></section>
   </main>
+  <nav class="bnav" id="bnav" aria-label="メインメニュー">
+    <button data-v="home" aria-current="page"><span class="bic" aria-hidden="true">🏠</span>ホーム</button>
+    <button data-v="quiz" aria-current="false"><span class="bic" aria-hidden="true">✏️</span>クイズ</button>
+    <button data-v="lookup" aria-current="false"><span class="bic" aria-hidden="true">🔎</span>逆引き</button>
+    <button data-v="ref" aria-current="false"><span class="bic" aria-hidden="true">📖</span>要点</button>
+    <button data-v="prog" aria-current="false"><span class="bic" aria-hidden="true">📊</span>進捗</button>
+  </nav>
   <footer>
     出典：沖縄県教育委員会／沖縄県／文部科学省 各公表資料。<b>年度依存の重点・施策・推進期間は受験年度の最新版で必ず確認</b>のこと。<br>
 「忘れた頃」に自動で復習が戻ってくる仕組みです。進捗は端末内に保存され、Googleログイン時はご自身のDriveにも同期されます。
@@ -541,6 +556,7 @@ function selfCheck(){const issues=[],ids=new Set();
   return issues;}
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();}
 function todayISO(){const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());} // <input type=date min=...> 用のゼロ埋めISO
+function norm(s){return String(s==null?'':s).replace(/[ァ-ン]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).normalize('NFKC').toLowerCase();} // 検索の表記ゆれ吸収（カタ→ひら・全半角NFKC・小文字）
 function getCard(id){return store.cards[id];}
 function boxFromIvl(ivl){if(ivl>=30)return 5;if(ivl>=10)return 4;if(ivl>=3)return 3;if(ivl>=1)return 2;return 1;}
 function examDaysLeft(){if(!store.examDate)return null;const p=String(store.examDate).split('-');const ex=new Date(+p[0],(+p[1]||1)-1,(+p[2]||1));ex.setHours(0,0,0,0);const now=new Date();now.setHours(0,0,0,0);return Math.round((ex.getTime()-now.getTime())/DAY);} // 暦日ベースの残日数（当日=0／翌日=1）。表示・キャップ・自動解除で同一定義を共有
@@ -626,6 +642,7 @@ applyFontScale();
 //==================== TABS ====================
 const tabs=document.getElementById('tabs');
 tabs.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;go(b.dataset.v,true);});
+{const bn=document.getElementById('bnav');if(bn)bn.addEventListener('click',e=>{const b=e.target.closest('button');if(b)go(b.dataset.v,true);});} // 下部ナビ
 // 矢印キーでのタブ移動（WCAGの tablist 要件）
 tabs.addEventListener('keydown',e=>{
   const btns=[...tabs.children],i=btns.indexOf(document.activeElement);if(i<0)return;
@@ -640,6 +657,7 @@ function go(v,focusPanel){
   if(mockTimerId&&store.session&&store.session.mode==='mock'){store.session.mockElapsed=Math.floor((Date.now()-quizMockStart)/1000);save();} // 離脱時点の経過を保存（再開で続きから・離脱中は加算しない）
   if(typeof stopMockTimer==='function')stopMockTimer();   // タブ移動で模試タイマーを停止
   [...tabs.children].forEach(x=>{const sel=x.dataset.v===v;x.setAttribute('aria-selected',sel);x.tabIndex=sel?0:-1;if(sel&&x.scrollIntoView)try{x.scrollIntoView({inline:'center',block:'nearest'});}catch(_){}}); // 選択タブを常に可視域へ（末尾タブの存在に気づける）
+  {const bn=document.getElementById('bnav');if(bn)[...bn.children].forEach(x=>x.setAttribute('aria-current',x.dataset.v===v?'page':'false'));} // 下部ナビのアクティブ同期（map/ronbunはbnavに無いので非選択）
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
   if(v==='home')renderHome();
   if(v==='prog')renderProg();
@@ -662,13 +680,13 @@ function buildSearchIndex(){const idx=[];
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
   RONBUN.forEach((r,i)=>idx.push({k:'論文',t:r.t,b:(r.q||'')+' '+(r.hon||[]).join(' ')+' '+(r.konkyo||[]).join(' '),go:()=>{go('ronbun');setTimeout(()=>{const ds=document.querySelectorAll('#ronbun details');if(ds[i]){ds[i].open=true;ds[i].scrollIntoView({behavior:'smooth',block:'start'});}},70);}}));
   QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),_up:q.up||0,ans:()=>qPreviewHTML(q),go:()=>{quizMode='qa';quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;store.session=null;go('quiz');setTimeout(showQ,50);}});});
-  idx.forEach(it=>{it._hay=(it.t+' '+it.b).toLowerCase();it._ht=(it.t||'').toLowerCase();}); // 検索用に小文字連結＋タイトル単体を事前計算（打鍵毎の再計算を回避／関連度採点用）
+  idx.forEach(it=>{it._hay=norm(it.t+' '+it.b);it._ht=norm(it.t);}); // 表記ゆれ吸収(norm)で事前計算（カタ/ひら・全半角を区別しない）
   return idx;}
 let _searchTimer=null;
 function runSearchDebounced(qstr){clearTimeout(_searchTimer);_searchTimer=setTimeout(()=>runSearch(qstr),130);} // IME・連打対策のデバウンス
 function runSearch(qstr){
   const res=document.getElementById('gsres');if(!res)return;
-  const s=String(qstr||'').trim().toLowerCase();
+  const s=norm(qstr).trim();
   if(!s){res.innerHTML='';return;}
   if(!SEARCH_INDEX)SEARCH_INDEX=buildSearchIndex();
   const terms=s.split(/\s+/).filter(Boolean);                                   // 空白区切りは複数語AND
@@ -861,16 +879,16 @@ function renderRef(){
   el.querySelectorAll('.filt').forEach(b=>b.addEventListener('click',()=>{refFilter=b.dataset.c;renderRef();}));
   let allOpen=false;
   const paint=()=>{
-    const q=(el.querySelector('#refin').value||'').trim().toLowerCase(),terms=q.split(/\s+/).filter(Boolean);
+    const rawq=(el.querySelector('#refin').value||'').trim(),q=norm(rawq),terms=q.split(/\s+/).filter(Boolean);
     let list=REF.filter(r=>refFilter==='all'||r.cat===refFilter);
-    if(terms.length)list=list.filter(r=>{const hay=(r.name+' '+r.points.join(' ')+' '+(r.tag||'')+' '+r.cat+' '+r.src).replace(/<[^>]+>/g,'').toLowerCase();return terms.every(t=>hay.indexOf(t)>=0);}); // 複数語AND
+    if(terms.length)list=list.filter(r=>{const hay=norm((r.name+' '+r.points.join(' ')+' '+(r.tag||'')+' '+r.cat+' '+r.src).replace(/<[^>]+>/g,''));return terms.every(t=>hay.indexOf(t)>=0);}); // 表記ゆれ吸収＋複数語AND
     list=list.slice().sort((a,b)=>(isBM('ref',b.id)?1:0)-(isBM('ref',a.id)?1:0)); // 付箋を上部に固定
     document.getElementById('refList').innerHTML=list.length?list.map(r=>`
      <details class="acc" id="acc-${r.id}"${allOpen?' open':''}>
        <summary><span class="dot" style="background:${COLORS[r.cls]}"></span>${r.name}${r.tag?`<span style="font-size:.62rem;color:var(--sub);background:var(--card);border:1px solid var(--line);padding:1px 7px;border-radius:20px;margin-left:6px">${esc(r.tag)}</span>`:''}<button class="refstar" data-id="${r.id}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('ref',r.id)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;margin-left:6px;padding:0">${isBM('ref',r.id)?'⭐':'☆'}</button><span class="chev">›</span></summary>
        <div class="body"><ul>${r.points.map(p=>`<li>${p}</li>`).join('')}</ul>
          <div class="src"><span>出典：${r.src}</span>${srcChk(r.src)}<button class="copybtn" data-id="${r.id}">📋 根拠をコピー</button></div></div>
-     </details>`).join(''):`<p class="hint" style="margin:10px 2px">「${esc(q)}」に一致する要点がありません。</p>`;
+     </details>`).join(''):`<p class="hint" style="margin:10px 2px">「${esc(rawq)}」に一致する要点がありません。</p>`;
     document.querySelectorAll('#refList .refstar').forEach(b=>b.addEventListener('click',ev=>{ev.preventDefault();ev.stopPropagation();const on=toggleBM('ref',b.dataset.id);b.textContent=on?'⭐':'☆';b.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}));
     document.querySelectorAll('#refList details.acc').forEach(d=>d.addEventListener('toggle',()=>{if(d.open){const r=REF.find(x=>'acc-'+x.id===d.id);if(r)pushRecent('ref',r.id,r.name);}}));
     document.querySelectorAll('#refList .copybtn').forEach(b=>b.addEventListener('click',ev=>{ev.preventDefault();const r=REF.find(x=>x.id===b.dataset.id);const txt=`【${r.name}】\n`+r.points.map(p=>'・'+p.replace(/<[^>]+>/g,'')).join('\n')+`\n（出典：${r.src}）`;(navigator.clipboard?navigator.clipboard.writeText(txt):Promise.reject()).then(()=>toast('根拠をコピーしました 📋'),()=>toast('コピーできませんでした'));}));
@@ -890,8 +908,8 @@ function renderLookup(){
   const lkSorted=LOOKUP.slice().sort((a,b)=>(isBM('lk',b.sit)?1:0)-(isBM('lk',a.sit)?1:0)); // 付箋を先頭に
   lkSorted.forEach(l=>{const b=document.createElement('button');b.textContent=(isBM('lk',l.sit)?'⭐ ':'')+l.sit;
     b.addEventListener('click',()=>{el.querySelector('#lkin').value='';show([l]);[...chips.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');});chips.appendChild(b);});
-  el.querySelector('#lkin').addEventListener('input',e=>{const q=e.target.value.trim();[...chips.children].forEach(c=>c.classList.remove('on'));
-    show(!q?LOOKUP:LOOKUP.filter(l=>(l.sit+l.kw+l.based.map(b=>b.join('')).join('')).includes(q)));});
+  el.querySelector('#lkin').addEventListener('input',e=>{const terms=norm(e.target.value.trim()).split(/\s+/).filter(Boolean);[...chips.children].forEach(c=>c.classList.remove('on'));
+    show(!terms.length?LOOKUP:LOOKUP.filter(l=>{const hay=norm(l.sit+' '+l.kw+' '+l.based.map(b=>b.join(' ')).join(' '));return terms.every(t=>hay.indexOf(t)>=0);}));}); // 表記ゆれ吸収＋複数語AND
   show(LOOKUP);
   function show(list){const box=el.querySelector('#lkres');
     if(list.length===1)pushRecent('lk',list[0].sit,list[0].sit); // 特定状況を開いたら「最近見た」に記録
@@ -1641,7 +1659,7 @@ function a2hsBar(html,onAdd){
   if(document.getElementById('a2hsBar')||localStorage.getItem('oki_a2hs')==='off')return;
   try{if(matchMedia('(display-mode:standalone)').matches||navigator.standalone)return;}catch(_){} // インストール済みは出さない
   const bar=document.createElement('div');bar.id='a2hsBar';
-  bar.style.cssText='position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));z-index:70;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:.84rem';
+  bar.style.cssText='position:fixed;left:10px;right:10px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:70;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px 12px;display:flex;align-items:center;gap:10px;font-size:.84rem';
   bar.innerHTML=`<span style="flex:1">${html}</span>${onAdd?'<button class="btn" id="a2hsAdd" style="padding:5px 12px;min-height:auto">追加</button>':''}<button class="btn ghost" id="a2hsNo" style="padding:5px 10px;min-height:auto" aria-label="閉じる">✕</button>`;
   document.body.appendChild(bar);
   const add=bar.querySelector('#a2hsAdd');if(add&&onAdd)add.addEventListener('click',onAdd);
