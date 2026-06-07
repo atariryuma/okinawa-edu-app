@@ -87,7 +87,7 @@
   .hero{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-radius:var(--r3);
     padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
   .hero::after{content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;
-    background:rgba(255,255,255,.12);}
+    background:rgba(255,255,255,.12);pointer-events:none;} /* 装飾円がクリックを奪わないよう無効化 */
   .hero .row{display:flex;align-items:center;gap:18px;position:relative;}
   .ring{width:96px;height:96px;flex:0 0 auto;}
   .ring text{fill:#fff;font-weight:800;}
@@ -122,7 +122,8 @@
   .hint{text-align:center;color:var(--sub);font-size:.74rem;margin:2px 0 12px;}
   .node{border-radius:var(--r2);padding:14px 16px;color:#fff;margin:0 auto;box-shadow:var(--shadow);cursor:pointer;
     transition:transform .15s;position:relative;overflow:hidden;width:100%;text-align:left;border:none;}
-  .node::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(255,255,255,.14),transparent 60%);}
+  .node::before{content:"";position:absolute;inset:0;background:linear-gradient(120deg,rgba(255,255,255,.14),transparent 60%);pointer-events:none;} /* 装飾オーバーレイがクリックを奪わないよう無効化（reflink等の操作を妨げない） */
+  .node .reflink{position:relative;}
   .node:active{transform:scale(.99);}
   .node h2{margin:0;font-size:.92rem;display:flex;justify-content:space-between;align-items:center;gap:8px;position:relative;color:#fff;}
   .node .tag{font-size:.64rem;background:rgba(255,255,255,.24);padding:3px 9px;border-radius:20px;font-weight:700;white-space:nowrap;}
@@ -160,7 +161,7 @@
   /* LOOKUP */
   .searchwrap{position:relative;}
   .search{width:100%;padding:14px 14px 14px 42px;border:1px solid var(--line);border-radius:14px;font-size:1rem;background:var(--card);color:var(--ink);box-shadow:var(--shadow-sm);}
-  .searchwrap .mag{position:absolute;left:14px;top:13px;color:var(--sub);font-size:1rem;}
+  .searchwrap .mag{position:absolute;left:14px;top:13px;color:var(--sub);font-size:1rem;pointer-events:none;} /* 🔎アイコン上のタップを入力欄へ通す */
   .chips{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0;}
   /* 汎用ピル（最近見たチップ等）＝インラインstyleの重複を排除 */
   .chip{font-size:.74rem;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:14px;padding:3px 10px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -171,7 +172,7 @@
   .lk{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow-sm);border-left:4px solid var(--accent);animation:fade .25s;}
   .lk h4{margin:0 0 7px;font-size:.92rem;}
   .lk .based{font-size:.8rem;color:var(--sub);margin-top:6px;padding-left:14px;position:relative;}
-  .lk .based::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--accent);}
+  .lk .based::before{content:"";position:absolute;left:0;top:9px;width:6px;height:6px;border-radius:50%;background:var(--accent);pointer-events:none;} /* 装飾ドットがリンクのタップを奪わない */
   .lk .based b{color:var(--accent);}
 
   /* QUIZ */
