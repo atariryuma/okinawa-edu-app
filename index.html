@@ -24,6 +24,7 @@
     --line:#e2e8f0; --line2:#c3cedd; --chip:#eef3f9;
     --accent:#0e7490; --accent2:#0891b2; --accent-soft:#cffafe;
     --ok:#15803d; --ok-soft:#dcfce7; --ng:#c2253b; --ng-soft:#fde7ea; --warn:#b45309;
+    --ok-btn:#15803d; --ng-btn:#c2253b; /* 白文字ソリッドボタン用＝両テーマで十分濃く（ダークの淡い--ok/--ngは背景/バッジ用） */
     --law:#5b6b7a; --vision:#0e7490; --plan:#15803d; --doryoku:#b5651d; --proj:#9a2c6e;
     --shadow:0 1px 2px rgba(16,30,54,.06),0 8px 24px rgba(16,30,54,.08);
     --shadow-sm:0 1px 2px rgba(16,30,54,.06),0 2px 8px rgba(16,30,54,.05);
@@ -213,8 +214,8 @@
   .gsk{display:inline-block;font-size:.66rem;color:#fff;background:var(--sub);border-radius:5px;padding:1px 6px;margin-right:7px;vertical-align:middle;}
   .btn.ghost{background:var(--card);color:var(--accent);border:1px solid var(--accent);box-shadow:var(--shadow-sm);}
   .btn.wide{width:100%;}
-  .btn.ok{background:var(--ok);box-shadow:0 4px 12px rgba(21,128,61,.28);}
-  .btn.ng{background:var(--ng);box-shadow:0 4px 12px rgba(194,37,59,.28);}
+  .btn.ok{background:var(--ok-btn);color:#fff;box-shadow:0 4px 12px rgba(21,128,61,.28);}
+  .btn.ng{background:var(--ng-btn);color:#fff;box-shadow:0 4px 12px rgba(194,37,59,.28);}
   .reveal{margin-top:14px;padding:13px;border-radius:13px;font-size:.84rem;display:none;animation:fade .25s;}
   .reveal.show{display:block;}
   .reveal.ok{background:var(--ok-soft);border:1px solid var(--ok);}
@@ -616,6 +617,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;',
 // 型別の必須フィールド検証。不正（欠落・型違い）は出題プールから除外して描画/採点クラッシュを防ぐ。
 function validQuestion(q){
   if(!q||typeof q!=='object'||typeof q.id!=='string'||!q.id)return false;
+  if(!/^[A-Za-z0-9_\-]{1,64}$/.test(q.id))return false;   // id形式ゲート（GASのID_REと同水準＝制御文字/HTML混入を排除・多層防御）
   if(['qa','mc','cloze','order','match'].indexOf(q.type)<0)return false;
   switch(q.type){
     case'qa':return typeof q.q==='string'&&typeof q.a==='string';
@@ -684,7 +686,7 @@ function buildSearchIndex(){const idx=[];
   REF.forEach(r=>idx.push({k:'要点',t:r.name,b:(r.points||[]).join(' ')+' '+(r.tag||'')+' '+(r.cat||'')+' '+(r.src||''),go:()=>openRef(r.id)}));
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
   RONBUN.forEach((r,i)=>idx.push({k:'論文',t:r.t,b:(r.q||'')+' '+(r.hon||[]).join(' ')+' '+(r.konkyo||[]).join(' '),go:()=>{go('ronbun');setTimeout(()=>{const ds=document.querySelectorAll('#ronbun details');if(ds[i]){ds[i].open=true;ds[i].scrollIntoView({behavior:'smooth',block:'start'});}},70);}}));
-  QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),_up:q.up||0,ans:()=>qPreviewHTML(q),go:()=>{quizMode='qa';quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;store.session=null;go('quiz');setTimeout(showQ,50);}});});
+  QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),_up:q.up||0,ans:()=>qPreviewHTML(q),go:()=>{quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;store.session=null;go('quiz');setTimeout(()=>{quizMode=q.type;enterQuizView();showQ();},50);}});});
   idx.forEach(it=>{it._hay=norm(it.t+' '+it.b);it._ht=norm(it.t);}); // 表記ゆれ吸収(norm)で事前計算（カタ/ひら・全半角を区別しない）
   return idx;}
 let _searchTimer=null;
@@ -1019,7 +1021,7 @@ function showQ(){
     area.innerHTML=`<div class="quizcard result"><div class="emoji">${e}</div><div class="big">${sCorrect}/${sAnswered}</div>
       <div class="msg">正答率 ${pct}%　—　${msg}</div>
       ${isMock?`<div class="msg" style="font-weight:700">⏱ 所要時間 ${fmtSec(elapsed)}（1問あたり約${sAnswered?Math.round(elapsed/sAnswered):0}秒）</div><div class="msg" style="font-size:.74rem;color:var(--sub)">※解説の閲覧時間も含む参考値です</div>`:''}
-      ${[...new Set(sWrongIds)].length?`<button class="btn wide" id="rewrong" style="background:var(--ng);color:#fff">✗ 間違えた ${[...new Set(sWrongIds)].length}問を見直す</button>`:''}
+      ${[...new Set(sWrongIds)].length?`<button class="btn wide" id="rewrong" style="background:var(--ng-btn);color:#fff">✗ 間違えた ${[...new Set(sWrongIds)].length}問を見直す</button>`:''}
       <button class="btn wide" id="again"${[...new Set(sWrongIds)].length?' style="margin-top:9px"':''}>続けて次のセット</button>
       <button class="btn ghost wide" id="back" style="margin-top:9px">モード選択へ</button></div>`;
     const rw=area.querySelector('#rewrong');if(rw)rw.addEventListener('click',reviewWrong);
@@ -1126,8 +1128,8 @@ function bindGrade3(card,id){
 function renderQA(q,meta,id,card){
   card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
     <button class="btn ghost wide" id="showA">答えを表示</button>
-    <div class="reveal ok" id="A"><b>A.</b> ${esc(q.a)}${srcLine(q)}${GRADE3}${gradeHintHTML()}</div></div>`;
-  card.querySelector('#showA').addEventListener('click',()=>{const a=card.querySelector('#A');a.classList.add('show');a.setAttribute('role','status');a.tabIndex=-1;a.focus({preventScroll:true});});
+    <div class="reveal ok" id="A"><b>A.</b> ${esc(q.a)}${srcLine(q)}${GRADE3.replace(/id="g0"/,'id="g0" disabled').replace(/id="g1"/,'id="g1" disabled').replace(/id="g2"/,'id="g2" disabled')}${gradeHintHTML()}</div></div>`;
+  card.querySelector('#showA').addEventListener('click',()=>{const a=card.querySelector('#A');a.classList.add('show');a.setAttribute('role','status');a.tabIndex=-1;a.focus({preventScroll:true});['#g0','#g1','#g2'].forEach(s=>{const b=card.querySelector(s);if(b)b.disabled=false;});}); // 答えを見てから採点（キー操作の先取りも防止）
   bindGrade3(card,id);
 }
 function renderMC(q,meta,id,card){
@@ -1482,7 +1484,7 @@ function renderRonbun(){
     let end=Date.now()+60*60000,warned=false;el.querySelectorAll('.rbtimer').forEach(x=>x.textContent='⏱ 60分で書く');b.textContent='⏹ 停止';
     const upd=()=>{const left=Math.max(0,Math.round((end-Date.now())/1000));if(disp)disp.textContent='⏱ '+Math.floor(left/60)+':'+String(left%60).padStart(2,'0');
       if(left<=300&&!warned){warned=true;toast('論文タイマー：残り5分');if(navigator.vibrate)try{navigator.vibrate([20,40,20]);}catch(_){}}
-      if(left<=0){clearInterval(_ronTimerId);_ronTimerId=null;b.textContent='⏱ 60分で書く';toast('60分終了 おつかれさまでした');if(navigator.vibrate)try{navigator.vibrate([30,60,30,60,30]);}catch(_){}}};
+      if(left<=0){clearInterval(_ronTimerId);_ronTimerId=null;b.textContent='⏱ 60分で書く';if(disp)disp.textContent='';toast('60分終了 おつかれさまでした');if(navigator.vibrate)try{navigator.vibrate([30,60,30,60,30]);}catch(_){}}};
     upd();_ronTimerId=setInterval(upd,1000);}));
   el.querySelectorAll('.rbcopy').forEach(b=>b.addEventListener('click',()=>{const t=(store.ronbunDrafts||{})[b.dataset.t]||'';if(!t){toast('まだ何も書かれていません');return;}(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('答案をコピーしました'),()=>toast('コピーできませんでした'));}));
   el.querySelectorAll('.rbclear').forEach(b=>b.addEventListener('click',()=>{if(!confirm('この答案の下書きを消去しますか？'))return;const det=b.closest('details'),ta=det.querySelector('.rbdraft');if(store.ronbunDrafts)delete store.ronbunDrafts[b.dataset.t];save();if(ta){ta.value='';cnt(ta);}}));
@@ -1623,6 +1625,9 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
   {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});out.dailyDone=dd;}
   {const ab=Array.isArray(a.bookmarks)?a.bookmarks:[],bb=Array.isArray(b.bookmarks)?b.bookmarks:[];out.bookmarks=[...new Set([...ab,...bb].filter(k=>typeof k==='string'))];} // 付箋は和集合（非配列/非文字列は無視）
   {const seen={},ar=Array.isArray(a.recent)?a.recent:[],br=Array.isArray(b.recent)?b.recent:[];out.recent=[...ar,...br].filter(it=>it&&typeof it==='object'&&it.t&&it.id!=null).sort((x,y)=>(y.ts||0)-(x.ts||0)).filter(it=>{const k=it.t+':'+it.id;return seen[k]?false:(seen[k]=1,true);}).slice(0,12);} // 最近見たは時刻順で結合・上位12（壊れ要素は除外）
+  // 論文の自己チェックは深いOR（どちらかでチェック済みなら残す）。設定は「より最近学習した端末」を採用（lastDate勝者）
+  {const oc=Object.assign({},a.ronbunChecks||{}),bc=b.ronbunChecks||{};Object.keys(bc).forEach(t=>{oc[t]=Object.assign({},oc[t]||{});Object.keys(bc[t]||{}).forEach(k=>{if(bc[t][k])oc[t][k]=true;});});out.ronbunChecks=oc;}
+  {const bWins=ymdNum(b.lastDate||'')>ymdNum(a.lastDate||'');const pick=(ka)=>{const bv=b[ka];if(bWins&&bv!=null)out[ka]=bv;};pick('dailyGoal');pick('theme');pick('fontScale');}
   return out;}
 // ファイル復元(信頼できない入力)の浄化：累積統計は信用せずcards履歴から再計算、未来ts履歴を除去、不正フィールドを落とす（巨大値による正答率破綻・乗っ取りを防ぐ）
 function sanitizeImport(o){const s={};o=o||{};
@@ -1647,6 +1652,7 @@ async function cloudSync(quiet){if(!accessToken)return;try{
   const merged=mergeStore(store,cloud);
   await driveSave(merged);          // 先にクラウドへ書込（失敗時は例外でローカル不変＝データ喪失を防ぐ）
   store=merged;save();              // クラウド成功を確認してからローカルを確定
+  rebuildQuestions();               // 同期で増えた自作問題を即出題対象に（リロード不要・validQuestionで検証）
   renderHome();
 }catch(e){console.warn(e);
   if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;trySilentSignIn();return;} // アクセストークン失効→無音で再取得し次回同期で自動復帰

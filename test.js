@@ -101,6 +101,7 @@ ok('cloze 空欄なしを拒否', APP.validQuestion({id:'q1',type:'cloze',parts:
 ok('order items<2を拒否', APP.validQuestion({id:'q1',type:'order',q:'a',items:['x']}) === false);
 ok('match pair形不正を拒否', APP.validQuestion({id:'q1',type:'match',q:'a',pairs:[['x']]}) === false);
 ok('id無しを拒否', APP.validQuestion({type:'qa',q:'a',a:'b'}) === false);
+ok('id形式違反を拒否', APP.validQuestion({id:'a b!<x>',type:'qa',q:'a',a:'b'}) === false);
 ok('未知typeを拒否', APP.validQuestion({id:'q1',type:'evil',q:'a'}) === false);
 
 // =========================== srcLink ===========================
@@ -173,6 +174,12 @@ section('mergeStore: 同期マージの安全性');
     {cards:{},bookmarks:['q:b','q:c'],recent:[{t:'ref',id:'r1',ts:5}]});
   ok('bookmarks 和集合', eq([...r3.bookmarks].sort(), ['q:a','q:b','q:c']));
   ok('recent: null除外＋重複排除', r3.recent.length===1 && r3.recent[0].id==='r1');
+  // 論文セルフチェックは深いOR、設定はlastDate勝者を採用
+  const r4 = APP.mergeStore(
+    {cards:{},lastDate:'2026-1-1',ronbunChecks:{t1:{0:true}},dailyGoal:10,bookmarks:[],recent:[]},
+    {cards:{},lastDate:'2026-2-1',ronbunChecks:{t1:{1:true},t2:{0:true}},dailyGoal:20,bookmarks:[],recent:[]});
+  ok('ronbunChecks 深いOR', r4.ronbunChecks.t1[0]===true && r4.ronbunChecks.t1[1]===true && r4.ronbunChecks.t2[0]===true);
+  ok('dailyGoal は新しい端末(lastDate勝者)', r4.dailyGoal===20);
 }
 
 // =========================== sanitizeImport ===========================
