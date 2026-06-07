@@ -60,7 +60,7 @@ const EXPORTS = [
   'review','mergeStore','sanitizeImport','validQuestion','srcLink','clampIvl','boxFromIvl',
   'stateOf','isDue','isWeak','isMastered','getCard','dueList','bucketShuffle','dailyCount',
   'bmKey','isBM','toggleBM','bmCount','pushRecent','lastAct','ymdNum','esc','shuffle',
-  'examDaysLeft','todayISO',
+  'examDaysLeft','todayISO','norm','pruneDailyDone',
 ];
 const exposeSrc = '\n;return {' +
   EXPORTS.map(n => `${n}:(typeof ${n}!=='undefined'?${n}:undefined)`).join(',') +
@@ -103,6 +103,22 @@ ok('match pair形不正を拒否', APP.validQuestion({id:'q1',type:'match',q:'a'
 ok('id無しを拒否', APP.validQuestion({type:'qa',q:'a',a:'b'}) === false);
 ok('id形式違反を拒否', APP.validQuestion({id:'a b!<x>',type:'qa',q:'a',a:'b'}) === false);
 ok('未知typeを拒否', APP.validQuestion({id:'q1',type:'evil',q:'a'}) === false);
+
+// =========================== norm（検索の表記ゆれ吸収）===========================
+section('norm: カタ→ひら・全半角NFKC・小文字を同一視');
+ok('カタカナ＝ひらがな', APP.norm('イジメ') === APP.norm('いじめ'));
+ok('全角英数＝半角', APP.norm('ＧＩＧＡ') === APP.norm('giga'));
+ok('大文字＝小文字', APP.norm('SNS') === APP.norm('sns'));
+ok('混在も一致', APP.norm('コウチョウ') === APP.norm('こうちょう'));
+
+// =========================== pruneDailyDone ===========================
+section('pruneDailyDone: 140件以下はそのまま・超過で古い日を剪定');
+{
+  const small={'2026-6-1':3,'2026-6-2':5}; ok('小さいデータは不変', APP.pruneDailyDone(small)===small);
+  const big={}; for(let i=0;i<200;i++){big['2020-1-'+(i+1)]=1;} big['2026-6-7']=9;
+  const pruned=APP.pruneDailyDone(big); ok('超過で剪定される', Object.keys(pruned).length<Object.keys(big).length && pruned['2026-6-7']===9);
+  ok('非オブジェクトは空に', JSON.stringify(APP.pruneDailyDone(null))==='{}');
+}
 
 // =========================== srcLink ===========================
 section('srcLink: 出典→公式ソース解決（アンカーは付けない）');
