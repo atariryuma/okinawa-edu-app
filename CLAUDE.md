@@ -27,7 +27,7 @@
 
 - `REF[]` … 要点カード。`{id, cls, map?, name, tag, cat, points[](HTML可), src}`。
   `cls` は色キー（`law/vision/plan/doryoku/proj/extra`、`COLORS`参照）。`map:1` の項目だけ「関係図」に描画（`renderMap` が id 指定で拾う）。
-- `LOOKUP[]` … 逆引き。`{sit, kw(検索語), based:[[資料名, 説明], ...]}`。
+- `LOOKUP[]` … 逆引き（現状26件）。`{sit, kw(検索語), based:[[資料名, 説明], ...]}`。**先頭12件は実務の急性シナリオ**（体罰/児童虐待の通告/教員不祥事/感染症の権限者[19条=校長・20条=設置者]/いじめ重大事態/学校事故/個人情報漏えい/著作権35条/出席停止と懲戒の違い/開示請求・苦情/食物アレルギー/勤務時間管理）。生成→一次資料で検証して追加。`based`の名称は条文/公式資料名にし `srcChk` で公式リンクへ。**結果に「📋根拠をコピー」**（`renderLookup`の`.lkcopy`）。残り14件は施策寄り（論文・施策説明向け）。
 - `QUESTIONS[]` … 問題。共通 `{id, type, cat, src}` ＋ 形式別：
   - `qa`   : `q, a`
   - `mc`   : `q, choices[], ans(正解index), exp(解説)`
