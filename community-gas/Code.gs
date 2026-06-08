@@ -157,10 +157,10 @@ function doPost(e) {
 
     var v = validate_(q);
     if (!v.ok) return json_({ ok: false, error: v.error });
+    if (!device) return json_({ ok: false, error: 'no device' }); // 空device拒否（handleReport_/handleVote_と整合）。空文字で `device &&` のレート制限ガードをすり抜けるのを封じる
     // ── 自動モデレーション（裏側のスパム対策。承認を“無意識化”するための門番）──
     if (hasUrl_(q))     return json_({ ok: false, error: 'links not allowed' });   // リンク禁止
     if (hasBlocked_(q)) return json_({ ok: false, error: 'blocked content' });     // NGワード
-    if (device && !rateOk_(device)) return json_({ ok: false, error: 'rate limited' }); // 端末ごとレート制限
     // 本人確認（IDトークン）＋出典が公式ソースに解決するか。自動公開はこの両軸で判断する。
     var trusted = idtoken ? verifyToken_(idtoken) : false;
     var sourceOk = srcResolves_(q.src);   // 出典が e-Gov/文科省/県 の公式ソースに解決するか（正確さの門番）
@@ -192,6 +192,9 @@ function doPost(e) {
         }
         if (pending >= MAX_PENDING) return json_({ ok: false, error: 'too many pending' });
       }
+
+      // レート制限は「実際に追記する直前」に判定＝ロック未取得/重複id/満杯/pending過多で弾かれた時に枠を無駄消費しない
+      if (!rateOk_(device)) return json_({ ok: false, error: 'rate limited' });
 
       // 未知キー/プロトタイプ汚染を物理的に落としてから保存（ホワイトリスト再構築）
       var clean = pick_(q);

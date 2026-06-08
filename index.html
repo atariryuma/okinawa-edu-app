@@ -671,7 +671,7 @@ function validQuestion(q){
   return false;
 }
 function ymdNum(s){const m=String(s||'').split('-');return (+m[0]||0)*10000+(+m[1]||0)*100+(+m[2]||0);} // 'YYYY-M-D' を数値化（非ゼロ詰めでも正しく比較）
-function pruneDailyDone(dd){if(!dd||typeof dd!=='object'||Array.isArray(dd))return {};const keys=Object.keys(dd);if(keys.length<=140)return dd;const cut=ymdNum(todayStr())-10000;const o={};keys.forEach(k=>{if(ymdNum(k)>=cut)o[k]=dd[k];});return o;} // 日次記録の上限剪定（localStorage肥大防止・answer/merge/importで共有）
+function pruneDailyDone(dd){if(!dd||typeof dd!=='object'||Array.isArray(dd))return {};const keys=Object.keys(dd);if(keys.length<=140)return dd;const tn=ymdNum(todayStr()),cut=tn-10000;const o={};keys.forEach(k=>{const n=ymdNum(k);if(n>=cut&&n<=tn)o[k]=dd[k];});return o;} // 日次記録の剪定：直近1年かつ未来日でないものだけ残す（localStorage肥大/改竄・時計ずれ耐性・answer/merge/importで共有）
 
 //==================== THEME / FONT（操作系は⚙️設定に集約。適用関数だけ常駐） ====================
 function applyTheme(){document.documentElement.setAttribute('data-theme',store.theme);}
@@ -697,7 +697,7 @@ function updateAuthBadge(){const b=document.getElementById('authBadge');if(!b)re
   else if(st==='reconnecting'){cls='authbadge busy';mk='↻';tx='接続中…';al='Googleに再接続しています。少しお待ちください';}
   else if(st==='stale'){cls='authbadge stale';mk='!';tx='再ログイン';al='ログインが切れました（進捗はこの端末に保存済み）。タップして再接続';}
   b.className=cls;
-  b.innerHTML='<span class="ab-ic" aria-hidden="true">☁️'+(mk?'<b class="ab-mk">'+mk+'</b>':'')+'</span><span class="ab-tx">'+tx+'</span>';
+  b.innerHTML='<span class="ab-ic" aria-hidden="true">☁️'+(mk?'<b class="ab-mk">'+mk+'</b>':'')+'</span><span class="ab-tx">'+esc(tx)+'</span>'; // tx はアカウント名(JWT由来)を含みうるため esc（自己XSSでも esc 規約を徹底）
   b.setAttribute('aria-label',al);}
 function updateAuthUI(){updateAuthBadge();const h=document.getElementById('home');if(h&&h.classList.contains('active'))renderHome();} // バッジ＋（表示中なら）ホーム状態行も同時更新
 function authPrimaryAction(){if(authState()==='stale')signInGoogle();else openSync();} // 要再接続ならその場で再ログイン（ユーザー操作なのでポップアップ可＝無音失敗の確実な回復路）／それ以外は同期設定へ
@@ -1087,7 +1087,7 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
   go('quiz');                                        // #quizarea を用意（renderQuiz が quizMode=null にする）
   quizMode=s.mode;quizCat=s.cat||'all';
   quizPool=s.ids.map(id=>QUESTIONS.find(q=>q.id===id)).filter(Boolean);
-  quizIdx=Math.min(s.idx||0,quizPool.length);sCorrect=0;sAnswered=0;
+  quizIdx=Math.min(s.idx||0,quizPool.length);sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0; // 復帰は採点カウンタを全リセット（startQuizと対称・前回セッションの誤答/連続が残らないように）
   enterQuizView();   // 復帰時もモードグリッドを退避して出題を前面に
   if(!quizPool.length){store.session=null;save();return;}
   if(quizMode==='mock')startMockTimer(s.mockElapsed||0);   // 模試はタイマーを保存済み経過から再開

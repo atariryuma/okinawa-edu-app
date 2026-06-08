@@ -103,6 +103,10 @@ section('verifyToken_: aud/azp/email_verified/iss/exp の全ゲート');
 // =========================== 自動公開の判定マトリクス ===========================
 section('doPost: 自動公開 = sourceOk && (trusted || rep>=REP_TRUST)');
 reset();
+// 空/未指定 device は拒否（空文字でレート制限をすり抜けるバイパスの封鎖・report/voteと整合）
+ok('device空文字POSTは no device で拒否', post({ q:Q('nd','学校教育法第37条'), idtoken:'', device:'' }).error === 'no device');
+ok('device未指定POSTも no device で拒否', post({ q:Q('nd2','学校教育法第37条'), idtoken:'' }).error === 'no device');
+reset();
 ok('① 匿名+出典あり → pending', post({ q:Q('a1','学校教育法第37条'), idtoken:'', device:'dA' }).status === 'pending');
 reset(); validToken();
 ok('② ログイン+出典あり → approved', post({ q:Q('a2','地公法29条'), idtoken:'tok', device:'dB' }).status === 'approved');
