@@ -1657,6 +1657,17 @@ async function reportCommunity(id,btn){
 }
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
 let gSilent=false; // 起動時のサイレント再ログイン中はトーストを出さない
+// ===== アクセストークンの保存・再利用（リロードのたびの再ログインを防ぐ） =====
+// GISのアクセストークンは保存されないため、毎リロードで無音再認証が走り、ブラウザのプライバシー制限で
+// 失敗して「再ログイン」を求めていた。トークンを有効期限付きで保存し、期限内はそのまま再利用する。
+// スコープは drive.appdata（アプリ専用の隠しフォルダ）限定なので保存の影響は限定的。期限切れ/401で破棄。
+function saveGTok(token,expiresInSec){try{const e=Date.now()+(Math.max(60,(+expiresInSec||3600))-90)*1000;localStorage.setItem('oki_gtok',JSON.stringify({t:token,e}));}catch(_){}}
+function loadGTok(){try{const o=JSON.parse(localStorage.getItem('oki_gtok')||'null');if(o&&typeof o.t==='string'&&typeof o.e==='number'&&o.e>Date.now()+10000)return o;}catch(_){}return null;}
+function clearGTok(){try{localStorage.removeItem('oki_gtok');}catch(_){}}
+function restoreGoogleSession(){const o=loadGTok();if(!o)return false; // 期限内の保存トークンがあれば再認証なしで即復帰
+  accessToken=o.t;gSignedIn=true;_authBusy=false;updateAuthUI();cloudSync(true); // 同期中表示＋背景同期（トークンが実は無効なら401で自己修復）
+  let n=40;(function w(){if(gReady()&&gIdReady()){if(!tokenClient)initGoogle();requestIdToken();return;}if(--n>0)setTimeout(w,150);})(); // 名前表示用にIDトークンだけ用意（アクセストークンの再要求＝ポップアップはしない）
+  return true;}
 function initGoogle(){
   if(!gReady()||!getClientId())return false;
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:getClientId(),scope:GSCOPE,
@@ -1664,6 +1675,7 @@ function initGoogle(){
       _authBusy=false;                                   // 再接続が決着（成功/失敗いずれも）→「接続中…」を解除
       if(resp&&resp.access_token){
         accessToken=resp.access_token;gSignedIn=true;
+        saveGTok(resp.access_token,resp.expires_in);     // トークンを期限付き保存＝次回リロードは再認証不要
         localStorage.setItem('oki_gsign','1');           // 次回起動でサイレント再ログインを試す印
         requestIdToken();updateAuthBadge();await cloudSync(gSilent);
         if(!gSilent)toast('Googleと同期しました ✓');
@@ -1690,7 +1702,7 @@ function trySilentSignIn(){
     if(--tries>0)setTimeout(wait,150);else{_authBusy=false;updateAuthUI();} // GSIが読み込めない→「再ログイン」表示で手動回復を促す
   })();
 }
-function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');mountSync();updateAuthUI();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されない（auto_selectも解除）。設定の同期カード/ヘッダーバッジ/ホーム状態を即更新
+function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;clearGTok();if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');mountSync();updateAuthUI();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されない（auto_selectも解除）。設定の同期カード/ヘッダーバッジ/ホーム状態を即更新
 // 画面を離れる/戻る時に自動同期（端末間の進捗ズレを抑制）。失敗は静かに無視。
 let _bgSyncT=0;
 function bgSync(){if(!gSignedIn||!accessToken)return;clearTimeout(_bgSyncT);_bgSyncT=setTimeout(()=>cloudSync(true),700);}
@@ -1774,7 +1786,7 @@ async function _doSync(quiet){if(!accessToken)return;try{
   rebuildQuestions();               // 同期で増えた自作問題を即出題対象に（リロード不要・validQuestionで検証）
   renderHome();mountSync();updateAuthBadge(); // 同期カード/ヘッダーバッジ/ホームの「最終同期」も更新
 }catch(e){console.warn(e);
-  if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;mountSync();updateAuthBadge();trySilentSignIn();return;} // アクセストークン失効→UIを最新化しつつ無音で再取得（次回同期で自動復帰）
+  if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;clearGTok();mountSync();updateAuthBadge();trySilentSignIn();return;} // アクセストークン失効→保存トークンも破棄し無音で再取得（次回同期で自動復帰）
   if(!quiet)toast('同期に失敗しました');}}  // 背景同期(quiet)は失敗トーストを出さない
 function relTime(ts){if(!ts)return '';const s=Math.max(0,Math.floor((Date.now()-ts)/1000));if(s<60)return 'たった今';const m=Math.floor(s/60);if(m<60)return m+'分前';const h=Math.floor(m/60);if(h<24)return h+'時間前';const d=Math.floor(h/24);return d+'日前';} // 最終同期の相対表示
 function mountSync(){
@@ -1900,7 +1912,7 @@ async function boot(){
   selfCheck();                          // 整合性チェックは起動時1回
   rerenderAll();
   fetchCommunity();                     // 背景で最新の共有問題を取得（届いたら再描画）
-  trySilentSignIn();                    // 前回ログイン済みなら _authBusy=true で「接続中…」を出してから無音再認証（リロードで「未ログイン」が一瞬出るのを防ぐ）
+  if(!restoreGoogleSession())trySilentSignIn(); // ①期限内の保存トークンがあれば再認証なしで即復帰（リロードで再ログインを求めない）。無ければ②無音再認証へ
   updateAuthBadge();                    // 上で再接続中になっていなければ（未ログイン）ここで確定描画（gSignedIn初期化後＝TDZ回避）
   setTimeout(maybeIOSInstallHint,1200);  // iOS Safari は beforeinstallprompt が無いので手順を一度だけ案内
 }

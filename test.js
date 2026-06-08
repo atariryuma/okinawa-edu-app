@@ -60,7 +60,7 @@ const EXPORTS = [
   'review','mergeStore','sanitizeImport','validQuestion','srcLink','clampIvl','boxFromIvl',
   'stateOf','isDue','isWeak','isMastered','getCard','dueList','bucketShuffle','dailyCount',
   'bmKey','isBM','toggleBM','bmCount','pushRecent','lastAct','ymdNum','esc','shuffle',
-  'examDaysLeft','todayISO','norm','pruneDailyDone','filterNetErr',
+  'examDaysLeft','todayISO','norm','pruneDailyDone','filterNetErr','saveGTok','loadGTok','clearGTok',
 ];
 const exposeSrc = '\n;return {' +
   EXPORTS.map(n => `${n}:(typeof ${n}!=='undefined'?${n}:undefined)`).join(',') +
@@ -138,6 +138,22 @@ section('filterNetErr: 通信失敗の共有エラーは除外・実バグは残
   ok('community以外は残す', out.some(e=>e.type==='runtime'));
   ok('残ったのは2件', out.length===2);
   ok('非配列は空配列を返す', Array.isArray(APP.filterNetErr(null))&&APP.filterNetErr(null).length===0);
+}
+
+// =========================== アクセストークンの保存・再利用（リロードで再ログインを求めない）===========================
+section('gTok: 期限内は再利用・期限切れ/壊れは破棄');
+{
+  APP.clearGTok();
+  ok('未保存は null', APP.loadGTok()===null);
+  APP.saveGTok('TOKEN_ABC', 3600);
+  const o=APP.loadGTok();
+  ok('保存→読み出しでトークン一致', o && o.t==='TOKEN_ABC');
+  ok('期限はexpires_in(3600s)に概ね従う', o && o.e>Date.now()+3000000 && o.e<=Date.now()+3600000);
+  APP.clearGTok();
+  ok('clearGTok で破棄', APP.loadGTok()===null);
+  // 期限切れは復帰させない（毎リロードの再ログインを防ぐ要）
+  APP.saveGTok('TOKEN_OLD', -100);   // 既に過去
+  ok('期限切れトークンは null（復帰しない）', APP.loadGTok()===null);
 }
 
 // =========================== srcLink ===========================
