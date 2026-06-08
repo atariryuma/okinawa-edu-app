@@ -1087,7 +1087,6 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
   if(quizMode==='mock')startMockTimer(s.mockElapsed||0);   // 模試はタイマーを保存済み経過から再開
   showQ();
 }
-function openCreate(){go('quiz');setTimeout(showCreatePanel,60);} // 自作問題はクイズの文脈で作成（タブ跨ぎなし）。外部導線用：クイズへ移動してインライン作成パネルを開く
 function showQ(){
   const area=quizarea();
   if(quizIdx>=quizPool.length){
