@@ -1034,13 +1034,16 @@ function renderQuiz(){
       if(['qa','mc','cloze','order','match'].includes(quizMode))startQuiz(quizMode);}); // 形式モード中はその場で絞り込みを反映
     cb.appendChild(b);});
   updateFmtCatTag();
-  el.querySelectorAll('#modePicker .modegrid').forEach(g=>g.addEventListener('click',e=>{const b=e.target.closest('button.mode');if(!b)return;if(b.dataset.m==='__create'){openCreate();return;}startQuiz(b.dataset.m);})); // 3グリッド（おまかせ/形式/その他）の出題ボタン
+  el.querySelectorAll('#modePicker .modegrid').forEach(g=>g.addEventListener('click',e=>{const b=e.target.closest('button.mode');if(!b)return;if(b.dataset.m==='__create'){showCreatePanel();return;}startQuiz(b.dataset.m);})); // 3グリッド（おまかせ/形式/その他）の出題ボタン。問題を作るはその場でインライン展開
   el.querySelector('#qback').addEventListener('click',()=>renderQuiz()); // 出題中→モード選択へ戻る（グリッド復帰）
   quizMode=null;
 }
 function quizarea(){return document.getElementById('quizarea');}
 // クイズ開始時：モードグリッドと分野バーを退避し、出題が画面を占有するようにする（タップ後に出題が画面外に隠れる問題の解消）
 function enterQuizView(){const mp=document.getElementById('modePicker');if(mp)mp.style.display='none';const b=document.getElementById('qback');if(b)b.hidden=false;try{window.scrollTo(0,0);}catch(_){}}
+// 自作問題（作成・一覧・編集・共有・入出力）はクイズの文脈で開く＝タブ跨ぎなし。userQSection/bindUserQ を再利用しインラインで描画。
+function renderCreatePanel(focusInput){const qa=quizarea();if(!qa)return;qa.innerHTML=userQSection();bindUserQ(qa);const box=qa.querySelector('#uqBox');if(box){box.open=true;if(focusInput){const f=box.querySelector('#uqQ');if(f)f.focus({preventScroll:true});}}}
+function showCreatePanel(){if(typeof stopMockTimer==='function')stopMockTimer();enterQuizView();renderCreatePanel(true);} // モードグリッドを退避してその場に作成パネルを表示
 // 模試モードの経過タイマー
 let quizMockStart=0,mockTimerId=null;
 function stopMockTimer(){if(mockTimerId){clearInterval(mockTimerId);mockTimerId=null;}const t=document.getElementById('mockTimer');if(t)t.remove();}
@@ -1084,7 +1087,7 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
   if(quizMode==='mock')startMockTimer(s.mockElapsed||0);   // 模試はタイマーを保存済み経過から再開
   showQ();
 }
-function openCreate(){go('prog');setTimeout(()=>{const b=document.querySelector('#uqBox');if(b){b.open=true;b.scrollIntoView({behavior:'smooth',block:'start'});const f=b.querySelector('#uqQ');if(f)f.focus({preventScroll:true});}},60);}
+function openCreate(){go('quiz');setTimeout(showCreatePanel,60);} // 自作問題はクイズの文脈で作成（タブ跨ぎなし）。外部導線用：クイズへ移動してインライン作成パネルを開く
 function showQ(){
   const area=quizarea();
   if(quizIdx>=quizPool.length){
@@ -1385,9 +1388,7 @@ function bindUserQ(el){
       }
     }
     if(!shared)toast(wasEdit?'保存しました ✓':'追加しました（自作 '+store.userQuestions.length+'問）');
-    renderProg();
-    // フォーム再生成後、アコーディオンを開いたまま問題文入力にフォーカスを戻す（連続追加しやすく）
-    const box=document.querySelector('#uqBox');if(box){box.open=true;const f=box.querySelector('#uqQ');if(f)f.focus();}
+    renderCreatePanel(true); // 一覧/件数を更新し、フォームを開いたまま問題文へフォーカス（連続追加しやすく）
   });
   // 自作問題の編集：フォームに読み込み、保存で同idを置換。削除：1問だけ消す。
   function loadUqForEdit(eid){const u=(store.userQuestions||[]).find(x=>x.id===eid);if(!u)return;
@@ -1406,7 +1407,7 @@ function bindUserQ(el){
   el.querySelectorAll('.uqedit').forEach(b=>b.addEventListener('click',()=>loadUqForEdit(b.dataset.id)));
   el.querySelectorAll('.uqdel').forEach(b=>b.addEventListener('click',()=>{const u=(store.userQuestions||[]).find(x=>x.id===b.dataset.id);if(!u)return;
     if(!confirm('この自作問題を削除しますか？\n'+uqLabel(u).slice(0,40)))return;
-    store.userQuestions=(store.userQuestions||[]).filter(x=>x.id!==b.dataset.id);save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderProg();toast('削除しました');}));
+    store.userQuestions=(store.userQuestions||[]).filter(x=>x.id!==b.dataset.id);save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderCreatePanel(false);toast('削除しました');}));
   const sa=q('#uqShareAll');if(sa)sa.addEventListener('click',async()=>{
     if(!getCommunityUrl())return;if(!confirm('自作問題を「みんなの問題」に出しますか？（承認後に全員へ表示）'))return;
     let ok=0,ng=0;for(const obj of (store.userQuestions||[])){try{await submitCommunity(obj);ok++;}catch(e){ng++;}}
@@ -1424,11 +1425,11 @@ function bindUserQ(el){
     r.onload=()=>{try{const arr=JSON.parse(r.result);if(!Array.isArray(arr))throw 0;
       store.userQuestions=store.userQuestions||[];const seen={};store.userQuestions.forEach(x=>seen[x.id]=1);let added=0;
       let skipped=0;arr.forEach(x=>{if(x&&x.id&&!seen[x.id]&&validQuestion(x)){seen[x.id]=1;if(typeof x.mtime!=='number')x.mtime=Date.now();store.userQuestions.push(x);added++;}else if(x&&x.id&&!validQuestion(x))skipped++;}); // mtime補完＝今インポートした版を同期で勝たせる
-      save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderProg();toast(added+'問インポートしました'+(skipped?`（不正 ${skipped}問は除外）`:''));
+      save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderCreatePanel(false);toast(added+'問インポートしました'+(skipped?`（不正 ${skipped}問は除外）`:''));
     }catch(err){toast('読み込めないファイル形式です');}};
     r.readAsText(f);e.target.value='';
   });
-  const cl=q('#uqClear');if(cl)cl.addEventListener('click',()=>{if(confirm('自作問題をすべて削除しますか？')){store.userQuestions=[];save();rebuildQuestions();renderProg();toast('削除しました');}});
+  const cl=q('#uqClear');if(cl)cl.addEventListener('click',()=>{if(confirm('自作問題をすべて削除しますか？')){store.userQuestions=[];save();rebuildQuestions();renderCreatePanel(false);toast('削除しました');}});
 }
 
 //==================== PROGRESS ====================
@@ -1498,8 +1499,6 @@ function renderSettings(){
       <div style="margin-bottom:12px"><div style="font-size:.82rem;font-weight:700;margin-bottom:6px">文字サイズ</div><div class="seg" id="fontSeg">${fontBtns}</div></div>
       <div><div style="font-size:.82rem;font-weight:700;margin-bottom:6px">テーマ</div><div class="seg" id="themeSeg">${themeBtns}</div></div>
     </div>
-    <h3 class="sec">自作問題</h3>
-    ${userQSection()}
     <h3 class="sec">データ管理</h3>
     <div class="card">
       <h4 style="margin:0 0 6px">📦 進捗のバックアップ</h4><small style="color:var(--sub)">Googleを使わなくても、ファイルで進捗を保存・復元できます（機種変更の引き継ぎに）。</small>
@@ -1513,7 +1512,6 @@ function renderSettings(){
   el.querySelectorAll('#themeSeg .segbtn').forEach(b=>b.addEventListener('click',()=>setTheme(b.dataset.theme)));
   const ecp=el.querySelector('#elogCopy');if(ecp)ecp.addEventListener('click',()=>{const t=el.querySelector('#elogPre').textContent;copyText(t,'コピーしました');});
   const ecl=el.querySelector('#elogClr');if(ecl)ecl.addEventListener('click',()=>{clearElog();renderSettings();toast('エラーログを消去しました');});
-  bindUserQ(el);
   {const bx=el.querySelector('#bkExport');if(bx)bx.addEventListener('click',()=>{const blob=new Blob([JSON.stringify(store)],{type:'application/json'}),url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='okinawa-progress-'+todayISO()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('進捗を書き出しました 📤');});
    const bi=el.querySelector('#bkImport');if(bi)bi.addEventListener('click',()=>el.querySelector('#bkFile').click());
    const bf=el.querySelector('#bkFile');if(bf)bf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
