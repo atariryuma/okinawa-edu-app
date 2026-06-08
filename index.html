@@ -1012,14 +1012,14 @@ function renderQuiz(){
      <div class="modegrid" id="modesAuto">
        <button class="mode daily" data-m="daily"><span class="ic">⚡</span><b>今日の学習（${dailyCount()||'+'}問）</b><span>期日が来た問題を優先・間隔反復</span></button>
        <button class="mode review" data-m="review"><span class="ic">🎯</span><b>弱点だけ復習（${weak}）</b><span>まだ不安定な問題（要復習）</span></button>
-       <button class="mode mock" data-m="mock"><span class="ic">📝</span><b>模試（20問・時間計測）</b><span>全分野ミックス・本番形式</span></button>
+       <button class="mode mock" data-m="mock"><span class="ic">📝</span><b>模試（20問・時間計測）</b><span>全分野ミックスで力試し</span></button>
      </div>
      <h3 class="sec">分野を選んで形式で解く</h3>
      <div id="catwrap"><div class="hint" style="margin:2px 2px 7px;font-size:.72rem">① まず分野を選び　② 下の形式カードで出題（この分野指定は下の5形式だけに効きます）</div><div class="catbar" id="cats" aria-label="分野で絞り込み"></div></div>
      <div id="fmtCatTag" class="fmtcattag" aria-live="polite"></div>
      <div class="modegrid" id="modesFmt">
        <button class="mode" data-m="qa"><span class="ic">💬</span><b>一問一答</b><span>答えを想起→自己評価</span></button>
-       <button class="mode" data-m="mc"><span class="ic">🔠</span><b>4択選択</b><span>本番に近い形式</span></button>
+       <button class="mode" data-m="mc"><span class="ic">🔠</span><b>4択選択</b><span>選択肢で素早く確認</span></button>
        <button class="mode" data-m="cloze"><span class="ic">🟥</span><b>穴埋め（赤シート）</b><span>キーワードを想起</span></button>
        <button class="mode" data-m="order"><span class="ic">🔀</span><b>並べ替え</b><span>体系・手順</span></button>
        <button class="mode" data-m="match"><span class="ic">🔗</span><b>関係づけ</b><span>用語と意味</span></button>
