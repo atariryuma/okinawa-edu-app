@@ -63,17 +63,25 @@
   /* ヘッダー常設のログイン/同期バッジ（全画面でログイン状態が一目で分かる＝レビュー最重要対応。色だけでなくアイコン＋文言で示す） */
   .authbadge{display:inline-flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);color:var(--sub);border-radius:13px;padding:0 10px;height:44px;font:inherit;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:var(--shadow-sm);transition:.2s;flex:0 0 auto;}
   .authbadge .ab-ic{font-size:.9rem;filter:grayscale(1);opacity:.65;position:relative;}
-  .authbadge .ab-mk{position:absolute;right:-5px;bottom:-3px;font-size:.62rem;color:var(--ok-btn);font-weight:900;}
+  .authbadge .ab-mk{position:absolute;right:-5px;bottom:-3px;font-size:.62rem;font-weight:900;color:var(--sub);}
   .authbadge.on{border-color:var(--ok-btn);color:var(--ok-btn);background:rgba(21,128,61,.09);}
   .authbadge.on .ab-ic{filter:none;opacity:1;}
+  .authbadge.on .ab-mk{color:var(--ok-btn);}
+  .authbadge.busy{border-color:var(--line);color:var(--sub);}        /* 再接続中（中立色＋↻） */
+  .authbadge.busy .ab-ic{filter:none;opacity:.85;}
+  .authbadge.stale{border-color:#b45309;color:#b45309;background:rgba(180,83,9,.08);} /* 要再接続（橙＋!） */
+  .authbadge.stale .ab-ic{filter:none;opacity:.9;}
+  .authbadge.stale .ab-mk{color:#b45309;}
   .authbadge:active{transform:scale(.94);}
   .authbadge:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   @media(max-width:380px){.authbadge .ab-tx{display:none;} .authbadge{padding:0 11px;}} /* 極小幅はアイコンのみ（aria-labelで状態は伝わる） */
   /* ホーム常設の同期ステータス行（ログイン有無を問わず状態と入口を常時表示。未ログイン時は端末保存の安心も明示） */
   .homesync{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--sub);font-size:.78rem;cursor:pointer;}
   .homesync.on{border-color:var(--ok-btn);color:var(--ink);background:rgba(21,128,61,.06);}
+  .homesync.stale{border-color:#b45309;color:var(--ink);background:rgba(180,83,9,.06);}
   .homesync .hs-act{font-weight:700;white-space:nowrap;color:var(--accent);}
   .homesync.on .hs-act{color:var(--ok-btn);}
+  .homesync.stale .hs-act{color:#b45309;}
   .homesync:active{transform:scale(.99);}
   .homesync:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   nav.tabs{display:flex;gap:4px;overflow-x:auto;margin:14px -2px 12px;padding:4px;background:var(--card);
@@ -665,11 +673,21 @@ fontBtn.addEventListener('click',()=>{const i=FONT_ORDER.indexOf(store.fontScale
 applyFontScale();
 //==================== ログイン状態バッジ（ヘッダー常設） ====================
 function lastSyncMs(){const v=+localStorage.getItem('oki_last_sync');return Number.isFinite(v)&&v>0?v:0;} // 最終同期時刻（mountSync/home/バッジで共有）
-function updateAuthBadge(){const b=document.getElementById('authBadge');if(!b)return; // gSignedIn変化・同期完了の度に呼ぶ＝全画面で状態が即追従。aria-live=politeで読み上げも変化通知
-  // ✓の有無＝色だけに依存しない形状の差（極小幅でアイコンのみになっても判別可能・WCAG1.4.1）
-  if(typeof gSignedIn!=='undefined'&&gSignedIn){const ls=lastSyncMs();b.className='authbadge on';b.innerHTML='<span class="ab-ic" aria-hidden="true">☁️<b class="ab-mk">✓</b></span><span class="ab-tx">同期中</span>';b.setAttribute('aria-label','Googleにログイン中'+(ls?'・最終同期'+relTime(ls):'')+'。タップで同期設定');}
-  else{b.className='authbadge';b.innerHTML='<span class="ab-ic" aria-hidden="true">☁️</span><span class="ab-tx">未ログイン</span>';b.setAttribute('aria-label','未ログイン（進捗はこの端末にのみ保存）。タップしてGoogleでログイン');}}
-{const ab=document.getElementById('authBadge');if(ab)ab.addEventListener('click',openSync);} // タップ→同期設定へ（初期描画は boot() 内＝gSignedIn 初期化後に実行）
+let _authBusy=false; // 起動時/手動の再接続中（アクセストークンを取り直している間）。この間は「未ログイン」ではなく「接続中…」を出す
+// ログイン状態の4値。in=ログイン中／reconnecting=再接続中（トークン取得中）／stale=前回ログイン済みだが要再接続／out=未ログイン
+function authState(){if(typeof gSignedIn!=='undefined'&&gSignedIn)return 'in';if(_authBusy)return 'reconnecting';if(localStorage.getItem('oki_gsign')==='1')return 'stale';return 'out';}
+function updateAuthBadge(){const b=document.getElementById('authBadge');if(!b)return; // 状態変化の度に呼ぶ＝全画面で即追従。aria-live=politeで読み上げ通知。✓/↻/!の形状差で色のみ依存を回避(WCAG1.4.1)
+  const st=authState(),ls=lastSyncMs();
+  let cls='authbadge',mk='',tx='未ログイン',al='未ログイン（進捗はこの端末にのみ保存）。タップしてGoogleでログイン';
+  if(st==='in'){cls='authbadge on';mk='✓';tx='同期中';al='Googleにログイン中'+(ls?'・最終同期'+relTime(ls):'')+'。タップで同期設定';}
+  else if(st==='reconnecting'){cls='authbadge busy';mk='↻';tx='接続中…';al='Googleに再接続しています。少しお待ちください';}
+  else if(st==='stale'){cls='authbadge stale';mk='!';tx='再ログイン';al='ログインが切れました（進捗はこの端末に保存済み）。タップして再接続';}
+  b.className=cls;
+  b.innerHTML='<span class="ab-ic" aria-hidden="true">☁️'+(mk?'<b class="ab-mk">'+mk+'</b>':'')+'</span><span class="ab-tx">'+tx+'</span>';
+  b.setAttribute('aria-label',al);}
+function updateAuthUI(){updateAuthBadge();const h=document.getElementById('home');if(h&&h.classList.contains('active'))renderHome();} // バッジ＋（表示中なら）ホーム状態行も同時更新
+function authPrimaryAction(){if(authState()==='stale')signInGoogle();else openSync();} // 要再接続ならその場で再ログイン（ユーザー操作なのでポップアップ可＝無音失敗の確実な回復路）／それ以外は同期設定へ
+{const ab=document.getElementById('authBadge');if(ab)ab.addEventListener('click',authPrimaryAction);} // 初期描画は boot()（gSignedIn 初期化後）
 
 //==================== TABS ====================
 const tabs=document.getElementById('tabs');
@@ -837,9 +855,11 @@ function renderHome(){
       <button class="cta" id="ctaDaily">${ctaLabel}<small>忘れた頃の問題が自動で戻ってきます</small></button>
     </div>
     ${aiNotice}
-    ${(()=>{const ls=lastSyncMs(),lst=ls?relTime(ls):'';return gSignedIn
-      ? `<div class="homesync on" id="homeSync" role="button" tabindex="0" aria-label="Googleにログイン中${lst?'・最終同期'+lst:''}。タップで同期設定"><span>☁️ 同期中${lst?'・最終同期 '+lst:''}</span><span class="hs-act">管理 ›</span></div>`
-      : `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="未ログイン。進捗はこの端末に保存されています。タップしてGoogleでログイン"><span>✓ 進捗はこの端末に保存中／スマホ・PCで引き継ぐには</span><span class="hs-act">☁️ ログイン ›</span></div>`;})()}
+    ${(()=>{const st=authState(),ls=lastSyncMs(),lst=ls?relTime(ls):'';
+      if(st==='in')return `<div class="homesync on" id="homeSync" role="button" tabindex="0" aria-label="Googleにログイン中${lst?'・最終同期'+lst:''}。タップで同期設定"><span>☁️ 同期中${lst?'・最終同期 '+lst:''}</span><span class="hs-act">管理 ›</span></div>`;
+      if(st==='reconnecting')return `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="Googleに再接続しています"><span>☁️ Googleに再接続中…</span><span class="hs-act">　</span></div>`;
+      if(st==='stale')return `<div class="homesync stale" id="homeSync" role="button" tabindex="0" aria-label="ログインが切れました。進捗はこの端末に保存済み。タップして再接続"><span>⚠️ ログインが切れました（進捗は端末に保存済み）</span><span class="hs-act">再接続 ›</span></div>`;
+      return `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="未ログイン。進捗はこの端末に保存されています。タップしてGoogleでログイン"><span>✓ 進捗はこの端末に保存中／スマホ・PCで引き継ぐには</span><span class="hs-act">☁️ ログイン ›</span></div>`;})()}
     ${seen>0?`<h3 class="sec">習得の内訳</h3>
     <div class="card">
       <div class="layers" role="img" aria-label="しっかり覚えた ${counts.mast}問、もう少し ${counts.near}問、学習中 ${counts.learn}問、未学習 ${counts.new}問">
@@ -871,7 +891,7 @@ function renderHome(){
   const wk=el.querySelector('#welcomeStart');if(wk)wk.addEventListener('click',()=>{localStorage.setItem('oki_welcome','off');go('quiz');startQuiz('daily');}); // ラベル通り押下で即クイズ開始（挙動一致）
   const exi=el.querySelector('#examPromptIn');if(exi)exi.addEventListener('change',e=>{if(e.target.value){store.examDate=e.target.value;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderHome();toast('試験日を設定しました 🎯');}});
   const exs=el.querySelector('#examSkip');if(exs)exs.addEventListener('click',()=>{localStorage.setItem('oki_exam_skip','1');const n=el.querySelector('#examPrompt');if(n)n.remove();});
-  const hs=el.querySelector('#homeSync');if(hs){hs.addEventListener('click',openSync);hs.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSync();}});}
+  const hs=el.querySelector('#homeSync');if(hs){hs.addEventListener('click',authPrimaryAction);hs.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();authPrimaryAction();}});}
   const esChip=el.querySelector('#examSetChip');if(esChip){esChip.addEventListener('click',openExamSetting);esChip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openExamSetting();}});}
   el.querySelectorAll('.quick').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.act;if(a==='review'){go('quiz');startQuiz('review');}else go(a);}));
   el.querySelectorAll('.ministat').forEach(b=>{const act=()=>{if(b.dataset.go==='due'){go('quiz');startQuiz('daily');}else go('prog');};b.addEventListener('click',act);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act();}});}); // 数字を導線化
@@ -1607,28 +1627,33 @@ function initGoogle(){
   if(!gReady()||!getClientId())return false;
   tokenClient=google.accounts.oauth2.initTokenClient({client_id:getClientId(),scope:GSCOPE,
     callback:async(resp)=>{
+      _authBusy=false;                                   // 再接続が決着（成功/失敗いずれも）→「接続中…」を解除
       if(resp&&resp.access_token){
         accessToken=resp.access_token;gSignedIn=true;
         localStorage.setItem('oki_gsign','1');           // 次回起動でサイレント再ログインを試す印
         requestIdToken();updateAuthBadge();await cloudSync(gSilent);
         if(!gSilent)toast('Googleと同期しました ✓');
         renderProg();mountSync();renderHome();updateAuthBadge();
-      }else if(!gSilent){toast('ログインできませんでした');}
+      }else{if(!gSilent)toast('ログインできませんでした');updateAuthUI();}
       gSilent=false;
     },
     error_callback:(err)=>{ // 明示ログインの失敗は無反応にせずフィードバック（ポップアップ拒否/オリジン不一致/通信断など）。ユーザーが自分で閉じた時(popup_closed)だけは黙る
+      _authBusy=false;                                   // 再接続失敗→バッジを「再ログイン」へ（接続中…のまま固まらせない）
       if(!gSilent){const t=(err&&err.type)||'';if(t!=='popup_closed')toast('ログインを完了できませんでした。ポップアップの許可と通信状況をご確認ください');}
-      gSilent=false;}});                                  // サイレント取得が無理なら静かにサインアウト状態のまま
+      gSilent=false;updateAuthUI();}});                   // サイレント取得が無理なら「再ログイン」表示で回復路を示す
   initIdToken();
   return true;
 }
-function signInGoogle(){if(!tokenClient&&!initGoogle()){toast('先にClient IDを設定してください');return;}gSilent=false;tokenClient.requestAccessToken({prompt:gSignedIn?'':'consent'});}
+function signInGoogle(){if(!tokenClient&&!initGoogle()){toast('先にClient IDを設定してください');return;}gSilent=false;_authBusy=true;updateAuthUI();
+  // 前回ログイン済み(oki_gsign)なら prompt:'' で軽く再認証（フル同意を毎回求めない）。ユーザー操作起点なのでポップアップが許可され、起動時の無音失敗を確実に回復できる
+  tokenClient.requestAccessToken({prompt:(gSignedIn||localStorage.getItem('oki_gsign')==='1')?'':'consent'});}
 // 起動時：前回ログイン済みなら、ポップアップを出さずに（prompt:''）アクセストークンを取り直してそのまま同期
 function trySilentSignIn(){
   if(localStorage.getItem('oki_gsign')!=='1'||!getClientId())return;
+  _authBusy=true;updateAuthUI();        // リロード直後は「未ログイン」ではなく「接続中…」を表示（無音再認証の進行中）
   let tries=40;(function wait(){
-    if(gReady()&&gIdReady()){if(!tokenClient&&!initGoogle())return;gSilent=true;try{tokenClient.requestAccessToken({prompt:''});}catch(e){gSilent=false;}return;}
-    if(--tries>0)setTimeout(wait,150);
+    if(gReady()&&gIdReady()){if(!tokenClient&&!initGoogle()){_authBusy=false;updateAuthUI();return;}gSilent=true;try{tokenClient.requestAccessToken({prompt:''});}catch(e){gSilent=false;_authBusy=false;updateAuthUI();}return;}
+    if(--tries>0)setTimeout(wait,150);else{_authBusy=false;updateAuthUI();} // GSIが読み込めない→「再ログイン」表示で手動回復を促す
   })();
 }
 function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');renderProg();updateAuthBadge();renderHome();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されないように（auto_selectも解除）。ヘッダーバッジ/ホーム状態も即更新
@@ -1840,9 +1865,9 @@ async function boot(){
   rebuildQuestions();
   selfCheck();                          // 整合性チェックは起動時1回
   rerenderAll();
-  updateAuthBadge();                    // ヘッダーのログイン状態バッジを初期描画（gSignedIn初期化後＝TDZ回避）
   fetchCommunity();                     // 背景で最新の共有問題を取得（届いたら再描画）
-  trySilentSignIn();                    // 前回ログイン済みなら無音で再認証→クラウドの最新を取り込む
+  trySilentSignIn();                    // 前回ログイン済みなら _authBusy=true で「接続中…」を出してから無音再認証（リロードで「未ログイン」が一瞬出るのを防ぐ）
+  updateAuthBadge();                    // 上で再接続中になっていなければ（未ログイン）ここで確定描画（gSignedIn初期化後＝TDZ回避）
   setTimeout(maybeIOSInstallHint,1200);  // iOS Safari は beforeinstallprompt が無いので手順を一度だけ案内
 }
 boot();
