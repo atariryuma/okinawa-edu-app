@@ -210,6 +210,10 @@
   .mode.review{grid-column:1/3;border-color:var(--ng);}
   .mode.review b{color:var(--ng);}
   #modesAuto .mode.review{grid-column:auto;} /* おまかせ群では弱点＋模試を2列に並べる（今日の学習だけ全幅バナー） */
+  .seg{display:inline-flex;flex-wrap:wrap;gap:6px;}
+  .segbtn{border:1px solid var(--line2);background:var(--card);color:var(--ink);border-radius:10px;padding:8px 14px;font:inherit;font-size:.82rem;cursor:pointer;min-height:40px;}
+  .segbtn.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700;}
+  .segbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .catbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
   .catbar button{border:1px solid var(--line2);background:var(--card);border-radius:16px;padding:7px 12px;font-size:.74rem;cursor:pointer;color:var(--ink);min-height:38px;}
   .catbar button.on{background:var(--proj);color:#fff;border-color:var(--proj);}
@@ -320,8 +324,7 @@
       <div><h1>沖縄 教育法規ナビ</h1><p>管理職試験の対策 ＆ 学校経営の“判断の根拠”</p></div>
       <div style="display:flex;gap:6px;align-items:center">
         <button class="authbadge" id="authBadge" aria-live="polite" aria-label="ログイン状態">…</button>
-        <button class="theme" id="fontBtn" aria-label="文字サイズを変更">A±</button>
-        <button class="theme" id="themeBtn" aria-label="テーマを切り替え" aria-pressed="false">🌙</button>
+        <button class="theme" id="settingsBtn" aria-label="設定（アカウント・表示・データ）">⚙️</button>
       </div>
     </div>
     <nav class="tabs" id="tabs" role="tablist" aria-label="メインメニュー">
@@ -342,6 +345,7 @@
     <section class="view" id="quiz" role="tabpanel" aria-label="クイズ"></section>
     <section class="view" id="ronbun" role="tabpanel" aria-label="論文・面接"></section>
     <section class="view" id="prog" role="tabpanel" aria-label="進捗"></section>
+    <section class="view" id="settings" role="tabpanel" aria-label="設定"></section>
   </main>
   <nav class="bnav" id="bnav" aria-label="メインメニュー">
     <button data-v="home" aria-current="page"><span class="bic" aria-hidden="true">🏠</span>ホーム</button>
@@ -661,26 +665,27 @@ function validQuestion(q){
 function ymdNum(s){const m=String(s||'').split('-');return (+m[0]||0)*10000+(+m[1]||0)*100+(+m[2]||0);} // 'YYYY-M-D' を数値化（非ゼロ詰めでも正しく比較）
 function pruneDailyDone(dd){if(!dd||typeof dd!=='object'||Array.isArray(dd))return {};const keys=Object.keys(dd);if(keys.length<=140)return dd;const cut=ymdNum(todayStr())-10000;const o={};keys.forEach(k=>{if(ymdNum(k)>=cut)o[k]=dd[k];});return o;} // 日次記録の上限剪定（localStorage肥大防止・answer/merge/importで共有）
 
-//==================== THEME ====================
-const themeBtn=document.getElementById('themeBtn');
-function applyTheme(){document.documentElement.setAttribute('data-theme',store.theme);themeBtn.textContent=store.theme==='dark'?'☀️':'🌙';themeBtn.setAttribute('aria-pressed',store.theme==='dark');}
-themeBtn.addEventListener('click',()=>{store.theme=store.theme==='dark'?'light':'dark';save();applyTheme();});
+//==================== THEME / FONT（操作系は⚙️設定に集約。適用関数だけ常駐） ====================
+function applyTheme(){document.documentElement.setAttribute('data-theme',store.theme);}
+function setTheme(t){store.theme=t;save();applyTheme();if(document.getElementById('settings')&&document.getElementById('settings').classList.contains('active'))renderSettings();}
 applyTheme();
-// 文字サイズ（標準→大→特大→小 を循環）。ルート font-size を変えると rem 基準の全体が比例拡大。
+// 文字サイズ（小/標準/大/特大）。ルート font-size を変えると rem 基準の全体が比例拡大。
 const FONT_SIZES={s:'14px',m:'16px',l:'18px',xl:'20.5px'},FONT_ORDER=['m','l','xl','s'],FONT_LABEL={s:'小',m:'標準',l:'大',xl:'特大'};
-const fontBtn=document.getElementById('fontBtn');
 function applyFontScale(){document.documentElement.style.fontSize=FONT_SIZES[store.fontScale]||FONT_SIZES.m;}
-fontBtn.addEventListener('click',()=>{const i=FONT_ORDER.indexOf(store.fontScale||'m');store.fontScale=FONT_ORDER[(i+1)%FONT_ORDER.length];save();applyFontScale();toast('文字サイズ：'+FONT_LABEL[store.fontScale]);});
+function setFont(scale){if(!FONT_SIZES[scale])return;store.fontScale=scale;save();applyFontScale();if(document.getElementById('settings')&&document.getElementById('settings').classList.contains('active'))renderSettings();}
 applyFontScale();
+{const sb=document.getElementById('settingsBtn');if(sb)sb.addEventListener('click',()=>go('settings'));} // ⚙️→設定ビュー
 //==================== ログイン状態バッジ（ヘッダー常設） ====================
 function lastSyncMs(){const v=+localStorage.getItem('oki_last_sync');return Number.isFinite(v)&&v>0?v:0;} // 最終同期時刻（mountSync/home/バッジで共有）
 let _authBusy=false; // 起動時/手動の再接続中（アクセストークンを取り直している間）。この間は「未ログイン」ではなく「接続中…」を出す
+// IDトークン(JWT)のペイロードから表示名/メールを取り出す（身元のみ・自分のトークンをローカルでデコード）。無音再接続直後は未取得のことがあり、その時は空＝「同期中」表示にフォールバック
+function authName(){try{if(typeof idTok==='undefined'||!idTok)return '';const p=JSON.parse(decodeURIComponent(escape(atob(idTok.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')))));return String(p.name||p.email||'').trim();}catch(e){return '';}}
 // ログイン状態の4値。in=ログイン中／reconnecting=再接続中（トークン取得中）／stale=前回ログイン済みだが要再接続／out=未ログイン
 function authState(){if(typeof gSignedIn!=='undefined'&&gSignedIn)return 'in';if(_authBusy)return 'reconnecting';if(localStorage.getItem('oki_gsign')==='1')return 'stale';return 'out';}
 function updateAuthBadge(){const b=document.getElementById('authBadge');if(!b)return; // 状態変化の度に呼ぶ＝全画面で即追従。aria-live=politeで読み上げ通知。✓/↻/!の形状差で色のみ依存を回避(WCAG1.4.1)
   const st=authState(),ls=lastSyncMs();
   let cls='authbadge',mk='',tx='未ログイン',al='未ログイン（進捗はこの端末にのみ保存）。タップしてGoogleでログイン';
-  if(st==='in'){cls='authbadge on';mk='✓';tx='同期中';al='Googleにログイン中'+(ls?'・最終同期'+relTime(ls):'')+'。タップで同期設定';}
+  if(st==='in'){cls='authbadge on';mk='✓';const nm=authName();tx=nm?(nm.length>10?nm.slice(0,10)+'…':nm):'同期中';al=(nm?nm+'でログイン中':'Googleにログイン中')+(ls?'・最終同期'+relTime(ls):'')+'。タップで同期設定';}
   else if(st==='reconnecting'){cls='authbadge busy';mk='↻';tx='接続中…';al='Googleに再接続しています。少しお待ちください';}
   else if(st==='stale'){cls='authbadge stale';mk='!';tx='再ログイン';al='ログインが切れました（進捗はこの端末に保存済み）。タップして再接続';}
   b.className=cls;
@@ -718,6 +723,7 @@ function go(v,focusPanel){
   if(v==='map')renderMap();
   if(v==='ref')renderRef();      // 都度再描画＝付箋・tag・検索を最新に
   if(v==='lookup')renderLookup();// 都度再描画＝最近見た・付箋を最新に
+  if(v==='settings')renderSettings();
   const rm=matchMedia('(prefers-reduced-motion:reduce)').matches;
   window.scrollTo({top:0,behavior:rm?'auto':'smooth'});
   if(focusPanel){const p=document.getElementById(v);if(p){p.setAttribute('tabindex','-1');p.focus({preventScroll:true});}} // タブ操作時はパネル先頭へフォーカス移動
@@ -727,7 +733,7 @@ function go(v,focusPanel){
 //==================== 横断検索（要点/逆引き/論文/問題） ====================
 let SEARCH_INDEX=null;
 function openRef(id){refFilter='all';go('ref');setTimeout(()=>{const d=document.getElementById('acc-'+id);if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});}},70);}
-function openSync(){go('prog');setTimeout(()=>{const d=[...document.querySelectorAll('#prog details')].find(x=>/同期・データ管理/.test((x.querySelector('summary')||{}).textContent||''));if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'start'});}},70);}
+function openSync(){go('settings');setTimeout(()=>{const m=document.getElementById('syncMount');if(m)m.scrollIntoView({behavior:'smooth',block:'start'});},70);} // 同期/アカウントは設定ビューの先頭セクション
 function openExamSetting(){go('prog');setTimeout(()=>{const i=document.getElementById('examIn');if(i){i.scrollIntoView({behavior:'smooth',block:'center'});try{i.focus({preventScroll:true});}catch(_){}}},80);} // 試験日の恒常的な設定入口（進捗タブの日付欄へ誘導）
 function openLk(sit){go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);} // 逆引きの特定状況を開く（最近見た/横断検索から）
 function buildSearchIndex(){const idx=[];
@@ -1454,18 +1460,7 @@ function renderProg(){
     <h3 class="sec" id="catmaster">分野別の定着（弱い順）</h3><div class="card">${cats.map(c=>{const qs=QUESTIONS.filter(q=>q.cat===c),m=qs.filter(q=>isMastered(q.id)).length;return{c,qs:qs.length,m,p:Math.round(m/qs.length*100)};}).sort((a,b)=>a.p-b.p).map(x=>`<div class="catrow"><div class="top"><span>${esc(x.c)}</span><span>${x.m}/${x.qs}</span></div><div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="${x.qs}" aria-valuenow="${x.m}" aria-label="${esc(x.c)} ${x.m}/${x.qs}定着"><i style="width:${x.p}%;background:${x.p<34?'var(--ng)':x.p<67?'var(--warn)':'var(--ok)'}"></i></div></div>`).join('')}</div>
     <h3 class="sec">今後の復習予定（14日）</h3><div class="card">${(()=>{const fc=new Array(14).fill(0);QUESTIONS.forEach(q=>{const c=getCard(q.id);if(!c)return;let i=Math.ceil((c.due-Date.now())/DAY);if(i<0)i=0;if(i<=13)fc[i]++;});const mx=Math.max(1,...fc);return `<div style="display:flex;align-items:flex-end;gap:3px;height:64px" role="img" aria-label="今後14日の復習予定">${fc.map((n,i)=>`<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%" title="${i===0?'今日':i+'日後'}：${n}問"><div style="width:100%;background:var(--accent);border-radius:3px 3px 0 0;height:${Math.round(n/mx*50)}px;${n?'min-height:2px;':''}"></div></div>`).join('')}</div><div style="display:flex;justify-content:space-between;font-size:.64rem;color:var(--sub);margin-top:4px"><span>今日 ${fc[0]}問</span><span>+7日</span><span>+13日</span></div>`;})()}</div>
     <h3 class="sec">学習の記録（8週間）</h3><div class="card"><div id="heat" style="display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);gap:3px;justify-content:start;overflow-x:auto"></div><div style="display:flex;align-items:center;gap:6px;font-size:.64rem;color:var(--sub);margin-top:8px">少<i style="width:11px;height:11px;border-radius:3px;background:var(--line)"></i><i style="width:11px;height:11px;border-radius:3px;background:rgba(14,116,144,.35)"></i><i style="width:11px;height:11px;border-radius:3px;background:rgba(14,116,144,.65)"></i><i style="width:11px;height:11px;border-radius:3px;background:rgba(14,116,144,1)"></i>多</div></div>
-    ${userQSection()}
-    <details class="rb" style="margin-top:14px"><summary>⚙️ 同期・データ管理<span class="chev">›</span></summary>
-      <div class="body">
-        <div id="syncMount"></div>
-        ${(()=>{const elg=getElog();return elg.length?`<h4 style="margin:16px 0 6px">🐞 エラーログ（${elg.length}）</h4><small style="color:var(--sub)">不具合を自動記録（外部送信なし）。コピーして開発者に送ると修正に役立ちます。</small><pre id="elogPre" style="white-space:pre-wrap;font-size:.7rem;max-height:160px;overflow:auto;margin:8px 0;color:var(--ng)">${elg.map(e=>new Date(e.t).toLocaleString()+' ['+(e.type||'?')+'] '+String(e.msg||'').replace(/[<>&]/g,'')).join('\n')}</pre><div class="syncrow"><button class="btn" id="elogCopy">コピー</button><button class="btn ghost" id="elogClr">消去</button></div>`:'';})()}
-        <div style="margin-top:18px"><h4 style="margin:0 0 6px">📦 進捗のバックアップ</h4><small style="color:var(--sub)">Googleを使わなくても、ファイルで進捗を保存・復元できます（機種変更の引き継ぎに）。</small>
-          <div class="syncrow" style="margin-top:8px"><button class="btn ghost" id="bkExport">📤 書き出し</button><button class="btn ghost" id="bkImport">📥 復元（読み込み）</button></div>
-          <input type="file" id="bkFile" accept="application/json,.json" style="display:none"></div>
-        <div style="margin-top:16px;font-size:.8rem;line-height:1.9"><a href="about.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">使い方・このアプリについて</a>　/　<a href="terms.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">利用規約</a>　/　<a href="privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">プライバシー</a></div>
-        <button class="btn ghost wide" style="margin-top:16px;border-color:var(--ng);color:var(--ng)" id="resetBtn">学習の記録を消す</button>
-      </div>
-    </details>`;
+    <button class="btn ghost wide" id="toSettings" style="margin-top:16px">⚙️ 同期・自作問題・データ管理・設定へ</button>`;
   // heatmap: 8週間（GitHub風コントリビューショングリッド。曜日=行・週=列）
   const heat=el.querySelector('#heat');
   if(heat){const cnt={};Object.values(store.cards).forEach(c=>Array.isArray(c.hist)&&c.hist.forEach(h=>{const dd=new Date(h.t);const k=dd.getFullYear()+'-'+(dd.getMonth()+1)+'-'+dd.getDate();cnt[k]=(cnt[k]||0)+1;}));
@@ -1477,19 +1472,48 @@ function renderProg(){
       const cell=document.createElement('i');cell.style.cssText='width:12px;height:12px;border-radius:3px;background:'+bg;
       cell.title=(dt.getMonth()+1)+'/'+dt.getDate()+'：'+(future?'—':n+'問');cell.setAttribute('aria-label',(dt.getMonth()+1)+'月'+dt.getDate()+'日 '+(future?'':n+'問'));heat.appendChild(cell);}}
   const ex=el.querySelector('#examIn');if(ex)ex.addEventListener('change',e=>{store.examDate=e.target.value||null;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderProg();toast(store.examDate?'試験日を設定しました':'試験日を解除しました');});
-  const ecp=el.querySelector('#elogCopy');if(ecp)ecp.addEventListener('click',()=>{const t=el.querySelector('#elogPre').textContent;copyText(t,'コピーしました');});
-  const ecl=el.querySelector('#elogClr');if(ecl)ecl.addEventListener('click',()=>{clearElog();renderProg();toast('エラーログを消去しました');});
   const rv=el.querySelector('#revBtn');if(rv)rv.addEventListener('click',()=>{go('quiz');startQuiz('review');});
   el.querySelectorAll('.statbox').forEach(b=>{const act=()=>{const a=b.dataset.act;if(a==='due'){go('quiz');startQuiz('daily');}else if(a==='weak'){go('quiz');startQuiz('review');}else{const s=el.querySelector('#catmaster');if(s)s.scrollIntoView({behavior:'smooth',block:'start'});}};b.addEventListener('click',act);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act();}});}); // スタットをドリルダウン導線に
+  {const ts=el.querySelector('#toSettings');if(ts)ts.addEventListener('click',()=>go('settings'));}
+}
+//==================== 設定（アカウント・表示・自作問題・データ） ====================
+function renderSettings(){
+  const el=document.getElementById('settings');if(!el)return;
+  const fontBtns=FONT_ORDER.slice().sort((a,b)=>['s','m','l','xl'].indexOf(a)-['s','m','l','xl'].indexOf(b)).map(s=>`<button class="segbtn${(store.fontScale||'m')===s?' on':''}" data-font="${s}" aria-pressed="${(store.fontScale||'m')===s}">${FONT_LABEL[s]}</button>`).join('');
+  const themeBtns=[['light','☀️ ライト'],['dark','🌙 ダーク']].map(([t,l])=>`<button class="segbtn${store.theme===t?' on':''}" data-theme="${t}" aria-pressed="${store.theme===t}">${l}</button>`).join('');
+  const elg=getElog();
+  el.innerHTML=`
+    <h3 class="sec">アカウント・同期</h3>
+    <div id="syncMount"></div>
+    <h3 class="sec">表示</h3>
+    <div class="card">
+      <div style="margin-bottom:12px"><div style="font-size:.82rem;font-weight:700;margin-bottom:6px">文字サイズ</div><div class="seg" id="fontSeg">${fontBtns}</div></div>
+      <div><div style="font-size:.82rem;font-weight:700;margin-bottom:6px">テーマ</div><div class="seg" id="themeSeg">${themeBtns}</div></div>
+    </div>
+    <h3 class="sec">自作問題</h3>
+    ${userQSection()}
+    <h3 class="sec">データ管理</h3>
+    <div class="card">
+      <h4 style="margin:0 0 6px">📦 進捗のバックアップ</h4><small style="color:var(--sub)">Googleを使わなくても、ファイルで進捗を保存・復元できます（機種変更の引き継ぎに）。</small>
+      <div class="syncrow" style="margin-top:8px"><button class="btn ghost" id="bkExport">📤 書き出し</button><button class="btn ghost" id="bkImport">📥 復元（読み込み）</button></div>
+      <input type="file" id="bkFile" accept="application/json,.json" style="display:none">
+      <button class="btn ghost wide" style="margin-top:16px;border-color:var(--ng);color:var(--ng)" id="resetBtn">学習の記録を消す</button>
+    </div>
+    ${elg.length?`<h3 class="sec">🐞 エラーログ（${elg.length}）</h3><div class="card"><small style="color:var(--sub)">不具合を自動記録（外部送信なし）。コピーして開発者に送ると修正に役立ちます。</small><pre id="elogPre" style="white-space:pre-wrap;font-size:.7rem;max-height:160px;overflow:auto;margin:8px 0;color:var(--ng)">${elg.map(e=>new Date(e.t).toLocaleString()+' ['+(e.type||'?')+'] '+String(e.msg||'').replace(/[<>&]/g,'')).join('\n')}</pre><div class="syncrow"><button class="btn" id="elogCopy">コピー</button><button class="btn ghost" id="elogClr">消去</button></div></div>`:''}
+    <div class="card" style="margin-top:14px;font-size:.8rem;line-height:1.9"><a href="about.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">使い方・このアプリについて</a>　/　<a href="terms.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">利用規約</a>　/　<a href="privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--accent)">プライバシー</a></div>`;
+  el.querySelectorAll('#fontSeg .segbtn').forEach(b=>b.addEventListener('click',()=>{setFont(b.dataset.font);toast('文字サイズ：'+FONT_LABEL[b.dataset.font]);}));
+  el.querySelectorAll('#themeSeg .segbtn').forEach(b=>b.addEventListener('click',()=>setTheme(b.dataset.theme)));
+  const ecp=el.querySelector('#elogCopy');if(ecp)ecp.addEventListener('click',()=>{const t=el.querySelector('#elogPre').textContent;copyText(t,'コピーしました');});
+  const ecl=el.querySelector('#elogClr');if(ecl)ecl.addEventListener('click',()=>{clearElog();renderSettings();toast('エラーログを消去しました');});
   bindUserQ(el);
   {const bx=el.querySelector('#bkExport');if(bx)bx.addEventListener('click',()=>{const blob=new Blob([JSON.stringify(store)],{type:'application/json'}),url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='okinawa-progress-'+todayISO()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('進捗を書き出しました 📤');});
    const bi=el.querySelector('#bkImport');if(bi)bi.addEventListener('click',()=>el.querySelector('#bkFile').click());
    const bf=el.querySelector('#bkFile');if(bf)bf.addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
      rd.onload=()=>{try{const obj=JSON.parse(rd.result);if(!obj||typeof obj!=='object'||!obj.cards)throw 0;
        if(!confirm('読み込んだ進捗を現在の進捗と統合します。よろしいですか？\n（新しい学習記録を優先し、付箋・自作問題・論文下書きも統合します）'))return;
-       store=mergeStore(store,sanitizeImport(obj));save();if(typeof gSignedIn!=='undefined'&&gSignedIn&&accessToken)cloudSync(true);rerenderAll();toast('進捗を復元（統合）しました ✓');
+       store=mergeStore(store,sanitizeImport(obj));save();if(typeof gSignedIn!=='undefined'&&gSignedIn&&accessToken)cloudSync(true);rerenderAll();renderSettings();toast('進捗を復元（統合）しました ✓');
      }catch(err){toast('読み込めないファイルです');}};rd.readAsText(f);e.target.value='';});}
-  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('学習の記録（正誤・定着・連続日数・統計）をすべて消去します。よろしいですか？\n※作成した問題と各種設定は残ります。')){const keep={theme:store.theme,examDate:store.examDate,examDateT:store.examDateT||0,userQuestions:store.userQuestions,fontScale:store.fontScale,dailyGoal:store.dailyGoal,ronbunDrafts:store.ronbunDrafts,ronbunChecks:store.ronbunChecks,bookmarks:store.bookmarks||[],recent:store.recent||[]};store=Object.assign({cards:{},streak:0,lastDate:null,dailyDate:null,totalAnswered:0,totalCorrect:0,dailyDone:{},session:null},keep);save();if(gSignedIn&&accessToken)driveSave(store).catch(()=>{});renderProg();toast('学習の記録を消去しました');}});
+  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('学習の記録（正誤・定着・連続日数・統計）をすべて消去します。よろしいですか？\n※作成した問題と各種設定は残ります。')){const keep={theme:store.theme,examDate:store.examDate,examDateT:store.examDateT||0,userQuestions:store.userQuestions,fontScale:store.fontScale,dailyGoal:store.dailyGoal,ronbunDrafts:store.ronbunDrafts,ronbunChecks:store.ronbunChecks,bookmarks:store.bookmarks||[],recent:store.recent||[]};store=Object.assign({cards:{},streak:0,lastDate:null,dailyDate:null,totalAnswered:0,totalCorrect:0,dailyDone:{},session:null},keep);save();if(gSignedIn&&accessToken)driveSave(store).catch(()=>{});renderSettings();toast('学習の記録を消去しました');}});
   mountSync();
 }
 
@@ -1597,7 +1621,7 @@ async function fetchCommunity(retry){const url=getCommunityUrl();if(!url)return;
 // 漏えいしてもアクセス権を与えない。取得できない時は idtoken 空＝GAS側で審査(pending)へ安全に縮退。
 let idTok=null,idTokT=0;
 function gIdReady(){return window.google&&google.accounts&&google.accounts.id;}
-function initIdToken(){if(!gIdReady()||!getClientId())return;try{google.accounts.id.initialize({client_id:getClientId(),auto_select:true,callback:r=>{if(r&&r.credential){idTok=r.credential;idTokT=Date.now();}}});}catch(e){}}
+function initIdToken(){if(!gIdReady()||!getClientId())return;try{google.accounts.id.initialize({client_id:getClientId(),auto_select:true,callback:r=>{if(r&&r.credential){idTok=r.credential;idTokT=Date.now();if(typeof updateAuthUI==='function')updateAuthUI();}}});}catch(e){}}
 function requestIdToken(){try{if(gIdReady())google.accounts.id.prompt();}catch(e){}} // One Tap で身元アサーションを取得（既ログインなら最小操作で返る）
 function freshIdToken(){return (idTok&&(Date.now()-idTokT)<50*60000)?idTok:null;} // 約50分以内のものを再利用
 async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw new Error('共有先が未設定です');
@@ -1666,7 +1690,7 @@ function trySilentSignIn(){
     if(--tries>0)setTimeout(wait,150);else{_authBusy=false;updateAuthUI();} // GSIが読み込めない→「再ログイン」表示で手動回復を促す
   })();
 }
-function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');renderProg();updateAuthBadge();renderHome();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されないように（auto_selectも解除）。ヘッダーバッジ/ホーム状態も即更新
+function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');mountSync();updateAuthUI();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されない（auto_selectも解除）。設定の同期カード/ヘッダーバッジ/ホーム状態を即更新
 // 画面を離れる/戻る時に自動同期（端末間の進捗ズレを抑制）。失敗は静かに無視。
 let _bgSyncT=0;
 function bgSync(){if(!gSignedIn||!accessToken)return;clearTimeout(_bgSyncT);_bgSyncT=setTimeout(()=>cloudSync(true),700);}
