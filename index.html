@@ -814,14 +814,14 @@ function renderHome(){
   const goalDots=Array.from({length:Math.min(goal,14)},(_,i)=>`<span style="width:8px;height:8px;border-radius:50%;display:inline-block;background:${i<todayDone?'#fff':'rgba(255,255,255,.32)'}"></span>`).join(' ');
   const firstRun=(seen===0&&localStorage.getItem('oki_welcome')!=='off');     // 初回（未学習＋ようこそ未閉じ）
   const welcome=firstRun?`
-    <div class="card" id="welcomeCard" style="border-left:4px solid var(--accent)">
+    <div class="card" id="welcomeCard" style="border-left:4px solid var(--accent);margin-bottom:12px">
       <div style="font-weight:700;margin-bottom:3px">👋 ようこそ — 沖縄 教育法規ナビ</div>
       <small style="color:var(--sub)">管理職試験の対策と、日々の学校経営での「判断の根拠」引きに。まずは下のボタンから1問、解いてみましょう。</small>
       <div style="margin-top:10px"><button class="btn" id="welcomeStart" style="padding:8px 18px">▶ まず1問やってみる</button></div>
     </div>`:'';
   // 初回はファーストビューを「ようこそ＋1問」に集中させ、空の検索欄は出さない（2回目以降に表示）
   const searchBlock=firstRun?'':`
-    <div class="searchwrap" style="margin-bottom:4px"><span class="mag" aria-hidden="true">🔎</span><input type="search" class="search" id="globalSearch" placeholder="要点・逆引き・問題・論文を横断検索" aria-label="アプリ内を横断検索" enterkeyhint="search"></div>
+    <div class="searchwrap" style="margin:12px 0"><span class="mag" aria-hidden="true">🔎</span><input type="search" class="search" id="globalSearch" placeholder="要点・逆引き・問題・論文を横断検索" aria-label="アプリ内を横断検索" enterkeyhint="search"></div>
     <div class="gsres" id="gsres" aria-live="polite"></div>`;
   const recentHTML=(!firstRun&&(store.recent||[]).length)?`<div style="margin:2px 2px 8px"><div class="recenthd">🕘 最近見た</div><div class="recentrow">${store.recent.slice(0,8).map(rc=>`<button class="rchip chip" data-t="${esc(rc.t)}" data-id="${esc(String(rc.id))}">${rc.t==='ref'?'📚':'🔎'} ${esc(rc.label)}</button>`).join('')}</div></div>`:'';
   const examPrompt=examPromptShowing?`
@@ -843,7 +843,7 @@ function renderHome(){
     return `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="未ログイン。進捗はこの端末に保存されています。タップしてGoogleでログイン"><span>✓ 進捗はこの端末に保存中／スマホ・PCで引き継ぐには</span><span class="hs-act">☁️ ログイン ›</span></div>`;})();
   el.innerHTML=`
     ${welcome}
-    ${resumeBar?`<div style="margin-bottom:8px">${resumeBar}</div>`:''}
+    ${resumeBar?`<div style="margin-bottom:12px">${resumeBar}</div>`:''}
     <div class="hero">
       <div class="row">
         <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
