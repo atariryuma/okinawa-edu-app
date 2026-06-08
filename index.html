@@ -582,7 +582,11 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){el
 const ELOG_KEY='okinawa_edu_errlog';
 function elog(o){try{const a=JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');a.push(Object.assign({t:Date.now()},o));while(a.length>20)a.shift();localStorage.setItem(ELOG_KEY,JSON.stringify(a));}catch(e){}}
 // 通信起因の共有問題エラー（Failed to fetch / HTTP / オフライン）は不具合ではないので🐞ログから除外する純粋関数
-function filterNetErr(a){return Array.isArray(a)?a.filter(e=>!(e&&e.type==='community'&&/failed to fetch|networkerror|load failed|ネットワーク|オフライン|取得に失敗|HTTP\s+\d/i.test(String(e.msg||'')))):[];}
+function filterNetErr(a){if(!Array.isArray(a))return [];const TRANSIENT=/failed to fetch|networkerror|load failed|ネットワーク|オフライン|取得に失敗|HTTP\s+\d/i;
+  return a.filter(e=>{if(!e)return false;const m=String(e.msg||'');if(!TRANSIENT.test(m))return true; // 通信由来でなければ残す
+    if(e.type==='community')return false; // 共有の一時通信エラー＝誤検知（記録しない方針）
+    if(e.type==='load'&&!/キャッシュも無し|フォールバック不可/.test(m))return false; // 読込の一時失敗（復旧済み・旧版が残した記録）＝誤検知。真の失敗(キャッシュも無し)は残す
+    return true;});}
 function pruneNetErrLog(){try{const a=JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');const b=filterNetErr(a);if(b.length!==(Array.isArray(a)?a.length:0))localStorage.setItem(ELOG_KEY,JSON.stringify(b));}catch(e){}} // 既存の誤検知エントリを一度だけ掃除
 function getElog(){try{return JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');}catch(e){return[];}}
 function clearElog(){try{localStorage.removeItem(ELOG_KEY);}catch(e){}}
@@ -1909,14 +1913,23 @@ async function boot(){
   // 通算統計の後付けフィールド導入前の履歴をカードのhistからバックフィル（既存ユーザーの過小表示を是正・1回のみ）
   if(!store._statMig){let ta=0,tc=0;Object.values(store.cards||{}).forEach(c=>{(c.hist||[]).forEach(h=>{ta++;if(h&&h.ok)tc++;});});if(ta>(store.totalAnswered||0)){store.totalAnswered=ta;store.totalCorrect=tc;}store._statMig=1;save();}
   if(store.examDate){const dl=examDaysLeft();if(dl!=null&&dl<0){store.examDate=null;store.examDateT=Date.now();save();}} // 試験日翌日に自動解除（当日dl=0は維持＝「試験当日」表示）
-  try{
-    const res=await fetch('questions.json');
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    BASE_QUESTIONS=await res.json();
-    try{const s=JSON.stringify(BASE_QUESTIONS);if(localStorage.getItem(QJSON_CACHE)!==s)localStorage.setItem(QJSON_CACHE,s);}catch(_){} // 最後に成功した版を保持（内容不変なら書込み省略＝毎起動の大容量同期書込みを回避）
-  }catch(e){
-    elog({type:'load',msg:'questions.json 読み込み失敗: '+((e&&e.message)||e)});console.warn('questions.json 読み込み失敗',e);
-    try{const c=JSON.parse(localStorage.getItem(QJSON_CACHE)||'[]');if(Array.isArray(c)&&c.length){BASE_QUESTIONS=c;console.warn('前回キャッシュの問題で起動');}}catch(_){}  // 読込失敗時は前回版にフォールバック
+  // questions.json 読み込み：一時的な503/瞬断は一度だけ自動再試行→ダメなら前回キャッシュへ。
+  // 復旧できた場合はユーザー向け🐞ログに記録しない（共有問題の通信エラーと同じ無害化方針＝偽アラームを出さない）。
+  for(let attempt=0;attempt<2;attempt++){
+    try{
+      const res=await fetch('questions.json',attempt?{cache:'reload'}:undefined); // 再試行はHTTPキャッシュをバイパス
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      const data=await res.json();
+      if(!Array.isArray(data)||!data.length)throw new Error('empty'); // 空配列＝壊れた応答とみなしフォールバック
+      BASE_QUESTIONS=data;
+      try{const s=JSON.stringify(data);if(localStorage.getItem(QJSON_CACHE)!==s)localStorage.setItem(QJSON_CACHE,s);}catch(_){} // 最後に成功した版を保持（内容不変なら書込み省略）
+      break;
+    }catch(e){
+      if(attempt===0){await new Promise(r=>setTimeout(r,700));continue;} // 一時障害（503等）は一度だけ待って再試行＝多くはこれで自己回復
+      let cached=[];try{cached=JSON.parse(localStorage.getItem(QJSON_CACHE)||'[]');}catch(_){}
+      if(Array.isArray(cached)&&cached.length){BASE_QUESTIONS=cached;console.warn('[load] questions.json 取得失敗→前回版で継続:',(e&&e.message)||e);} // 復旧済み＝記録しない（コンソールのみ）
+      else{elog({type:'load',msg:'questions.json 読み込み失敗（キャッシュも無し）: '+((e&&e.message)||e)});console.warn('questions.json 読み込み失敗（フォールバック不可）',e);} // 真に問題が無い時だけ記録＝開発者の手掛かり
+    }
   }
   rebuildQuestions();
   selfCheck();                          // 整合性チェックは起動時1回

@@ -139,6 +139,19 @@ section('filterNetErr: 通信失敗の共有エラーは除外・実バグは残
   ok('残ったのは2件', out.length===2);
   ok('非配列は空配列を返す', Array.isArray(APP.filterNetErr(null))&&APP.filterNetErr(null).length===0);
 }
+{
+  // load（questions.json）：一時失敗は誤検知として掃除、キャッシュも無い真の失敗は残す
+  const log=[
+    {t:1,type:'load',msg:'questions.json 読み込み失敗: HTTP 503'},               // 旧版の一時失敗記録＝除外
+    {t:2,type:'load',msg:'questions.json 読み込み失敗: Failed to fetch'},        // 一時失敗＝除外
+    {t:3,type:'load',msg:'questions.json 読み込み失敗（キャッシュも無し）: HTTP 503'}, // 真の失敗＝残す
+  ];
+  const out=APP.filterNetErr(log);
+  ok('load一時失敗(HTTP 503)を除外', !out.some(e=>e.t===1));
+  ok('load一時失敗(Failed to fetch)を除外', !out.some(e=>e.t===2));
+  ok('loadキャッシュも無し(真の失敗)は残す', out.some(e=>e.t===3));
+  ok('残ったのは1件', out.length===1);
+}
 
 // =========================== アクセストークンの保存・再利用（リロードで再ログインを求めない）===========================
 section('gTok: 期限内は再利用・期限切れ/壊れは破棄');
