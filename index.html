@@ -802,7 +802,8 @@ function renderHome(){
   const seen=QUESTIONS.filter(q=>getCard(q.id)).length;                 // 学習に着手した問題数
   const todayDone=(store.dailyDone&&store.dailyDone[todayStr()])||0;     // 今日解いた数
   const dl=examDaysLeft();
-  const examChip=dl!=null?(dl>0?`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験まであと${dl}日</span>`:`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験当日</span>`):`<span class="streak" id="examSetChip" role="button" tabindex="0" style="background:rgba(255,255,255,.2);cursor:pointer" title="試験日を設定">🎯 試験日を設定</span>`; // 未設定時は常設の入口（「あとで」で消えても再設定できる）
+  const examPromptShowing=(!store.examDate&&localStorage.getItem('oki_exam_skip')!=='1'); // 試験日カードを出す条件。ヒーロー内チップと二重表示しないための判定に再利用
+  const examChip=dl!=null?(dl>0?`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験まであと${dl}日</span>`:`<span class="streak" style="background:var(--accent);color:#fff">🎯 試験当日</span>`):(examPromptShowing?'':`<span class="streak" id="examSetChip" role="button" tabindex="0" style="background:rgba(255,255,255,.2);cursor:pointer" title="試験日を設定">🎯 試験日を設定</span>`); // 未設定でも試験日カード表示中はチップを出さない（二重入口の解消）／カードを「あとで」で閉じた後はチップが再設定の入口
   const studiedToday=store.lastDate===todayStr();
   const nudge=(!studiedToday&&(store.streak||0)>0)?`<div class="card" style="border-left:4px solid var(--warn);font-size:.86rem;color:var(--ink)">🔥 ${store.streak}日連続中。今日はまだ未学習です——1問だけでも続けて記録を伸ばしましょう。</div>`:'';
   const sess=store.session;
@@ -823,7 +824,7 @@ function renderHome(){
     <div class="searchwrap" style="margin-bottom:4px"><span class="mag" aria-hidden="true">🔎</span><input type="search" class="search" id="globalSearch" placeholder="要点・逆引き・問題・論文を横断検索" aria-label="アプリ内を横断検索" enterkeyhint="search"></div>
     <div class="gsres" id="gsres" aria-live="polite"></div>`;
   const recentHTML=(!firstRun&&(store.recent||[]).length)?`<div style="margin:2px 2px 8px"><div class="recenthd">🕘 最近見た</div><div class="recentrow">${store.recent.slice(0,8).map(rc=>`<button class="rchip chip" data-t="${esc(rc.t)}" data-id="${esc(String(rc.id))}">${rc.t==='ref'?'📚':'🔎'} ${esc(rc.label)}</button>`).join('')}</div></div>`:'';
-  const examPrompt=(!store.examDate&&localStorage.getItem('oki_exam_skip')!=='1')?`
+  const examPrompt=examPromptShowing?`
     <div class="card" id="examPrompt" style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;border-left:4px solid var(--accent)">
       <span style="font-size:.88rem;font-weight:700">🎯 試験日を設定</span>
       <input type="date" id="examPromptIn" aria-label="試験日" min="${todayISO()}" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit">
@@ -835,13 +836,14 @@ function renderHome(){
       <small style="color:var(--sub)">⚠️ <b>問題はAIで作成</b>しています。誤りの可能性があるため、各問題の解説の <b>📖 条文/資料を読む</b> でご自身でも確かめてください。</small>
       <div style="margin-top:7px"><button class="btn ghost" id="aiNoticeOk" style="padding:4px 12px;min-height:auto">了解（次回から非表示）</button></div>
     </div>`;
+  const homeSyncHTML=(()=>{const st=authState(),ls=lastSyncMs(),lst=ls?relTime(ls):'';
+    if(st==='in')return `<div class="homesync on" id="homeSync" role="button" tabindex="0" aria-label="Googleにログイン中${lst?'・最終同期'+lst:''}。タップで同期設定"><span>☁️ 同期中${lst?'・最終同期 '+lst:''}</span><span class="hs-act">管理 ›</span></div>`;
+    if(st==='reconnecting')return `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="Googleに再接続しています"><span>☁️ Googleに再接続中…</span><span class="hs-act">　</span></div>`;
+    if(st==='stale')return `<div class="homesync stale" id="homeSync" role="button" tabindex="0" aria-label="ログインが切れました。進捗はこの端末に保存済み。タップして再接続"><span>⚠️ ログインが切れました（進捗は端末に保存済み）</span><span class="hs-act">再接続 ›</span></div>`;
+    return `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="未ログイン。進捗はこの端末に保存されています。タップしてGoogleでログイン"><span>✓ 進捗はこの端末に保存中／スマホ・PCで引き継ぐには</span><span class="hs-act">☁️ ログイン ›</span></div>`;})();
   el.innerHTML=`
     ${welcome}
-    ${searchBlock}
-    ${recentHTML}
-    ${examPrompt}
     ${resumeBar?`<div style="margin-bottom:8px">${resumeBar}</div>`:''}
-    ${nudge}
     <div class="hero">
       <div class="row">
         <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
@@ -867,12 +869,11 @@ function renderHome(){
       </div>
       <button class="cta" id="ctaDaily">${ctaLabel}<small>忘れた頃の問題が自動で戻ってきます</small></button>
     </div>
+    ${nudge}
+    ${examPrompt}
     ${aiNotice}
-    ${(()=>{const st=authState(),ls=lastSyncMs(),lst=ls?relTime(ls):'';
-      if(st==='in')return `<div class="homesync on" id="homeSync" role="button" tabindex="0" aria-label="Googleにログイン中${lst?'・最終同期'+lst:''}。タップで同期設定"><span>☁️ 同期中${lst?'・最終同期 '+lst:''}</span><span class="hs-act">管理 ›</span></div>`;
-      if(st==='reconnecting')return `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="Googleに再接続しています"><span>☁️ Googleに再接続中…</span><span class="hs-act">　</span></div>`;
-      if(st==='stale')return `<div class="homesync stale" id="homeSync" role="button" tabindex="0" aria-label="ログインが切れました。進捗はこの端末に保存済み。タップして再接続"><span>⚠️ ログインが切れました（進捗は端末に保存済み）</span><span class="hs-act">再接続 ›</span></div>`;
-      return `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="未ログイン。進捗はこの端末に保存されています。タップしてGoogleでログイン"><span>✓ 進捗はこの端末に保存中／スマホ・PCで引き継ぐには</span><span class="hs-act">☁️ ログイン ›</span></div>`;})()}
+    ${searchBlock}
+    ${recentHTML}
     ${seen>0?`<h3 class="sec">習得の内訳</h3>
     <div class="card">
       <div class="layers" role="img" aria-label="しっかり覚えた ${counts.mast}問、もう少し ${counts.near}問、学習中 ${counts.learn}問、未学習 ${counts.new}問">
@@ -894,7 +895,8 @@ function renderHome(){
       <button class="quick" data-act="review"><span class="ic">🎯</span><b>弱点を復習</b><span>${QUESTIONS.filter(q=>isWeak(q.id)).length}問が対象</span></button>
       <button class="quick" data-act="ronbun"><span class="ic">📝</span><b>論文・面接</b><span>型と根拠のテンプレ</span></button>
       <button class="quick" data-act="map"><span class="ic">🗺️</span><b>関係図</b><span>資料のつながり</span></button>
-    </div>`;
+    </div>
+    ${homeSyncHTML}`;
   el.querySelectorAll('.rchip').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.t,id=b.dataset.id;if(t==='ref')openRef(id);else openLk(id);})); // 最近見た→再オープン
   const gs=el.querySelector('#globalSearch');if(gs){gs.addEventListener('input',e=>runSearchDebounced(e.target.value));
     gs.addEventListener('keydown',e=>{if(e.key==='Enter'){const b=el.querySelector('#gsres .gsitem');if(b){e.preventDefault();b.click();}}});} // Enterで先頭の検索結果へ
