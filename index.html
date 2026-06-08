@@ -858,7 +858,7 @@ function renderHome(){
         </svg>
         <div>
           <h2>${greet} 👋</h2>
-          <p>定着＝間隔をあけても思い出せた問題。続けるほど増えます（100%が目標ではありません）。</p>
+          <p>定着＝間隔をあけても思い出せた問題。続けるほど増えます。</p>
           <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:4px">
             <span class="streak">🔥 ${store.streak||0}日連続</span>${examChip}
           </div>
@@ -1015,7 +1015,7 @@ function renderQuiz(){
        <button class="mode mock" data-m="mock"><span class="ic">📝</span><b>模試（20問・時間計測）</b><span>全分野ミックスで力試し</span></button>
      </div>
      <h3 class="sec">分野を選んで形式で解く</h3>
-     <div id="catwrap"><div class="hint" style="margin:2px 2px 7px;font-size:.72rem">① まず分野を選び　② 下の形式カードで出題（この分野指定は下の5形式だけに効きます）</div><div class="catbar" id="cats" aria-label="分野で絞り込み"></div></div>
+     <div id="catwrap"><div class="hint" style="margin:2px 2px 7px;font-size:.72rem">① まず分野を選び　② 下の形式カードで出題</div><div class="catbar" id="cats" aria-label="分野で絞り込み"></div></div>
      <div id="fmtCatTag" class="fmtcattag" aria-live="polite"></div>
      <div class="modegrid" id="modesFmt">
        <button class="mode" data-m="qa"><span class="ic">💬</span><b>一問一答</b><span>答えを想起→自己評価</span></button>
