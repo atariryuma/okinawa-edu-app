@@ -831,7 +831,7 @@ function renderHome(){
     <div class="card" id="examPrompt" style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;border-left:4px solid var(--accent)">
       <span style="font-size:.88rem;font-weight:700">🎯 試験日を設定</span>
       <input type="date" id="examPromptIn" aria-label="試験日" min="${todayISO()}" style="padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font:inherit">
-      <span style="font-size:.73rem;color:var(--sub)">本番に向けて復習間隔を最適化</span>
+      <span style="font-size:.73rem;color:var(--sub)">試験に向けて復習間隔を最適化</span>
       <button class="btn ghost" id="examSkip" style="padding:4px 10px;min-height:auto;margin-left:auto">あとで</button>
     </div>`:'';
   const aiNotice=localStorage.getItem('okinawa_ai_notice')==='off'?'':`
@@ -865,7 +865,6 @@ function renderHome(){
           <div class="mini">
             <div class="ministat" role="button" tabindex="0" data-go="due" aria-label="今日の復習 ${dueRev}問・タップで解く"><b>${dueRev}</b><span>今日の復習 ›</span></div>
             <div><b>${todayDone}</b><span>今日解いた</span></div>
-            <div class="ministat" role="button" tabindex="0" data-go="prog" aria-label="定着 ${counts.mast}問・タップで詳しく"><b>${counts.mast}/${total}</b><span>定着 ›</span></div>
           </div>
           <div style="margin-top:7px;font-size:.72rem;opacity:.95">今日の目標 ${todayDone}/${goal}${todayDone>=goal?' ✓達成':''}　${goalDots}</div>
         </div>
@@ -1117,7 +1116,7 @@ function showQ(){
   if(store.session){store.session.idx=quizIdx;save();} // 中断復帰用に現在位置を保存
   const q=quizPool[quizIdx];
   const prog=`<div class="progressbar" role="progressbar" aria-valuemin="0" aria-valuemax="${quizPool.length}" aria-valuenow="${quizIdx+1}" aria-label="${quizPool.length}問中 ${quizIdx+1}問目"><i style="width:${quizIdx/quizPool.length*100}%"></i></div>
-    <div id="sstat" style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--sub);margin:4px 2px 2px"><span>残り ${Math.max(0,quizPool.length-quizIdx-1)}問</span><span class="sstreak">${sStreak>1?'🔥 '+sStreak+'連続正解':''}</span></div>`;
+  <div id="sstat" style="display:flex;justify-content:flex-end;font-size:.72rem;color:var(--sub);margin:4px 2px 2px"><span class="sstreak">${sStreak>1?'🔥 '+sStreak+'連続正解':''}</span></div>`;
   let commBadge='';
   if(COMMUNITY_IDS.has(q.id)){
     const up=q.up||0;
