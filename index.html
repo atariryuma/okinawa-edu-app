@@ -560,6 +560,9 @@ function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){el
 // 進捗タブから開発者へコピー送付できる。プライバシー：外部送信は一切しない。
 const ELOG_KEY='okinawa_edu_errlog';
 function elog(o){try{const a=JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');a.push(Object.assign({t:Date.now()},o));while(a.length>20)a.shift();localStorage.setItem(ELOG_KEY,JSON.stringify(a));}catch(e){}}
+// 通信起因の共有問題エラー（Failed to fetch / HTTP / オフライン）は不具合ではないので🐞ログから除外する純粋関数
+function filterNetErr(a){return Array.isArray(a)?a.filter(e=>!(e&&e.type==='community'&&/failed to fetch|networkerror|load failed|ネットワーク|オフライン|取得に失敗|HTTP\s+\d/i.test(String(e.msg||'')))):[];}
+function pruneNetErrLog(){try{const a=JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');const b=filterNetErr(a);if(b.length!==(Array.isArray(a)?a.length:0))localStorage.setItem(ELOG_KEY,JSON.stringify(b));}catch(e){}} // 既存の誤検知エントリを一度だけ掃除
 function getElog(){try{return JSON.parse(localStorage.getItem(ELOG_KEY)||'[]');}catch(e){return[];}}
 function clearElog(){try{localStorage.removeItem(ELOG_KEY);}catch(e){}}
 window.addEventListener('error',e=>{elog({type:'error',msg:String((e&&(e.message||e.error))||e),at:(e&&e.filename?e.filename.split('/').pop():'')+':'+((e&&e.lineno)||'')});});
@@ -1543,10 +1546,22 @@ function loadCommunityCache(){try{const a=JSON.parse(localStorage.getItem(COMMUN
 // 端末ごとの匿名ID（スパムのレート制限用。個人を特定しない）
 function deviceId(){let d=localStorage.getItem('okinawa_device_id');if(!d){d='d'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('okinawa_device_id',d);}return d;}
 const COMMUNITY_MAX=1000; // 取り込み上限（localStorage肥大の歯止め）
-async function fetchCommunity(){const url=getCommunityUrl();if(!url)return;
-  try{const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);const j=await r.json();const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
-    if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(validQuestion).slice(0,COMMUNITY_MAX);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}
-  }catch(e){elog({type:'community',msg:'共有問題の取得に失敗: '+((e&&e.message)||e)});}}
+// みんなの問題の取得はベストエフォート（失敗してもキャッシュで動作）。一時的な通信失敗(Failed to fetch/オフライン)は
+// ユーザー向け🐞ログに出さず、少回数の自動リトライ＋接続復帰(online)で再取得する。記録するのは「200なのに応答が壊れている」
+// ＝バックエンド不具合の兆候だけ。これで通信ブリップが不具合として誤報告されるのを防ぐ。
+function _commRetry(n){if((n||0)<2)setTimeout(()=>fetchCommunity((n||0)+1),1500*((n||0)+1));else hookCommunityOnline();}
+let _commOnlineHooked=false;
+function hookCommunityOnline(){if(_commOnlineHooked)return;_commOnlineHooked=true;const h=()=>{window.removeEventListener('online',h);_commOnlineHooked=false;fetchCommunity();};window.addEventListener('online',h);} // 接続が戻ったら1回だけ再取得
+async function fetchCommunity(retry){const url=getCommunityUrl();if(!url)return;
+  let r;
+  try{r=await fetch(url);}
+  catch(e){console.warn('[community] 通信失敗（キャッシュで継続）:',(e&&e.message)||e);return _commRetry(retry);} // ネットワーク例外＝想定内。記録せず自動復帰に任せる
+  if(!r.ok){console.warn('[community] HTTP '+r.status+'（キャッシュで継続）');return _commRetry(retry);} // サーバ側/一時的。記録しない
+  let j;
+  try{j=await r.json();}
+  catch(pe){elog({type:'community',msg:'共有問題の応答が不正（HTTP200だがJSON解析失敗）'});console.warn('[community] JSON解析失敗:',pe);return;} // ここだけは記録＝バックエンド不具合の手掛かり
+  const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
+  if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(validQuestion).slice(0,COMMUNITY_MAX);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}}
 // ===== 投稿の身元確認は「IDトークン(JWT)」を使う =====
 // アクセストークン(Drive権限を持つ資格情報)ではなく、身元のみを示すIDトークンを送る。
 // 漏えいしてもアクセス権を与えない。取得できない時は idtoken 空＝GAS側で審査(pending)へ安全に縮退。
@@ -1808,6 +1823,7 @@ function rerenderAll(){
   if(document.getElementById('prog'))try{renderProg();}catch(e){}}
 const QJSON_CACHE='okinawa_qjson_cache';
 async function boot(){
+  pruneNetErrLog();                     // 通信起因の共有問題エラー（旧版が🐞ログに残した誤検知）を一度だけ掃除
   loadCommunityCache();                 // 前回取得した共有問題（オフライン/初速のため）
   // 通算統計の後付けフィールド導入前の履歴をカードのhistからバックフィル（既存ユーザーの過小表示を是正・1回のみ）
   if(!store._statMig){let ta=0,tc=0;Object.values(store.cards||{}).forEach(c=>{(c.hist||[]).forEach(h=>{ta++;if(h&&h.ok)tc++;});});if(ta>(store.totalAnswered||0)){store.totalAnswered=ta;store.totalCorrect=tc;}store._statMig=1;save();}
