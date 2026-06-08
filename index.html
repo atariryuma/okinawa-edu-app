@@ -1573,7 +1573,9 @@ function initGoogle(){
       }else if(!gSilent){toast('ログインできませんでした');}
       gSilent=false;
     },
-    error_callback:()=>{gSilent=false;}});               // サイレント取得が無理なら静かにサインアウト状態のまま
+    error_callback:(err)=>{ // 明示ログインの失敗は無反応にせずフィードバック（ポップアップ拒否/オリジン不一致/通信断など）。ユーザーが自分で閉じた時(popup_closed)だけは黙る
+      if(!gSilent){const t=(err&&err.type)||'';if(t!=='popup_closed')toast('ログインを完了できませんでした。ポップアップの許可と通信状況をご確認ください');}
+      gSilent=false;}});                                  // サイレント取得が無理なら静かにサインアウト状態のまま
   initIdToken();
   return true;
 }
@@ -1586,7 +1588,7 @@ function trySilentSignIn(){
     if(--tries>0)setTimeout(wait,150);
   })();
 }
-function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;localStorage.removeItem('oki_gsign');renderProg();toast('サインアウトしました');}
+function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');renderProg();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されないように（auto_selectも解除）
 // 画面を離れる/戻る時に自動同期（端末間の進捗ズレを抑制）。失敗は静かに無視。
 let _bgSyncT=0;
 function bgSync(){if(!gSignedIn||!accessToken)return;clearTimeout(_bgSyncT);_bgSyncT=setTimeout(()=>cloudSync(true),700);}
@@ -1655,16 +1657,20 @@ async function cloudSync(quiet){if(!accessToken)return;try{
   const merged=mergeStore(store,cloud);
   await driveSave(merged);          // 先にクラウドへ書込（失敗時は例外でローカル不変＝データ喪失を防ぐ）
   store=merged;save();              // クラウド成功を確認してからローカルを確定
+  try{localStorage.setItem('oki_last_sync',String(Date.now()));}catch(e){} // 最終同期時刻（UIの安心材料）
   rebuildQuestions();               // 同期で増えた自作問題を即出題対象に（リロード不要・validQuestionで検証）
-  renderHome();
+  renderHome();mountSync();         // 同期カードの「最終同期」も更新
 }catch(e){console.warn(e);
-  if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;trySilentSignIn();return;} // アクセストークン失効→無音で再取得し次回同期で自動復帰
+  if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;mountSync();trySilentSignIn();return;} // アクセストークン失効→UIを最新化しつつ無音で再取得（次回同期で自動復帰）
   if(!quiet)toast('同期に失敗しました');}}  // 背景同期(quiet)は失敗トーストを出さない
+function relTime(ts){if(!ts)return '';const s=Math.max(0,Math.floor((Date.now()-ts)/1000));if(s<60)return 'たった今';const m=Math.floor(s/60);if(m<60)return m+'分前';const h=Math.floor(m/60);if(h<24)return h+'時間前';const d=Math.floor(h/24);return d+'日前';} // 最終同期の相対表示
 function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
+  const lastSync=(()=>{const v=+localStorage.getItem('oki_last_sync');return Number.isFinite(v)&&v>0?v:0;})();
   mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
     <div class="st"><span class="dotg"></span>${gSignedIn?'Googleと同期中':'Google Driveに進捗を保存'}</div>
     <small>${gSignedIn?'進捗はDriveのアプリ専用フォルダに保存され、複数の端末で引き継げます。':'ログインすると、スマホとPCで進捗を共有できます（Driveの隠しアプリフォルダに保存）。'} <a href="privacy.html" target="_blank" rel="noopener noreferrer" aria-label="プライバシーポリシーを新しいタブで開く" style="color:inherit;text-decoration:underline">プライバシーポリシー</a></small>
+    ${gSignedIn&&lastSync?`<div class="synclast" style="font-size:.72rem;color:var(--sub);margin-top:6px">最終同期：${relTime(lastSync)}</div>`:''}
     ${cid?'':`<input id="cidIn" placeholder="Google OAuth クライアントIDを貼り付け（…apps.googleusercontent.com）" aria-label="クライアントID">`}
     <div class="syncrow" style="margin-top:10px">
       ${cid?'':'<button class="btn" id="saveCid">IDを保存</button>'}
@@ -1676,7 +1682,7 @@ function mountSync(){
   if(q('#saveCid'))q('#saveCid').addEventListener('click',()=>{const v=q('#cidIn').value.trim();if(!v){toast('IDを入力してください');return;}localStorage.setItem('gclient',v);tokenClient=null;mountSync();toast('保存しました。ログインできます');});
   if(q('#clrCid'))q('#clrCid').addEventListener('click',()=>{localStorage.removeItem('gclient');tokenClient=null;accessToken=null;gSignedIn=false;mountSync();});
   if(q('#signIn'))q('#signIn').addEventListener('click',signInGoogle);
-  if(q('#syncNow'))q('#syncNow').addEventListener('click',async()=>{await cloudSync();toast('同期しました ✓');});
+  if(q('#syncNow'))q('#syncNow').addEventListener('click',async(e)=>{const b=e.currentTarget;if(b.disabled)return;b.disabled=true;const o=b.textContent;b.textContent='同期中…';try{await cloudSync();toast('同期しました ✓');}finally{b.disabled=false;b.textContent=o;}}); // 二重押し防止＋進行表示
   if(q('#signOut'))q('#signOut').addEventListener('click',signOutGoogle);
 }
 
