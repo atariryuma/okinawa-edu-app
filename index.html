@@ -246,7 +246,7 @@
   /* クイズの主要操作を親指圏（下部）へ */
   .qstick{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom));z-index:5;box-shadow:0 4px 16px rgba(0,0,0,.18);}
   /* 横断検索の結果 */
-  .gsres h5{margin:13px 0 1px;font-size:.74rem;color:var(--sub);}
+  .gsres h3{margin:13px 0 1px;font-size:.74rem;color:var(--sub);font-weight:700;} /* 見出し階層を h2→h3 に揃える（飛び級回避）。小さい既存の見た目は維持 */
   .gsitem{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin-top:6px;cursor:pointer;font:inherit;color:var(--ink);}
   .gsitem:active{transform:scale(.99);}
   .gsk{display:inline-block;font-size:.66rem;color:#fff;background:var(--sub);border-radius:5px;padding:1px 6px;margin-right:7px;vertical-align:middle;}
@@ -770,7 +770,7 @@ function runSearch(qstr){
   const order=['要点','逆引き','問題','論文'],groups={};hits.forEach(h=>{(groups[h.k]=groups[h.k]||[]).push(h);});
   Object.keys(groups).forEach(k=>groups[k].sort((a,b)=>score(b)-score(a)));      // 各グループ内を関連度順に並べ替え
   const flat=[];let html='';
-  order.forEach(k=>{const g=groups[k];if(!g)return;html+=`<h5>${k}（${g.length}）</h5>`;g.slice(0,5).forEach(h=>{const gi=flat.length;flat.push(h);html+=`<button class="gsitem" data-gi="${gi}"><span class="gsk">${k}</span>${esc(h.t).slice(0,80)}</button>`;if(h.ans)html+=`<div class="gsans" id="gsans-${gi}" hidden style="border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;padding:8px 10px;margin:-4px 0 6px;background:var(--card)"></div>`;});if(g.length>5)html+=`<div class="hint" style="margin:4px 2px;font-size:.7rem">他 ${g.length-5} 件…語を足すと絞れます</div>`;});
+  order.forEach(k=>{const g=groups[k];if(!g)return;html+=`<h3>${k}（${g.length}）</h3>`;g.slice(0,5).forEach(h=>{const gi=flat.length;flat.push(h);html+=`<button class="gsitem" data-gi="${gi}"><span class="gsk">${k}</span>${esc(h.t).slice(0,80)}</button>`;if(h.ans)html+=`<div class="gsans" id="gsans-${gi}" hidden style="border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;padding:8px 10px;margin:-4px 0 6px;background:var(--card)"></div>`;});if(g.length>5)html+=`<div class="hint" style="margin:4px 2px;font-size:.7rem">他 ${g.length-5} 件…語を足すと絞れます</div>`;});
   res.innerHTML=html;
   res.querySelectorAll('.gsitem').forEach(btn=>btn.addEventListener('click',()=>{
     const gi=+btn.dataset.gi,h=flat[gi];if(!h)return;
