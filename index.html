@@ -209,6 +209,7 @@
   .mode.daily span{color:rgba(255,255,255,.9);}
   .mode.review{grid-column:1/3;border-color:var(--ng);}
   .mode.review b{color:var(--ng);}
+  #modesAuto .mode.review{grid-column:auto;} /* おまかせ群では弱点＋模試を2列に並べる（今日の学習だけ全幅バナー） */
   .catbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
   .catbar button{border:1px solid var(--line2);background:var(--card);border-radius:16px;padding:7px 12px;font-size:.74rem;cursor:pointer;color:var(--ink);min-height:38px;}
   .catbar button.on{background:var(--proj);color:#fff;border-color:var(--proj);}
@@ -989,19 +990,28 @@ function renderQuiz(){
   if(typeof stopMockTimer==='function')stopMockTimer();   // モード選択に戻る＝模試終了
   const due=dueList().length,weak=QUESTIONS.filter(q=>isWeak(q.id)).length;
   el.innerHTML=`
-   <div class="modegrid" id="modes">
-     <button class="mode daily" data-m="daily"><span class="ic">⚡</span><b>今日の学習（${dailyCount()||'+'}問）</b><span>期日が来た問題を優先・間隔反復</span></button>
-     <button class="mode review" data-m="review"><span class="ic">🎯</span><b>弱点だけ復習（${weak}）</b><span>まだ不安定な問題（要復習）</span></button>
-     <button class="mode" data-m="bookmark"><span class="ic">⭐</span><b>付箋（${bmCount('q')}）</b><span>あとで見返す問題</span></button>
-     <button class="mode" data-m="qa"><span class="ic">💬</span><b>一問一答</b><span>答えを想起→自己評価</span></button>
-     <button class="mode" data-m="mc"><span class="ic">🔠</span><b>4択選択</b><span>本番に近い形式</span></button>
-     <button class="mode" data-m="cloze"><span class="ic">🟥</span><b>穴埋め（赤シート）</b><span>キーワードを想起</span></button>
-     <button class="mode" data-m="order"><span class="ic">🔀</span><b>並べ替え</b><span>体系・手順</span></button>
-     <button class="mode" data-m="match"><span class="ic">🔗</span><b>関係づけ</b><span>用語と意味</span></button>
-     <button class="mode mock" data-m="mock"><span class="ic">📝</span><b>模試（20問・時間計測）</b><span>全分野ミックス・本番形式</span></button>
-     <button class="mode" data-m="__create"><span class="ic">✍️</span><b>問題を作る・共有</b><span>自作／みんなの問題</span></button>
+   <div id="modePicker">
+     <h3 class="sec">おまかせで解く<span style="font-weight:600;color:var(--sub)">（分野は自動・SRSにおまかせ）</span></h3>
+     <div class="modegrid" id="modesAuto">
+       <button class="mode daily" data-m="daily"><span class="ic">⚡</span><b>今日の学習（${dailyCount()||'+'}問）</b><span>期日が来た問題を優先・間隔反復</span></button>
+       <button class="mode review" data-m="review"><span class="ic">🎯</span><b>弱点だけ復習（${weak}）</b><span>まだ不安定な問題（要復習）</span></button>
+       <button class="mode mock" data-m="mock"><span class="ic">📝</span><b>模試（20問・時間計測）</b><span>全分野ミックス・本番形式</span></button>
+     </div>
+     <h3 class="sec">分野を選んで形式で解く</h3>
+     <div id="catwrap"><div class="hint" style="margin:2px 2px 7px;font-size:.72rem">① まず分野を選び　② 下の形式カードで出題（この分野指定は下の5形式だけに効きます）</div><div class="catbar" id="cats" aria-label="分野で絞り込み"></div></div>
+     <div class="modegrid" id="modesFmt">
+       <button class="mode" data-m="qa"><span class="ic">💬</span><b>一問一答</b><span>答えを想起→自己評価</span></button>
+       <button class="mode" data-m="mc"><span class="ic">🔠</span><b>4択選択</b><span>本番に近い形式</span></button>
+       <button class="mode" data-m="cloze"><span class="ic">🟥</span><b>穴埋め（赤シート）</b><span>キーワードを想起</span></button>
+       <button class="mode" data-m="order"><span class="ic">🔀</span><b>並べ替え</b><span>体系・手順</span></button>
+       <button class="mode" data-m="match"><span class="ic">🔗</span><b>関係づけ</b><span>用語と意味</span></button>
+     </div>
+     <h3 class="sec">その他</h3>
+     <div class="modegrid" id="modesUtil">
+       <button class="mode" data-m="bookmark"><span class="ic">⭐</span><b>付箋（${bmCount('q')}）</b><span>あとで見返す問題</span></button>
+       <button class="mode" data-m="__create"><span class="ic">✍️</span><b>問題を作る・共有</b><span>自作／みんなの問題</span></button>
+     </div>
    </div>
-   <div id="catwrap"><div class="hint" style="margin:2px 2px 6px;font-size:.72rem">出題する分野（一問一答・4択など「形式モード」に適用）</div><div class="catbar" id="cats" aria-label="分野で絞り込み"></div></div>
    <button class="btn ghost" id="qback" hidden style="margin:0 0 10px;padding:4px 12px;min-height:auto">← モード選択へ戻る</button>
    <div id="quizarea"></div>`;
   const cats=['all',...new Set(QUESTIONS.map(q=>q.cat))];
@@ -1010,13 +1020,13 @@ function renderQuiz(){
     b.addEventListener('click',()=>{quizCat=c;[...cb.children].forEach(x=>{x.classList.remove('on');x.setAttribute('aria-pressed','false');});b.classList.add('on');b.setAttribute('aria-pressed','true');
       if(['qa','mc','cloze','order','match'].includes(quizMode))startQuiz(quizMode);}); // 形式モード中はその場で絞り込みを反映
     cb.appendChild(b);});
-  el.querySelector('#modes').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.m==='__create'){openCreate();return;}startQuiz(b.dataset.m);});
+  el.querySelectorAll('#modePicker .modegrid').forEach(g=>g.addEventListener('click',e=>{const b=e.target.closest('button.mode');if(!b)return;if(b.dataset.m==='__create'){openCreate();return;}startQuiz(b.dataset.m);})); // 3グリッド（おまかせ/形式/その他）の出題ボタン
   el.querySelector('#qback').addEventListener('click',()=>renderQuiz()); // 出題中→モード選択へ戻る（グリッド復帰）
   quizMode=null;
 }
 function quizarea(){return document.getElementById('quizarea');}
 // クイズ開始時：モードグリッドと分野バーを退避し、出題が画面を占有するようにする（タップ後に出題が画面外に隠れる問題の解消）
-function enterQuizView(){['modes','catwrap'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display='none';});const b=document.getElementById('qback');if(b)b.hidden=false;try{window.scrollTo(0,0);}catch(_){}}
+function enterQuizView(){const mp=document.getElementById('modePicker');if(mp)mp.style.display='none';const b=document.getElementById('qback');if(b)b.hidden=false;try{window.scrollTo(0,0);}catch(_){}}
 // 模試モードの経過タイマー
 let quizMockStart=0,mockTimerId=null;
 function stopMockTimer(){if(mockTimerId){clearInterval(mockTimerId);mockTimerId=null;}const t=document.getElementById('mockTimer');if(t)t.remove();}
