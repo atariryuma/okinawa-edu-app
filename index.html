@@ -25,17 +25,17 @@
     --accent:#0e7490; --accent2:#0891b2; --accent-soft:#cffafe;
     --ok:#15803d; --ok-soft:#dcfce7; --ng:#c2253b; --ng-soft:#fde7ea; --warn:#b45309;
     --ok-btn:#15803d; --ng-btn:#c2253b; /* 白文字ソリッドボタン用＝両テーマで十分濃く（ダークの淡い--ok/--ngは背景/バッジ用） */
-    --law:#5b6b7a; --vision:#0e7490; --plan:#15803d; --doryoku:#b5651d; --proj:#9a2c6e;
+    --plan:#15803d; --proj:#9a2c6e;
     --shadow:0 1px 2px rgba(16,30,54,.06),0 8px 24px rgba(16,30,54,.08);
     --shadow-sm:0 1px 2px rgba(16,30,54,.06),0 2px 8px rgba(16,30,54,.05);
-    --r1:12px; --r2:16px; --r3:20px;
+    --r2:16px; --r3:20px;
   }
   html[data-theme="dark"]{
     --bg:#0c1220; --bg2:#0a0f1a; --card:#161f30; --ink:#e8eef6; --sub:#a6b2c4;
     --line:#243247; --line2:#3a4d68; --chip:#1d2940;
     --accent:#22d3ee; --accent2:#38bdf8; --accent-soft:#0e3a44;
     --ok:#5fd28a; --ok-soft:#10331f; --ng:#f3868f; --ng-soft:#39191d; --warn:#e0a14a;
-    --law:#9aa7b8; --vision:#22d3ee; --plan:#5fd28a; --doryoku:#e0a14a; --proj:#e26aae;
+    --plan:#5fd28a; --proj:#e26aae;
     --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.45);
     --shadow-sm:0 1px 2px rgba(0,0,0,.35),0 3px 10px rgba(0,0,0,.3);
   }
@@ -156,8 +156,6 @@
   .node .reflink{position:relative;} /* 装飾オーバーレイより前面に＝唯一の深掘り口を確実にクリックできる。本体は表示専用（cursor/押下演出なし） */
   .node h2{margin:0;font-size:.92rem;display:flex;justify-content:space-between;align-items:center;gap:8px;position:relative;color:#fff;}
   .node .tag{font-size:.64rem;background:rgba(255,255,255,.24);padding:3px 9px;border-radius:20px;font-weight:700;white-space:nowrap;}
-  .node .pt{margin:8px 0 0;font-size:.78rem;opacity:.98;display:none;position:relative;}
-  .node.open .pt{display:block;animation:fade .25s;}
   .node.law{background:linear-gradient(135deg,#64748b,#475569);}
   .node.vision{background:linear-gradient(135deg,#0e7490,#0891b2);}
   .node.plan{background:linear-gradient(135deg,#15803d,#0e9f6e);}
@@ -1201,7 +1199,7 @@ function celebrate(msg){try{toast(msg);}catch(_){}
 
 // 自己採点の使い方を初回だけ説明（正直な自己評価を促す）。表示は一度きり。
 function gradeHintHTML(){if(localStorage.getItem('oki_grade_hint')==='1')return '';localStorage.setItem('oki_grade_hint','1');
-  return `<div class="hint" style="font-size:.72rem;margin:8px 2px 0;color:var(--sub)">💡 3段階で自己評価（キー 1/2/3）。「あいまい」＝すぐ復習／「できた」＝標準／「楽勝」＝間隔を長めに。正直に押すほど復習が最適化されます。</div>`;}
+  return `<div class="hint" style="font-size:.72rem;margin:8px 2px 0;color:var(--sub)">💡 自己評価（キー1/2/3）：あいまい＝すぐ復習／できた＝標準／楽勝＝長めに。</div>`;}
 const GRADE3=`<div style="margin-top:11px;display:flex;gap:7px">
         <button class="btn ng" style="flex:1" id="g0">✗ あいまい</button>
         <button class="btn ok" style="flex:1" id="g1">◯ できた</button>
@@ -1599,7 +1597,6 @@ const DEFAULT_CLIENT_ID='773737222519-k2gpp483dqmnghfiuuv48kde10c2khog.apps.goog
 let tokenClient=null,accessToken=null,gSignedIn=false;
 function hasDefaultClientId(){return !!(typeof DEFAULT_CLIENT_ID!=='undefined'&&DEFAULT_CLIENT_ID);}
 function customClientId(){return localStorage.getItem('gclient')||'';} // 利用者が貼った独自ID（フォーク配布時など）
-function usingDefaultClientId(){return hasDefaultClientId()&&!customClientId();} // 既定IDを使用中か（独自ID未設定時のみ）
 function getClientId(){return customClientId()||(hasDefaultClientId()?DEFAULT_CLIENT_ID:'');} // 独自ID > 既定ID の優先順位（既定利用者は従来どおり）
 
 // ===== みんなの問題（コミュニティ共有：GAS Web App＋スプレッドシート） =====
