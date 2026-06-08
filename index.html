@@ -60,6 +60,22 @@
   .theme{width:44px;height:44px;border-radius:13px;border:1px solid var(--line);background:var(--card);
     color:var(--ink);font-size:1.1rem;cursor:pointer;box-shadow:var(--shadow-sm);transition:.2s;flex:0 0 auto;}
   .theme:active{transform:scale(.92);}
+  /* ヘッダー常設のログイン/同期バッジ（全画面でログイン状態が一目で分かる＝レビュー最重要対応。色だけでなくアイコン＋文言で示す） */
+  .authbadge{display:inline-flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);color:var(--sub);border-radius:13px;padding:0 10px;height:44px;font:inherit;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:var(--shadow-sm);transition:.2s;flex:0 0 auto;}
+  .authbadge .ab-ic{font-size:.9rem;filter:grayscale(1);opacity:.65;position:relative;}
+  .authbadge .ab-mk{position:absolute;right:-5px;bottom:-3px;font-size:.62rem;color:var(--ok-btn);font-weight:900;}
+  .authbadge.on{border-color:var(--ok-btn);color:var(--ok-btn);background:rgba(21,128,61,.09);}
+  .authbadge.on .ab-ic{filter:none;opacity:1;}
+  .authbadge:active{transform:scale(.94);}
+  .authbadge:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  @media(max-width:380px){.authbadge .ab-tx{display:none;} .authbadge{padding:0 11px;}} /* 極小幅はアイコンのみ（aria-labelで状態は伝わる） */
+  /* ホーム常設の同期ステータス行（ログイン有無を問わず状態と入口を常時表示。未ログイン時は端末保存の安心も明示） */
+  .homesync{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--sub);font-size:.78rem;cursor:pointer;}
+  .homesync.on{border-color:var(--ok-btn);color:var(--ink);background:rgba(21,128,61,.06);}
+  .homesync .hs-act{font-weight:700;white-space:nowrap;color:var(--accent);}
+  .homesync.on .hs-act{color:var(--ok-btn);}
+  .homesync:active{transform:scale(.99);}
+  .homesync:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   nav.tabs{display:flex;gap:4px;overflow-x:auto;margin:14px -2px 12px;padding:4px;background:var(--card);
     border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-sm);scrollbar-width:none;}
   nav.tabs::-webkit-scrollbar{display:none;}
@@ -293,7 +309,8 @@
   <header class="top">
     <div class="brand">
       <div><h1>沖縄 教育法規ナビ</h1><p>管理職試験の対策 ＆ 学校経営の“判断の根拠”</p></div>
-      <div style="display:flex;gap:6px">
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="authbadge" id="authBadge" aria-live="polite" aria-label="ログイン状態">…</button>
         <button class="theme" id="fontBtn" aria-label="文字サイズを変更">A±</button>
         <button class="theme" id="themeBtn" aria-label="テーマを切り替え" aria-pressed="false">🌙</button>
       </div>
@@ -643,6 +660,13 @@ const fontBtn=document.getElementById('fontBtn');
 function applyFontScale(){document.documentElement.style.fontSize=FONT_SIZES[store.fontScale]||FONT_SIZES.m;}
 fontBtn.addEventListener('click',()=>{const i=FONT_ORDER.indexOf(store.fontScale||'m');store.fontScale=FONT_ORDER[(i+1)%FONT_ORDER.length];save();applyFontScale();toast('文字サイズ：'+FONT_LABEL[store.fontScale]);});
 applyFontScale();
+//==================== ログイン状態バッジ（ヘッダー常設） ====================
+function lastSyncMs(){const v=+localStorage.getItem('oki_last_sync');return Number.isFinite(v)&&v>0?v:0;} // 最終同期時刻（mountSync/home/バッジで共有）
+function updateAuthBadge(){const b=document.getElementById('authBadge');if(!b)return; // gSignedIn変化・同期完了の度に呼ぶ＝全画面で状態が即追従。aria-live=politeで読み上げも変化通知
+  // ✓の有無＝色だけに依存しない形状の差（極小幅でアイコンのみになっても判別可能・WCAG1.4.1）
+  if(typeof gSignedIn!=='undefined'&&gSignedIn){const ls=lastSyncMs();b.className='authbadge on';b.innerHTML='<span class="ab-ic" aria-hidden="true">☁️<b class="ab-mk">✓</b></span><span class="ab-tx">同期中</span>';b.setAttribute('aria-label','Googleにログイン中'+(ls?'・最終同期'+relTime(ls):'')+'。タップで同期設定');}
+  else{b.className='authbadge';b.innerHTML='<span class="ab-ic" aria-hidden="true">☁️</span><span class="ab-tx">未ログイン</span>';b.setAttribute('aria-label','未ログイン（進捗はこの端末にのみ保存）。タップしてGoogleでログイン');}}
+{const ab=document.getElementById('authBadge');if(ab)ab.addEventListener('click',openSync);} // タップ→同期設定へ（初期描画は boot() 内＝gSignedIn 初期化後に実行）
 
 //==================== TABS ====================
 const tabs=document.getElementById('tabs');
@@ -810,7 +834,9 @@ function renderHome(){
       <button class="cta" id="ctaDaily">${ctaLabel}<small>忘れた頃の問題が自動で戻ってきます</small></button>
     </div>
     ${aiNotice}
-    ${(seen>0&&!gSignedIn)?`<button class="btn ghost wide" id="homeSyncBtn" style="margin-top:12px">☁️ Googleで進捗を同期（機種変更しても引き継げます）</button>`:''}
+    ${(()=>{const ls=lastSyncMs(),lst=ls?relTime(ls):'';return gSignedIn
+      ? `<div class="homesync on" id="homeSync" role="button" tabindex="0" aria-label="Googleにログイン中${lst?'・最終同期'+lst:''}。タップで同期設定"><span>☁️ 同期中${lst?'・最終同期 '+lst:''}</span><span class="hs-act">管理 ›</span></div>`
+      : `<div class="homesync" id="homeSync" role="button" tabindex="0" aria-label="未ログイン。進捗はこの端末に保存されています。タップしてGoogleでログイン"><span>✓ 進捗はこの端末に保存中／スマホ・PCで引き継ぐには</span><span class="hs-act">☁️ ログイン ›</span></div>`;})()}
     ${seen>0?`<h3 class="sec">習得の内訳</h3>
     <div class="card">
       <div class="layers" role="img" aria-label="しっかり覚えた ${counts.mast}問、もう少し ${counts.near}問、学習中 ${counts.learn}問、未学習 ${counts.new}問">
@@ -842,7 +868,7 @@ function renderHome(){
   const wk=el.querySelector('#welcomeStart');if(wk)wk.addEventListener('click',()=>{localStorage.setItem('oki_welcome','off');go('quiz');startQuiz('daily');}); // ラベル通り押下で即クイズ開始（挙動一致）
   const exi=el.querySelector('#examPromptIn');if(exi)exi.addEventListener('change',e=>{if(e.target.value){store.examDate=e.target.value;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderHome();toast('試験日を設定しました 🎯');}});
   const exs=el.querySelector('#examSkip');if(exs)exs.addEventListener('click',()=>{localStorage.setItem('oki_exam_skip','1');const n=el.querySelector('#examPrompt');if(n)n.remove();});
-  const hs=el.querySelector('#homeSyncBtn');if(hs)hs.addEventListener('click',openSync);
+  const hs=el.querySelector('#homeSync');if(hs){hs.addEventListener('click',openSync);hs.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSync();}});}
   const esChip=el.querySelector('#examSetChip');if(esChip){esChip.addEventListener('click',openExamSetting);esChip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openExamSetting();}});}
   el.querySelectorAll('.quick').forEach(b=>b.addEventListener('click',()=>{const a=b.dataset.act;if(a==='review'){go('quiz');startQuiz('review');}else go(a);}));
   el.querySelectorAll('.ministat').forEach(b=>{const act=()=>{if(b.dataset.go==='due'){go('quiz');startQuiz('daily');}else go('prog');};b.addEventListener('click',act);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act();}});}); // 数字を導線化
@@ -1500,8 +1526,10 @@ const GSCOPE='https://www.googleapis.com/auth/drive.appdata';
 //   例: const DEFAULT_CLIENT_ID='1234567890-abcde.apps.googleusercontent.com';
 const DEFAULT_CLIENT_ID='773737222519-k2gpp483dqmnghfiuuv48kde10c2khog.apps.googleusercontent.com';
 let tokenClient=null,accessToken=null,gSignedIn=false;
-function usingDefaultClientId(){return !!(typeof DEFAULT_CLIENT_ID!=='undefined'&&DEFAULT_CLIENT_ID);}
-function getClientId(){return usingDefaultClientId()?DEFAULT_CLIENT_ID:(localStorage.getItem('gclient')||'');}
+function hasDefaultClientId(){return !!(typeof DEFAULT_CLIENT_ID!=='undefined'&&DEFAULT_CLIENT_ID);}
+function customClientId(){return localStorage.getItem('gclient')||'';} // 利用者が貼った独自ID（フォーク配布時など）
+function usingDefaultClientId(){return hasDefaultClientId()&&!customClientId();} // 既定IDを使用中か（独自ID未設定時のみ）
+function getClientId(){return customClientId()||(hasDefaultClientId()?DEFAULT_CLIENT_ID:'');} // 独自ID > 既定ID の優先順位（既定利用者は従来どおり）
 
 // ===== みんなの問題（コミュニティ共有：GAS Web App＋スプレッドシート） =====
 // DEFAULT_COMMUNITY_URL に GAS の /exec を入れると、自作問題を承認制で全員に自動共有できる。
@@ -1567,9 +1595,9 @@ function initGoogle(){
       if(resp&&resp.access_token){
         accessToken=resp.access_token;gSignedIn=true;
         localStorage.setItem('oki_gsign','1');           // 次回起動でサイレント再ログインを試す印
-        requestIdToken();await cloudSync(gSilent);
+        requestIdToken();updateAuthBadge();await cloudSync(gSilent);
         if(!gSilent)toast('Googleと同期しました ✓');
-        renderProg();mountSync();renderHome();
+        renderProg();mountSync();renderHome();updateAuthBadge();
       }else if(!gSilent){toast('ログインできませんでした');}
       gSilent=false;
     },
@@ -1588,7 +1616,7 @@ function trySilentSignIn(){
     if(--tries>0)setTimeout(wait,150);
   })();
 }
-function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');renderProg();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されないように（auto_selectも解除）
+function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(accessToken,()=>{});accessToken=null;gSignedIn=false;idTok=null;idTokT=0;if(gIdReady())try{google.accounts.id.disableAutoSelect();}catch(e){} localStorage.removeItem('oki_gsign');renderProg();updateAuthBadge();renderHome();toast('サインアウトしました');} // 身元トークンも破棄＝サインアウト後の共有投稿が旧身元で自動公開されないように（auto_selectも解除）。ヘッダーバッジ/ホーム状態も即更新
 // 画面を離れる/戻る時に自動同期（端末間の進捗ズレを抑制）。失敗は静かに無視。
 let _bgSyncT=0;
 function bgSync(){if(!gSignedIn||!accessToken)return;clearTimeout(_bgSyncT);_bgSyncT=setTimeout(()=>cloudSync(true),700);}
@@ -1652,21 +1680,32 @@ function sanitizeImport(o){const s={};o=o||{};
   if(Array.isArray(o.recent))s.recent=o.recent.filter(r=>r&&typeof r==='object'&&r.t&&r.id!=null).slice(0,12).map(r=>({t:String(r.t).slice(0,8),id:String(r.id).slice(0,80),label:String(r.label||'').slice(0,40),ts:Number(r.ts)||0})); // 型/長さを正規化
   if(typeof o.dailyGoal==='number'&&o.dailyGoal>0&&o.dailyGoal<1000)s.dailyGoal=o.dailyGoal;
   return s;}
-async function cloudSync(quiet){if(!accessToken)return;try{
+// 同時実行の直列化：背景同期・クイズ終了・付箋などが重なっても driveSave の競合(ロストアップデート)を防ぐ。
+// 実行中に来た要求は1回だけ後追い予約（非quietを優先＝失敗トーストを握り潰さない）。最新ローカル状態で必ずもう一度押し上げる。
+let _syncing=false,_syncQueued=false,_syncQueuedLoud=false;
+async function cloudSync(quiet){if(!accessToken)return;
+  if(_syncing){_syncQueued=true;if(!quiet)_syncQueuedLoud=true;return;} // 進行中→後追いを予約
+  _syncing=true;
+  try{
+    await _doSync(quiet);
+    while(_syncQueued){_syncQueued=false;const loud=_syncQueuedLoud;_syncQueuedLoud=false;await _doSync(!loud);}
+  }finally{_syncing=false;}
+}
+async function _doSync(quiet){if(!accessToken)return;try{
   const f=await driveFind();const cloud=f?await driveGet(f.id):null;
   const merged=mergeStore(store,cloud);
   await driveSave(merged);          // 先にクラウドへ書込（失敗時は例外でローカル不変＝データ喪失を防ぐ）
   store=merged;save();              // クラウド成功を確認してからローカルを確定
   try{localStorage.setItem('oki_last_sync',String(Date.now()));}catch(e){} // 最終同期時刻（UIの安心材料）
   rebuildQuestions();               // 同期で増えた自作問題を即出題対象に（リロード不要・validQuestionで検証）
-  renderHome();mountSync();         // 同期カードの「最終同期」も更新
+  renderHome();mountSync();updateAuthBadge(); // 同期カード/ヘッダーバッジ/ホームの「最終同期」も更新
 }catch(e){console.warn(e);
-  if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;mountSync();trySilentSignIn();return;} // アクセストークン失効→UIを最新化しつつ無音で再取得（次回同期で自動復帰）
+  if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;mountSync();updateAuthBadge();trySilentSignIn();return;} // アクセストークン失効→UIを最新化しつつ無音で再取得（次回同期で自動復帰）
   if(!quiet)toast('同期に失敗しました');}}  // 背景同期(quiet)は失敗トーストを出さない
 function relTime(ts){if(!ts)return '';const s=Math.max(0,Math.floor((Date.now()-ts)/1000));if(s<60)return 'たった今';const m=Math.floor(s/60);if(m<60)return m+'分前';const h=Math.floor(m/60);if(h<24)return h+'時間前';const d=Math.floor(h/24);return d+'日前';} // 最終同期の相対表示
 function mountSync(){
   const mt=document.getElementById('syncMount');if(!mt)return;const cid=getClientId();
-  const lastSync=(()=>{const v=+localStorage.getItem('oki_last_sync');return Number.isFinite(v)&&v>0?v:0;})();
+  const lastSync=lastSyncMs();
   mt.innerHTML=`<div class="synccard ${gSignedIn?'on':''}">
     <div class="st"><span class="dotg"></span>${gSignedIn?'Googleと同期中':'Google Driveに進捗を保存'}</div>
     <small>${gSignedIn?'進捗はDriveのアプリ専用フォルダに保存され、複数の端末で引き継げます。':'ログインすると、スマホとPCで進捗を共有できます（Driveの隠しアプリフォルダに保存）。'} <a href="privacy.html" target="_blank" rel="noopener noreferrer" aria-label="プライバシーポリシーを新しいタブで開く" style="color:inherit;text-decoration:underline">プライバシーポリシー</a></small>
@@ -1676,11 +1715,19 @@ function mountSync(){
       ${cid?'':'<button class="btn" id="saveCid">IDを保存</button>'}
       ${gSignedIn?'<button class="btn" id="syncNow">今すぐ同期</button><button class="btn ghost" id="signOut">サインアウト</button>'
         :(cid?'<button class="btn" id="signIn">Googleでログイン</button>':'')}
-      ${cid&&!usingDefaultClientId()?'<button class="btn ghost" id="clrCid" style="flex:0 0 auto">ID変更</button>':''}
-    </div></div>`;
+      ${cid&&!hasDefaultClientId()?'<button class="btn ghost" id="clrCid" style="flex:0 0 auto">ID変更</button>':''}
+    </div>
+    ${hasDefaultClientId()?`<details class="rb" style="margin-top:10px"><summary style="font-size:.74rem;color:var(--sub)">⚙️ 別のGoogleクライアントIDを使う<span class="chev">›</span></summary>
+      <small style="display:block;margin:6px 0">このアプリを自分のサイト／フォークで使う方向け。ご自身のOAuthクライアントID（承認済みオリジンを自分のドメインに設定したもの）を入れてください。${customClientId()?'<b>現在：独自IDを使用中</b>':'現在：既定IDを使用中'}。</small>
+      <input id="cidIn2" placeholder="…apps.googleusercontent.com" aria-label="独自クライアントID">
+      <div class="syncrow" style="margin-top:8px"><button class="btn" id="saveCid2">保存して使う</button>${customClientId()?'<button class="btn ghost" id="clrCid2">既定に戻す</button>':''}</div>
+    </details>`:''}
+    </div>`;
   const q=s=>mt.querySelector(s);
   if(q('#saveCid'))q('#saveCid').addEventListener('click',()=>{const v=q('#cidIn').value.trim();if(!v){toast('IDを入力してください');return;}localStorage.setItem('gclient',v);tokenClient=null;mountSync();toast('保存しました。ログインできます');});
   if(q('#clrCid'))q('#clrCid').addEventListener('click',()=>{localStorage.removeItem('gclient');tokenClient=null;accessToken=null;gSignedIn=false;mountSync();});
+  if(q('#saveCid2'))q('#saveCid2').addEventListener('click',()=>{const v=q('#cidIn2').value.trim();if(!v){toast('IDを入力してください');return;}localStorage.setItem('gclient',v);tokenClient=null;accessToken=null;gSignedIn=false;mountSync();toast('独自IDを保存しました。ログインできます');}); // フォーク利用者：既定IDを上書き
+  if(q('#clrCid2'))q('#clrCid2').addEventListener('click',()=>{localStorage.removeItem('gclient');tokenClient=null;accessToken=null;gSignedIn=false;mountSync();toast('既定IDに戻しました');});
   if(q('#signIn'))q('#signIn').addEventListener('click',signInGoogle);
   if(q('#syncNow'))q('#syncNow').addEventListener('click',async(e)=>{const b=e.currentTarget;if(b.disabled)return;b.disabled=true;const o=b.textContent;b.textContent='同期中…';try{await cloudSync();toast('同期しました ✓');}finally{b.disabled=false;b.textContent=o;}}); // 二重押し防止＋進行表示
   if(q('#signOut'))q('#signOut').addEventListener('click',signOutGoogle);
@@ -1777,6 +1824,7 @@ async function boot(){
   rebuildQuestions();
   selfCheck();                          // 整合性チェックは起動時1回
   rerenderAll();
+  updateAuthBadge();                    // ヘッダーのログイン状態バッジを初期描画（gSignedIn初期化後＝TDZ回避）
   fetchCommunity();                     // 背景で最新の共有問題を取得（届いたら再描画）
   trySilentSignIn();                    // 前回ログイン済みなら無音で再認証→クラウドの最新を取り込む
   setTimeout(maybeIOSInstallHint,1200);  // iOS Safari は beforeinstallprompt が無いので手順を一度だけ案内
