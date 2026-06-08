@@ -978,7 +978,7 @@ function renderLookup(){
   const el=document.getElementById('lookup');
   el.innerHTML=`<div class="searchwrap"><span class="mag" aria-hidden="true">🔎</span>
     <input class="search" id="lkin" placeholder="状況・キーワードで検索（例：不登校、ICT、研修）" aria-label="逆引き検索"></div>
-    ${(()=>{const rec=(store.recent||[]).filter(r=>r.t==='lk').slice(0,6);return rec.length?`<div style="margin:0 2px 8px"><div class="recenthd">🕘 最近見た</div><div class="recentrow">${rec.map(r=>`<button class="lkrecent chip" data-sit="${esc(String(r.id))}">🔎 ${esc(r.label)}</button>`).join('')}</div></div>`:'';})()}
+    ${(()=>{const rec=(store.recent||[]).filter(r=>r.t==='lk').slice(0,6);return rec.length?`<div style="margin:12px 2px 8px"><div class="recenthd">🕘 最近見た</div><div class="recentrow">${rec.map(r=>`<button class="lkrecent chip" data-sit="${esc(String(r.id))}">🔎 ${esc(r.label)}</button>`).join('')}</div></div>`:'';})()}
     <div class="chips" id="lkchips"></div><div id="lkres"></div>`;
   const chips=el.querySelector('#lkchips');
   el.querySelectorAll('.lkrecent').forEach(b=>b.addEventListener('click',()=>{const l=LOOKUP.find(x=>x.sit===b.dataset.sit);if(l){el.querySelector('#lkin').value='';show([l]);}})); // 最近見た→再オープン
