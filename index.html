@@ -355,6 +355,7 @@
   <nav class="bnav" id="bnav" aria-label="メインメニュー">
     <button data-v="home" aria-current="page"><span class="bic" aria-hidden="true">🏠</span>ホーム</button>
     <button data-v="quiz" aria-current="false"><span class="bic" aria-hidden="true">✏️</span>クイズ</button>
+    <button data-v="ronbun" aria-current="false"><span class="bic" aria-hidden="true">📝</span>論文</button>
     <button data-v="lookup" aria-current="false"><span class="bic" aria-hidden="true">🔎</span>逆引き</button>
     <button data-v="ref" aria-current="false"><span class="bic" aria-hidden="true">📖</span>要点</button>
     <button data-v="prog" aria-current="false"><span class="bic" aria-hidden="true">📊</span>進捗</button>
@@ -719,7 +720,7 @@ function go(v,focusPanel){
   if(mockTimerId&&store.session&&store.session.mode==='mock'){store.session.mockElapsed=Math.floor((Date.now()-quizMockStart)/1000);save();} // 離脱時点の経過を保存（再開で続きから・離脱中は加算しない）
   if(typeof stopMockTimer==='function')stopMockTimer();   // タブ移動で模試タイマーを停止
   [...tabs.children].forEach(x=>{const sel=x.dataset.v===v;x.setAttribute('aria-selected',sel);x.tabIndex=sel?0:-1;if(sel&&x.scrollIntoView)try{x.scrollIntoView({inline:'center',block:'nearest'});}catch(_){}}); // 選択タブを常に可視域へ（末尾タブの存在に気づける）
-  {const bn=document.getElementById('bnav');if(bn)[...bn.children].forEach(x=>x.setAttribute('aria-current',x.dataset.v===v?'page':'false'));} // 下部ナビのアクティブ同期（map/ronbunはbnavに無いので非選択）
+  {const bn=document.getElementById('bnav');if(bn)[...bn.children].forEach(x=>x.setAttribute('aria-current',x.dataset.v===v?'page':'false'));} // 下部ナビのアクティブ同期（関係図/設定はbnavに無いので非選択）
   document.querySelectorAll('.view').forEach(s=>s.classList.toggle('active',s.id===v));
   if(v==='home')renderHome();
   if(v==='prog')renderProg();
