@@ -122,9 +122,9 @@
   .hero p{margin:0;font-size:.78rem;opacity:.94;}
   .hero .streak{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.2);
     padding:3px 11px;border-radius:20px;font-size:.78rem;font-weight:800;margin-top:8px;}
-  .hero .mini{display:flex;gap:16px;margin-top:8px;}
-  .hero .mini b{display:block;font-size:1.12rem;font-weight:800;}
-  .hero .mini span{font-size:.7rem;opacity:.92;}
+  .hero .mini{display:flex;gap:12px;margin-top:8px;flex-wrap:wrap;} /* 狭い幅では列ごと折り返す（ラベルの文字単位折り返しを防ぐ安全網） */
+  .hero .mini b{display:block;font-size:1.12rem;font-weight:800;white-space:nowrap;}
+  .hero .mini span{font-size:.7rem;opacity:.92;white-space:nowrap;}
   .hero .mini>div{padding:4px 8px;border-radius:8px;margin:-4px -2px;} /* 3項目の余白を揃える */
   .hero .ministat{cursor:pointer;transition:background .15s;}
   .hero .ministat:hover,.hero .ministat:focus-visible{background:rgba(255,255,255,.16);} /* タップできる手掛かり（白文字に合う半透明白） */
