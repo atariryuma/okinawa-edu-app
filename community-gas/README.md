@@ -17,8 +17,9 @@
 - **本人確認 `trusted`**：IDトークンの `aud`/`azp`=`CLIENT_ID`、`email_verified` 真、`iss`=Google、未失効を `verifyToken_()` が検証。
 - **段階信頼 `rep`**：その端末(`device`)の「承認済み」実績が `REP_TRUST(=2)` 以上なら、匿名でも自動公開の資格（新規/匿名の一発毒入れは `pending` で止め、実績が貯まれば無人で流れる）。
 - **匿名・出典なし・実績不足の投稿**：`pending`。あなたがシートで `approved` にした時だけ配信。
-- **通報→自動降格（可逆）**：アプリ出題画面の「⚠️通報」が `{action:'report',id,device}` を送る。`reports` が `REPORT_LIMIT(=3)` に達すると `approved`→`pending` に自動降格して配信停止＝再審査へ（端末ごと通報レート制限＋同一問題の二重通報抑止）。
-- シート列：`timestamp,status,id,type,cat,json,q,src,device,reports`（`device`/`reports` を追加。コード更新後は **`setup` を再実行**してヘッダを整える）。
+- **👍 役に立った→浮上＆検証済み昇格**：出題画面の「👍 役に立った」が `{action:'vote',id,idtoken}` を送る。**投票は本人確認(IDトークン)必須＝1 Google アカウント1票**（`handleVote_` が `verifyTokenSub_` で検証した `sub` 単位で集計・レート・二重投票抑止。未ログインは `{error:'login required'}`）。`up` が `UP_VERIFY(=3)` 以上（かつ `reports` が限度未満）で doGet が `v=1`＝「✓検証済み(コミュニティ)」を返し、`up` 降順（人気順）で配信。端末ID偽装でのバッジ水増しを封じる。
+- **⚠️通報→自動降格（可逆）**：出題画面の「⚠️通報」が `{action:'report',id,idtoken}` を送る。**通報も本人確認(IDトークン)必須**（`handleReport_` が `verifyTokenSub_` で `sub` 検証。未ログインは `{error:'login required'}`。レート/二重通報抑止は `sub` 基準）。`reports` が `REPORT_LIMIT(=3)` に達すると `approved`→`pending` に自動降格＝再審査へ。**降格には「異なる検証済みアカウント」が `REPORT_LIMIT` 名必要**＝端末ID偽装で良問を不正に非公開化(suppression)できない（投票と対称）。
+- シート列：`timestamp,status,id,type,cat,json,q,src,device,reports,up`（`device`/`reports`/`up` を追加。コード更新後は **`setup` を再実行**してヘッダを整える）。※`device` は現在「投稿(submit)」のレート/`rep`実績集計にのみ使用。投票・通報は `sub` 基準。
 - **裏側のスパム対策（全投稿に適用）**：リンク(URL)禁止・NGワード・端末ごとレート制限（`RATE_PER_HOUR`）・id形式・重複排除・行/未承認上限・数式インジェクション無害化。
 - IDトークン検証は Google の tokeninfo を `UrlFetchApp` で叩くため **`script.external_request` 権限が必要**。コード更新後は **新しいデプロイを作成**（既存デプロイの「編集」→バージョン更新）し、必要なら **一度 `setup` を再実行**して追加権限（外部リクエスト）を承認すること（承認するまで自動公開は働かず、全投稿が安全に `pending` になります）。
 
