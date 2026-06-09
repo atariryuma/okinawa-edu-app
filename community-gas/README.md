@@ -24,7 +24,12 @@
 - **⚠️通報→自動降格（可逆）**：出題画面の「⚠️通報」が `{action:'report',id,idtoken}` を送る。**通報も本人確認(IDトークン)必須**（`handleReport_` が `verifyTokenSub_` で `sub` 検証。未ログインは `{error:'login required'}`。レート/二重通報抑止は `sub` 基準）。`reports` が `REPORT_LIMIT(=3)` に達すると `approved`→`pending` に自動降格＝再審査へ。**降格には「異なる検証済みアカウント」が `REPORT_LIMIT` 名必要**＝端末ID偽装で良問を不正に非公開化(suppression)できない（投票と対称）。
 - シート列：`timestamp,status,id,type,cat,json,q,src,device,reports,up`（`device`/`reports`/`up` を追加。コード更新後は **`setup` を再実行**してヘッダを整える）。※`device` は現在「投稿(submit)」のレート/`rep`実績集計にのみ使用。投票・通報は `sub` 基準。
 - **裏側のスパム対策（全投稿に適用）**：リンク(URL)禁止・NGワード・端末ごとレート制限（`RATE_PER_HOUR`）・id形式・重複排除・行/未承認上限・数式インジェクション無害化。
-- IDトークン検証は Google の tokeninfo を `UrlFetchApp` で叩くため **`script.external_request` 権限が必要**。コード更新後は **新しいデプロイを作成**（既存デプロイの「編集」→バージョン更新）し、必要なら **一度 `setup` を再実行**して追加権限（外部リクエスト）を承認すること（承認するまで自動公開は働かず、全投稿が安全に `pending` になります）。
+- ⚠️ **【最重要・本人確認の前提】外部リクエスト権限の承認**：IDトークン検証（`verifyToken_`/`verifyTokenSub_`）は Google の tokeninfo を `UrlFetchApp` で叩くため **`script.external_request` 権限が必要**。**`clasp` のヘッドレスdeployはこの同意ダイアログを出せない**ので、未承認のままだと本人確認が**丸ごと失敗**し、症状として：
+    - **投稿が全て `pending`（`reason:'untrusted'`）** ＝自動公開が一切効かない
+    - **👍/⚠️通報が全て `{error:'login required'}`**（ログイン済みでも！）
+  になります（**コードは正しいのに静かに死ぬ**。ユニットテストは `UrlFetchApp` をモックするため検知不可＝**実機でしか出ない**）。
+  → **対処：Apps Script エディタで関数 `setup` を1回 実行 し、出る同意ダイアログの『外部サービスへの接続』を承認**（`setup` 内の warmup fetch がこの同意を誘発します）。コード更新で `clasp` 再デプロイした後も、権限の状態次第で再承認が要ることがあります。
+  → **確認：ログイン状態で👍を押して「送りました🙏」になればOK**（公式出典の投稿も `pending`→`approved` に復活）。
 
 ## セットアップ手順
 

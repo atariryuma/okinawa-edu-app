@@ -93,7 +93,7 @@
 - 素の `clasp login`（=`default` プロファイル）は上書きされやすい。**常に `--user gmail` / `--user school` を明示**すること。`default`/`organization` にも同じ実体が入っているが名前が紛らわしいので使わない。プロファイルが壊れたら `clasp login --user gmail`（or `--user school`）で入れ直す（`clasp show-authorized-user --user gmail` で確認）。
 - **デプロイは helper 一発**：`bash community-gas/deploy.sh "更新メモ"`。中で①gmailアカウント検証→②正本 `Code.gs` に `SHEET_ID` を注入（公開リポジトリにIDを出さない）→③`clasp push --user gmail`→④**既存デプロイを `-i <DEPLOYMENT_ID>` で新バージョン更新**（`/exec` URL 不変＝アプリの `DEFAULT_COMMUNITY_URL` 変更不要）。
 - 秘密値（`SCRIPT_ID`/`SHEET_ID`/`DEPLOYMENT_ID`）は **`community-gas/.deploy.env`（git管理外）** に置く。雛形は `community-gas/.deploy.env.example`（コミット済）。
-- コード更新後の初回のみ、シートのエディタで関数 `setup` を1回実行（`device`/`reports` 列のヘッダ整備。コードは列番号で動くので未実行でも機能はする）。`script.external_request` の承認も初回必要。
+- **【最重要・実機で発見した落とし穴 2026-06】コード更新/デプロイ後、シートのエディタで関数 `setup` を1回実行し、出る同意ダイアログの『外部サービスへの接続(`script.external_request`)』を承認すること。** `clasp` のヘッドレスdeployはこの同意を出せず、未承認だと `verifyToken_`/`verifyTokenSub_` の `UrlFetchApp(tokeninfo)` が失敗→**本人確認が丸ごと“静かに死ぬ”**：投稿は全て `pending`(`reason:'untrusted'`)・👍/⚠️通報は全て `{error:'login required'}`（ログイン済みでも！）。**ユニットテストは `UrlFetchApp` をモックするので検知不可＝実機でしか出ない**（実機OAuth検証で発見）。`setup` は列ヘッダ(`device`/`reports`/`up`)整備も兼ねる（ヘッダは列番号で動くので未実行でも“出題”は動くが、**本人確認は外部リクエスト承認が無いと動かない**）。確認＝ログイン状態で👍が『送りました🙏』になればOK。
 
 ## ナビ / 描画
 - ビュー：`home / map / ref / lookup / quiz / ronbun / prog`。`go(v)` が表示切替＋該当 `render*` を呼ぶ。タブは `role=tablist`、`aria-selected` 更新。

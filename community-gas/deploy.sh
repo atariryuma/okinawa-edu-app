@@ -69,5 +69,16 @@ JSON
 ( cd "$BUILD" && clasp deploy -i "$DEPLOYMENT_ID" -d "$DESC" --user "$CLASP_USER" )
 
 echo "✅ デプロイ完了（/exec URL は不変）。"
-echo "   ・初回のみ：スプレッドシートのエディタで関数 setup を1回実行するとヘッダ(device/reports)が整います。"
-echo "   ・承認運用：未ログイン投稿などの pending は、シートの B列(status) を approved で配信。"
+echo ""
+echo "⚠️【必須・初回／権限変更後】外部リクエストの承認 ─────────────────────"
+echo "   本人確認(verifyToken_/verifyTokenSub_)は UrlFetchApp で Google の tokeninfo を"
+echo "   叩くため『外部サービスへの接続(script.external_request)』権限が要る。clasp の"
+echo "   ヘッドレスdeployはこの同意を出せないので、未承認のままだと："
+echo "     ★ 投稿が全て pending（reason:untrusted）"
+echo "     ★ 👍/⚠️通報が全て {error:'login required'}（ログイン済みでも！）"
+echo "   になる（コードは正しいのに本人確認が丸ごと失敗する“静かな死”。テストは"
+echo "   UrlFetchApp をモックするので検知不可。実機でだけ出る）。"
+echo "   → 対処：Apps Script エディタで関数 setup を1回 実行 し、出る同意ダイアログの"
+echo "     『外部サービスへの接続』を承認する（setup 内の warmup fetch が誘発）。"
+echo "   → 確認：ログイン状態で👍を押し『送りました🙏』になればOK（pending→approved も復活）。"
+echo "   ・運用：pending は シートB列(status) を approved で配信。setup はヘッダ(device/reports/up)も整える。"
