@@ -23,6 +23,10 @@ const appJs = (() => {
   }
   return out.join('\n');
 })();
+if (!appJs.trim()) { // 抽出が空＝<script>タグの形が変わった（属性付与・同一行化など）。原因不明のTypeErrorで落ちる前に明示する
+  console.error('✗ index.html からアプリJSを抽出できませんでした（<script> 開始タグが属性なし・単独行である前提が崩れています）');
+  process.exit(1);
+}
 
 // ---- 軽量DOMスタブ：任意のプロパティ/メソッド/呼び出しに耐える deep no-op ----
 function deepNoop() {
@@ -57,14 +61,15 @@ const fetchStub = () => Promise.resolve({ ok:true, json:()=>Promise.resolve([]),
 
 // ---- 実コードを評価し、テスト対象の関数とstoreアクセサを取り出す ----
 const EXPORTS = [
-  'review','mergeStore','sanitizeImport','validQuestion','srcLink','clampIvl','boxFromIvl',
+  'review','mergeStore','sanitizeImport','sanitizeCard','validQuestion','srcLink','clampIvl','boxFromIvl',
   'stateOf','isDue','isWeak','isMastered','getCard','dueList','bucketShuffle','dailyCount',
-  'bmKey','isBM','toggleBM','bmCount','pushRecent','lastAct','ymdNum','esc','shuffle',
+  'bmKey','isBM','toggleBM','bmCount','pushRecent','lastAct','ymdNum','esc','shuffle','orderShuffle',
   'examDaysLeft','todayISO','norm','pruneDailyDone','filterNetErr','saveGTok','loadGTok','clearGTok','load',
+  'touchStreak','rebuildQuestions',
 ];
 const exposeSrc = '\n;return {' +
   EXPORTS.map(n => `${n}:(typeof ${n}!=='undefined'?${n}:undefined)`).join(',') +
-  `,__setStore:(s)=>{store=s},__getStore:()=>store,__setQuestions:(q)=>{QUESTIONS=q},__setBase:(q)=>{BASE_QUESTIONS=q}};`;
+  `,__setStore:(s)=>{store=s},__getStore:()=>store,__setQuestions:(q)=>{QUESTIONS=q},__getQuestions:()=>QUESTIONS,__setBase:(q)=>{BASE_QUESTIONS=q},__setCommunity:(q)=>{COMMUNITY_QUESTIONS=q}};`;
 
 let APP;
 try {
@@ -326,6 +331,133 @@ section('デイリー: bucketShuffle はバケット間のdue昇順を保つ');
   APP.__setQuestions([{id:'a',type:'qa',q:'',a:''},{id:'b',type:'qa',q:'',a:''},{id:'c',type:'qa',q:'',a:''}]);
   const order = APP.bucketShuffle([{id:'a'},{id:'b'},{id:'c'}].map(x=>({id:x.id})));
   ok('cは必ず最後（後の日バケット）', order[order.length-1].id === 'c');
+}
+
+// =========================== 同期: ロストアップデート回帰（_doSync の再マージ前提） ===========================
+section('mergeStore: driveSave中に進んだローカルが、古いマージ結果に巻き戻らない');
+{
+  // cloudSync の流れ：merged=merge(store,cloud) → driveSave(merged)（数秒）→ store=merge(store,merged)。
+  // この最後の再マージで「driveSave中の解答」が勝つこと（旧実装 store=merged だと消えていた）。
+  const t0=Date.now()-60000, t1=Date.now()-1000;
+  const snapshot={cards:{q1:{box:2,reps:1,due:t0+86400000,ivl:1,ef:2.5,hist:[{t:t0,ok:true}]}},bookmarks:[],recent:[],totalAnswered:1,totalCorrect:1,session:null};
+  const localNow={cards:{q1:{box:3,reps:2,due:t1+3*86400000,ivl:3,ef:2.53,hist:[{t:t0,ok:true},{t:t1,ok:true}]}},bookmarks:[],recent:[],totalAnswered:2,totalCorrect:2,session:{mode:'daily',ids:['q1'],idx:1}};
+  const r=APP.mergeStore(localNow,snapshot);
+  ok('driveSave中の解答（新しいhist）が残る', r.cards.q1.hist.length===2 && r.cards.q1.reps===2);
+  ok('スケジュールもローカルの進んだ方', r.cards.q1.ivl===3);
+  ok('進行中の session が消えない', r.session && r.session.idx===1);
+  ok('統計も巻き戻らない', r.totalAnswered===2);
+}
+
+// =========================== 同期: クラウド改竄フィールドの型検証（描画XSS回帰防止） ===========================
+section('mergeStore: streak/dailyGoal/userQuestions の改竄cloudを通さない');
+{
+  const a={cards:{},bookmarks:[],recent:[],streak:3,lastDate:'2026-6-9',dailyGoal:10};
+  const evil={cards:{},bookmarks:[],recent:[],streak:'<img src=x onerror=alert(1)>',lastDate:'2099-1-1',dailyGoal:'<svg onload=alert(1)>',
+    userQuestions:[{id:'bad1',type:'mc',q:'x'},{id:'ok1',type:'qa',q:'a',a:'b',mtime:1}]};
+  const r=APP.mergeStore(a,evil);
+  ok('streak: 文字列(改竄)は数値0へ（innerHTML到達を遮断）', r.streak===0);
+  ok('dailyGoal: 文字列(改竄)は採用しない', r.dailyGoal===10);
+  ok('userQuestions: 型不正は除外・正常は採用', r.userQuestions.length===1 && r.userQuestions[0].id==='ok1');
+  const r2=APP.mergeStore(a,{cards:{},bookmarks:[],recent:[],streak:99,lastDate:'2099-1-1'});
+  ok('streak: 正常な数値は従来どおり採用', r2.streak===99);
+}
+
+// =========================== 同期: due の未来キャップ（時計ズレ端末の死蔵防止） ===========================
+section('sanitizeCard/mergeStore: 異常に未来の due はキャップされる');
+{
+  const far=Date.now()+10*365*86400000; // 10年後
+  const r=APP.mergeStore({cards:{},bookmarks:[],recent:[]},{cards:{qz:{box:3,reps:2,due:far,ivl:30,ef:2.5,hist:[{t:Date.now()-1000,ok:true}]}},bookmarks:[],recent:[]});
+  ok('due は最長間隔+1日以内にキャップ', r.cards.qz.due<=Date.now()+181*86400000);
+}
+
+// =========================== undo: 取り消しが同期に負けない（ut/undone） ===========================
+section('mergeStore: undo済みの誤答はクラウドから復活しない');
+{
+  const tA=Date.now()-100000, tBad=Date.now()-50000;
+  // ローカル＝undo済み（hist から tBad を除去・undone に記録・ut で勝者化）
+  const local={cards:{q1:{box:3,reps:2,due:Date.now()+3*86400000,ivl:3,ef:2.5,hist:[{t:tA,ok:true}],undone:[tBad],ut:Date.now()-1000}},bookmarks:[],recent:[]};
+  // クラウド＝undo前に push 済み（誤答 tBad が残っている）
+  const cloud={cards:{q1:{box:1,reps:0,due:tBad,ivl:0,ef:2.3,hist:[{t:tA,ok:true},{t:tBad,ok:false}]}},bookmarks:[],recent:[]};
+  const r=APP.mergeStore(local,cloud);
+  ok('undo済みの誤答histは和集合に復活しない', !r.cards.q1.hist.some(h=>h.t===tBad));
+  ok('スケジュールはundo後のローカルが勝つ(ut)', r.cards.q1.ivl===3 && r.cards.q1.reps===2);
+  ok('undone がマージ後も保持される（後続マージでも効く）', Array.isArray(r.cards.q1.undone) && r.cards.q1.undone.indexOf(tBad)>=0);
+  ok('lastAct: ut を考慮する', APP.lastAct({hist:[{t:tA,ok:true}],ut:tA+5000})===tA+5000);
+}
+
+// =========================== リセットのトゥームストーン（他端末からの全復活防止） ===========================
+section('mergeStore: resetT より古い学習記録は復活しない');
+{
+  const old=Date.now()-10*86400000, rT=Date.now()-1000, fresh=Date.now()-500;
+  const wiped={cards:{},bookmarks:[],recent:[],streak:0,lastDate:null,totalAnswered:0,totalCorrect:0,dailyDone:{},resetT:rT};
+  const other={cards:{q1:{box:4,reps:5,due:old+86400000,ivl:16,ef:2.6,hist:[{t:old,ok:true}]}},bookmarks:[],recent:[],streak:9,lastDate:'2026-6-1',totalAnswered:50,totalCorrect:40,dailyDone:{'2026-6-1':9}};
+  const r=APP.mergeStore(wiped,other);
+  ok('リセット前のカードは復活しない', !r.cards.q1);
+  ok('累積統計も復活しない（生存カードから再計算）', r.totalAnswered===0 && r.totalCorrect===0);
+  ok('streak も復活しない', r.streak===0);
+  ok('dailyDone も復活しない', Object.keys(r.dailyDone).length===0);
+  ok('resetT はマージ後も伝播する', r.resetT===rT);
+  // リセット後に解いたカードは生き残る
+  const after={cards:{q2:{box:2,reps:1,due:fresh+86400000,ivl:1,ef:2.5,hist:[{t:fresh,ok:true}]}},bookmarks:[],recent:[]};
+  const r2=APP.mergeStore(wiped,after);
+  ok('リセット後の学習は維持される', !!r2.cards.q2);
+  // sanitizeImport も resetT を引き継ぐ（未来tsは拒否）
+  ok('sanitizeImport: resetT 引き継ぎ', APP.sanitizeImport({cards:{},resetT:rT}).resetT===rT);
+  ok('sanitizeImport: 未来の resetT は拒否（恒久ロック防止）', APP.sanitizeImport({cards:{},resetT:Date.now()+10*86400000}).resetT===undefined);
+}
+
+// =========================== esc / validQuestion 予約名id ===========================
+section('esc: XSS規約の要を直接検証');
+ok('esc: 5種の危険文字を実体化', APP.esc(`<img src="x" onerror='a'>&`)==='&lt;img src=&quot;x&quot; onerror=&#39;a&#39;&gt;&amp;');
+ok('esc: null/undefined は空文字', APP.esc(null)==='' && APP.esc(undefined)==='');
+ok('esc: 数値も文字列化', APP.esc(42)==='42');
+ok('validQuestion: __proto__ id を拒否', APP.validQuestion({id:'__proto__',type:'qa',q:'a',a:'b'})===false);
+ok('validQuestion: constructor id を拒否', APP.validQuestion({id:'constructor',type:'qa',q:'a',a:'b'})===false);
+
+// =========================== orderShuffle（恒等順列を出さない） ===========================
+section('orderShuffle: 偶然「最初から正順」の出題をしない');
+{
+  let identity=false;
+  for(let i=0;i<60;i++){const sh=APP.orderShuffle(['a','b','c']);if(sh.every((o,pos)=>o.i===pos))identity=true;}
+  ok('items=3 を60回シャッフルして正順が一度も出ない', identity===false);
+  const sh=APP.orderShuffle(['x','y','z']);
+  ok('要素は欠落しない', eq([...sh.map(o=>o.i)].sort(), [0,1,2]) && eq([...sh.map(o=>o.t)].sort(), ['x','y','z']));
+  ok('1要素は許容（無限ループしない）', APP.orderShuffle(['solo']).length===1);
+}
+
+// =========================== dueList / touchStreak / rebuildQuestions ===========================
+section('dueList: 期日到来のみ・due昇順');
+{
+  freshStore({cards:{a:{due:Date.now()-2000,hist:[],box:2},b:{due:Date.now()-9000,hist:[],box:2},c:{due:Date.now()+86400000,hist:[],box:2}}});
+  APP.__setQuestions([{id:'a',type:'qa',q:'',a:''},{id:'b',type:'qa',q:'',a:''},{id:'c',type:'qa',q:'',a:''},{id:'d',type:'qa',q:'',a:''}]);
+  const dl=APP.dueList();
+  ok('未来dueは含まない', !dl.some(q=>q.id==='c'));
+  ok('未学習(new)は due 扱いで含む', dl.some(q=>q.id==='d'));
+  ok('既習はdue昇順', dl.filter(q=>q.id==='a'||q.id==='b').map(q=>q.id).join('')==='ba');
+}
+section('touchStreak: 1日グレース（昨日/一昨日は継続・3日空きはリセット）');
+{
+  const ymd=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();};
+  freshStore({streak:5,lastDate:ymd(Date.now()-86400000)}); APP.touchStreak();
+  ok('昨日学習→継続+1', APP.__getStore().streak===6);
+  freshStore({streak:5,lastDate:ymd(Date.now()-2*86400000)}); APP.touchStreak();
+  ok('一昨日学習→グレースで継続+1', APP.__getStore().streak===6);
+  freshStore({streak:5,lastDate:ymd(Date.now()-3*86400000)}); APP.touchStreak();
+  ok('3日空き→1にリセット', APP.__getStore().streak===1);
+  freshStore({streak:5,lastDate:null}); APP.touchStreak();
+  ok('初学習→1', APP.__getStore().streak===1);
+}
+section('rebuildQuestions: 公式>共有>自作の優先・不正除外');
+{
+  freshStore({userQuestions:[{id:'q1',type:'qa',q:'自作の重複',a:'x'},{id:'u1',type:'qa',q:'自作',a:'x'},{id:'bad',type:'mc',q:'x'}]});
+  APP.__setBase([{id:'q1',type:'qa',q:'公式',a:'x'}]);
+  APP.__setCommunity([{id:'q1',type:'qa',q:'共有の重複',a:'x'},{id:'c1',type:'qa',q:'共有',a:'x'}]);
+  APP.rebuildQuestions();
+  const qs=APP.__getQuestions();
+  ok('同idは公式が勝つ', qs.find(q=>q.id==='q1').q==='公式');
+  ok('共有・自作の固有idは入る', !!qs.find(q=>q.id==='c1') && !!qs.find(q=>q.id==='u1'));
+  ok('型不正の自作は除外', !qs.find(q=>q.id==='bad'));
+  APP.__setBase([]);APP.__setCommunity([]);APP.rebuildQuestions(); // 後続テストへの汚染を防ぐ
 }
 
 // =========================== 結果 ===========================

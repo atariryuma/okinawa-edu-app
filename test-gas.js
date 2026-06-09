@@ -33,11 +33,17 @@ const CacheService = { getScriptCache: () => ({ get: k => (k in _cache ? _cache[
 const LockService = { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) };
 const ContentService = { createTextOutput: (s) => ({ _s: s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } };
 let _tokeninfo = null;     // verifyToken_ が受け取る tokeninfo レスポンス（テストで差し替え）
-const UrlFetchApp = { fetch: () => ({ getResponseCode: () => (_tokeninfo ? 200 : 400), getContentText: () => JSON.stringify(_tokeninfo || {}) }) };
-const Utilities = { newBlob: (s) => ({ getBytes: () => Buffer.from(String(s), 'utf8') }) };
+let _fetchCount = 0;       // UrlFetchApp 呼び出し回数（トークン検証キャッシュの検証用）
+const UrlFetchApp = { fetch: () => { _fetchCount++; return { getResponseCode: () => (_tokeninfo ? 200 : 400), getContentText: () => JSON.stringify(_tokeninfo || {}) }; } };
+const crypto = require('crypto');
+const Utilities = {
+  newBlob: (s) => ({ getBytes: () => Buffer.from(String(s), 'utf8') }),
+  computeDigest: (_alg, s) => Array.from(crypto.createHash('sha256').update(String(s), 'utf8').digest()),
+  DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
+};
 
 // ---- 実コードを評価し、関数を取り出す ----
-const EXPORTS = ['doGet','doPost','validate_','srcResolves_','deformula_','pick_','hasUrl_','hasBlocked_','verifyToken_','verifyTokenSub_','summarize_','isNonEmptyStr_','okLen_','isInt_'];
+const EXPORTS = ['doGet','doPost','validate_','srcResolves_','deformula_','pick_','hasUrl_','hasBlocked_','verifyToken_','verifyTokenSub_','summarize_','isNonEmptyStr_','okLen_','isInt_','hash_','parseJsonList_','rateOk_','anonOk_','fetchBudgetOk_'];
 let GAS;
 try {
   const factory = new Function('SpreadsheetApp','CacheService','LockService','ContentService','UrlFetchApp','Utilities','console',
@@ -49,12 +55,13 @@ try {
 let pass = 0, fail = 0; const fails = [];
 function ok(name, cond) { if (cond) pass++; else { fail++; fails.push(name); console.log('  ✗ ' + name); } }
 function section(t) { console.log('\n— ' + t + ' —'); }
-function reset() { sheet.rows = []; for (const k in _cache) delete _cache[k]; _tokeninfo = null; }
+function reset() { sheet.rows = []; for (const k in _cache) delete _cache[k]; _tokeninfo = null; _fetchCount = 0; }
 const post = (env) => JSON.parse(GAS.doPost({ postData: { contents: JSON.stringify(env) } })._s);
 const get = () => JSON.parse(GAS.doGet({})._s);
 const validToken = () => { _tokeninfo = { sub: 'sub-default', aud: CLIENT_ID, azp: CLIENT_ID, iss: 'accounts.google.com', email_verified: 'true', exp: String(Math.floor(Date.now()/1000)+3600) }; };
-const voteAs = (id, sub) => { validToken(); _tokeninfo.sub = sub; return post({ action:'vote', id, idtoken:'tok' }); }; // 検証済み sub ごとに1票（端末ではなくGoogleアカウントで集計）
-const reportAs = (id, sub) => { validToken(); _tokeninfo.sub = sub; return post({ action:'report', id, idtoken:'tok' }); }; // 通報も sub 基準（端末ID偽装での良問降格を防ぐ）
+// ※検証結果はトークン文字列単位でキャッシュされるため、別人(sub)を演じる時は必ず別トークン文字列を使う（実環境と同じ：同一トークン＝同一人物）
+const voteAs = (id, sub) => { validToken(); _tokeninfo.sub = sub; return post({ action:'vote', id, idtoken:'tok-'+sub }); }; // 検証済み sub ごとに1票（端末ではなくGoogleアカウントで集計）
+const reportAs = (id, sub) => { validToken(); _tokeninfo.sub = sub; return post({ action:'report', id, idtoken:'tok-'+sub }); }; // 通報も sub 基準（端末ID偽装での良問降格を防ぐ）
 const Q = (id, src) => ({ id, type: 'qa', cat: '法規', q: '問' + id, a: '答', src: src || '学校教育法第37条' });
 
 // =========================== validate_ ===========================
@@ -93,19 +100,36 @@ ok('空→false', GAS.srcResolves_('') === false);
 // =========================== verifyToken_ ===========================
 section('verifyToken_: aud/azp/email_verified/iss/exp の全ゲート');
 {
-  validToken(); ok('全条件OK→true', GAS.verifyToken_('tok') === true);
-  validToken(); _tokeninfo.aud = 'other'; ok('aud不一致→false', GAS.verifyToken_('tok') === false);
-  validToken(); _tokeninfo.azp = 'other'; ok('azp不一致→false（aud偽装の素通し封じ）', GAS.verifyToken_('tok') === false);
-  validToken(); _tokeninfo.email_verified = 'false'; ok('email未確認→false', GAS.verifyToken_('tok') === false);
-  validToken(); _tokeninfo.iss = 'evil.com'; ok('iss不正→false', GAS.verifyToken_('tok') === false);
-  validToken(); _tokeninfo.exp = String(Math.floor(Date.now()/1000) - 10); ok('失効→false', GAS.verifyToken_('tok') === false);
-  validToken(); delete _tokeninfo.exp; ok('exp欠落→false（フェイルクローズ＝未失効を勝手に真としない）', GAS.verifyToken_('tok') === false);
-  _tokeninfo = null; ok('tokeninfo 200以外→false', GAS.verifyToken_('tok') === false);
+  // 検証結果はトークン単位でキャッシュされるので、ケースごとに固有のトークン文字列を使う
+  validToken(); ok('全条件OK→true', GAS.verifyToken_('vt-ok') === true);
+  validToken(); _tokeninfo.aud = 'other'; ok('aud不一致→false', GAS.verifyToken_('vt-aud') === false);
+  validToken(); _tokeninfo.azp = 'other'; ok('azp不一致→false（aud偽装の素通し封じ）', GAS.verifyToken_('vt-azp') === false);
+  validToken(); _tokeninfo.email_verified = 'false'; ok('email未確認→false', GAS.verifyToken_('vt-email') === false);
+  validToken(); _tokeninfo.iss = 'evil.com'; ok('iss不正→false', GAS.verifyToken_('vt-iss') === false);
+  validToken(); _tokeninfo.exp = String(Math.floor(Date.now()/1000) - 10); ok('失効→false', GAS.verifyToken_('vt-exp') === false);
+  validToken(); delete _tokeninfo.exp; ok('exp欠落→false（フェイルクローズ＝未失効を勝手に真としない）', GAS.verifyToken_('vt-noexp') === false);
+  _tokeninfo = null; ok('tokeninfo 200以外→false', GAS.verifyToken_('vt-http400') === false);
   // verifyTokenSub_：検証OKなら sub を返す／NGなら空文字（投票の本人確認に使用）
-  validToken(); ok('verifyTokenSub_ 正常→subを返す', GAS.verifyTokenSub_('tok') === 'sub-default');
-  validToken(); _tokeninfo.sub = ''; ok('sub欠落→空（不可）', GAS.verifyTokenSub_('tok') === '');
-  validToken(); _tokeninfo.aud = 'other'; ok('aud不一致→空', GAS.verifyTokenSub_('tok') === '');
+  validToken(); ok('verifyTokenSub_ 正常→subを返す', GAS.verifyTokenSub_('vt-sub') === 'sub-default');
+  validToken(); _tokeninfo.sub = ''; ok('sub欠落→空（不可）', GAS.verifyTokenSub_('vt-nosub') === '');
+  validToken(); _tokeninfo.aud = 'other'; ok('aud不一致→空', GAS.verifyTokenSub_('vt-aud2') === '');
   ok('idtoken空→空', GAS.verifyTokenSub_('') === '');
+}
+
+// =========================== トークン検証のキャッシュ＆クォータ予算（DoS耐性） ===========================
+section('verifyTokenSub_: キャッシュで同一トークンの連打を1回のfetchに畳む／予算超過はフェイルクローズ');
+{
+  reset(); validToken();
+  const before = _fetchCount;
+  ok('初回はfetchする', GAS.verifyTokenSub_('cache-A') === 'sub-default' && _fetchCount === before + 1);
+  _tokeninfo = null;   // 以降 tokeninfo が死んでいても…
+  ok('2回目はキャッシュ（fetchしない・結果同一）', GAS.verifyTokenSub_('cache-A') === 'sub-default' && _fetchCount === before + 1);
+  ok('無効トークンもネガティブキャッシュ', GAS.verifyTokenSub_('cache-bad') === '' && _fetchCount === before + 2 && GAS.verifyTokenSub_('cache-bad') === '' && _fetchCount === before + 2);
+  // 予算超過＝tokeninfo を叩かずフェイルクローズ（UrlFetch日次クォータの枯渇＝「本人確認の静かな死」を攻撃で誘発させない）
+  validToken(); _cache['tokfetch_hr'] = '500';
+  const b2 = _fetchCount;
+  ok('予算超過で検証はfetchせず失敗（フェイルクローズ）', GAS.verifyTokenSub_('cache-budget') === '' && _fetchCount === b2);
+  delete _cache['tokfetch_hr'];
 }
 
 // =========================== 自動公開の判定マトリクス ===========================
@@ -202,6 +226,61 @@ post({ q:Q('forge','学校教育法第37条'), idtoken:'tok', device:'d1' });   
   voteAs('forge', 'realA'); voteAs('forge', 'realB');
   ok('3つの別アカウントで up=3', get().questions.find(q => q.id === 'forge').up === 3);
   ok('UP_VERIFY到達で v=1', get().questions.find(q => q.id === 'forge').v === 1);
+}
+
+// =========================== 永続二重投票/通報抑止（CacheService揮発でも保証） ===========================
+section('voters/reporters列: キャッシュが消えても同一アカウントの再投票/再通報を抑止');
+{
+  reset(); validToken();
+  post({ q:Q('pv','学校教育法第37条'), idtoken:'tok-owner', device:'d1' });   // approved
+  voteAs('pv', 'sX');
+  ok('投票で up=1', get().questions.find(q => q.id === 'pv').up === 1);
+  for (const k in _cache) delete _cache[k];   // CacheService の全退去（6h経過/メモリ圧）をシミュレート
+  ok('キャッシュ消滅後の再投票も already（シート永続）', voteAs('pv', 'sX').status === 'already');
+  ok('up は水増しされない', get().questions.find(q => q.id === 'pv').up === 1);
+  reportAs('pv', 'rX');
+  for (const k in _cache) delete _cache[k];
+  ok('キャッシュ消滅後の再通報も already（シート永続）', reportAs('pv', 'rX').status === 'already');
+  ok('reports は二重加算されない', sheet.rows[0][9] === 1);
+}
+
+// =========================== pending行への投票/通報の仕込み防止 ===========================
+section('handleVote_/handleReport_: approved 以外の行には作用しない');
+{
+  reset();
+  post({ q:Q('pend','学校教育法第37条'), idtoken:'', device:'dAn' });   // 匿名→pending
+  ok('pending行への投票は not found（公開と同時✓検証済みの細工防止）', voteAs('pend', 'sP').error === 'not found');
+  ok('pending行の up は増えない', !sheet.rows[0][10]);
+  ok('pending行への通報も not found', reportAs('pend', 'rP').error === 'not found');
+}
+
+// =========================== device偽装DoS対策（匿名の全体クォータ・pending上限は匿名のみ） ===========================
+section('doPost: device偽装でレートを回避してもpending洪水でサービスを止められない');
+{
+  reset();
+  _cache['anonq_hr'] = '30';   // 匿名全体クォータ消費済みをシミュレート（deviceを毎回変えても回避不能）
+  ok('匿名はdeviceを変えても全体クォータで rate limited', post({ q:Q('an1','学校教育法第37条'), idtoken:'', device:'dEvil-new-each-time' }).error === 'rate limited');
+  validToken();
+  ok('本人確認済みは匿名クォータの影響を受けない', post({ q:Q('tr1','学校教育法第37条'), idtoken:'tok-trusted1', device:'dOK' }).status === 'approved');
+  reset();
+  // pending を MAX_PENDING(300) まで人工的に滞留させる
+  for (let i = 0; i < 300; i++) sheet.rows.push([new Date(), 'pending', 'flood' + i, 'qa', '', '{}', 'q', 'src', 'dF', 0, 0, '', '']);
+  ok('匿名投稿は too many pending で停止', post({ q:Q('an2','学校教育法第37条'), idtoken:'', device:'dAn2' }).error === 'too many pending');
+  validToken();
+  ok('本人確認済みはpending洪水でも投稿できる（DoS耐性）', post({ q:Q('tr2','地公法29条'), idtoken:'tok-trusted2', device:'dOK2' }).status === 'approved');
+}
+
+// =========================== device のハッシュ保存と評判(rep)の互換 ===========================
+section('device: シートにはハッシュのみ保存・旧行(生device)の承認実績も引き継ぐ');
+{
+  reset(); validToken();
+  post({ q:Q('dh1','学校教育法第37条'), idtoken:'tok-dh', device:'dRaw' });
+  ok('シートのdevice列は16桁hexハッシュ（生値を残さない）', /^[0-9a-f]{16}$/.test(String(sheet.rows[0][8])) && sheet.rows[0][8] !== 'dRaw');
+  reset();
+  // 旧仕様の行（生deviceのまま）が2件 approved → 同じ端末の匿名投稿は段階信頼で自動公開
+  sheet.rows.push([new Date(), 'approved', 'old1', 'qa', '', '{"id":"old1","type":"qa","q":"a","a":"b","src":"学校教育法"}', 'a', '学校教育法', 'dLegacy', 0, 0, '', '']);
+  sheet.rows.push([new Date(), 'approved', 'old2', 'qa', '', '{"id":"old2","type":"qa","q":"a","a":"b","src":"地公法"}', 'a', '地公法', 'dLegacy', 0, 0, '', '']);
+  ok('旧行の生deviceでも rep を引き継ぐ（匿名でも自動公開）', post({ q:Q('dh2','学校保健安全法第19条'), idtoken:'', device:'dLegacy' }).status === 'approved');
 }
 
 // =========================== 結果 ===========================

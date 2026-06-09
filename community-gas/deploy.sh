@@ -41,6 +41,9 @@ case "$WHO" in
 esac
 
 # 2) ビルド（SHEET_ID を注入。正本 Code.gs は SHEET_ID='' のまま＝公開リポジトリにIDを出さない）
+case "$SHEET_ID" in (*[!A-Za-z0-9_-]*)
+  echo "✋ SHEET_ID に英数・_・- 以外の文字が含まれています（sed注入が壊れるため中止）" >&2; exit 1;;
+esac
 BUILD="$HERE/.deploy"
 mkdir -p "$BUILD"
 sed "s/var SHEET_ID = '';/var SHEET_ID = '${SHEET_ID}';/" "$HERE/Code.gs" > "$BUILD/Code.js"

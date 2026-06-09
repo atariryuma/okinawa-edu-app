@@ -668,6 +668,7 @@ function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;',
 function validQuestion(q){
   if(!q||typeof q!=='object'||typeof q.id!=='string'||!q.id)return false;
   if(!/^[A-Za-z0-9_\-]{1,64}$/.test(q.id))return false;   // id形式ゲート（GASのID_REと同水準＝制御文字/HTML混入を排除・多層防御）
+  if(q.id==='__proto__'||q.id==='constructor'||q.id==='prototype')return false; // 予約名id＝素のオブジェクトをマップに使う箇所(dedup/merge)での事故・サイレント欠落を防ぐ
   if(['qa','mc','cloze','order','match'].indexOf(q.type)<0)return false;
   switch(q.type){
     case'qa':return typeof q.q==='string'&&typeof q.a==='string';
@@ -761,7 +762,7 @@ function buildSearchIndex(){const idx=[];
   REF.forEach(r=>idx.push({k:'要点',t:r.name,b:(r.points||[]).join(' ')+' '+(r.tag||'')+' '+(r.cat||'')+' '+(r.src||''),go:()=>openRef(r.id)}));
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
   RONBUN.forEach((r,i)=>idx.push({k:'論文',t:r.t,b:(r.q||'')+' '+(r.hon||[]).join(' ')+' '+(r.konkyo||[]).join(' '),go:()=>{go('ronbun');setTimeout(()=>{const ds=document.querySelectorAll('#ronbun details');if(ds[i]){ds[i].open=true;smoothScrollTo(ds[i]);}},70);}}));
-  QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),_up:q.up||0,ans:()=>qPreviewHTML(q),go:()=>{quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;store.session=null;go('quiz');setTimeout(()=>{quizMode=q.type;enterQuizView();showQ();},50);}});});
+  QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),_up:+q.up||0,ans:()=>qPreviewHTML(q),go:()=>{quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;quizEphemeral=true;go('quiz');setTimeout(()=>{quizMode=q.type;enterQuizView();showQ();},50);}});});
   idx.forEach(it=>{it._hay=norm(it.t+' '+it.b);it._ht=norm(it.t);}); // 表記ゆれ吸収(norm)で事前計算（カタ/ひら・全半角を区別しない）
   return idx;}
 let _searchTimer=null;
@@ -785,7 +786,7 @@ function runSearch(qstr){
   const order=['要点','逆引き','問題','論文'],groups={};hits.forEach(h=>{(groups[h.k]=groups[h.k]||[]).push(h);});
   Object.keys(groups).forEach(k=>groups[k].sort((a,b)=>score(b)-score(a)));      // 各グループ内を関連度順に並べ替え
   const flat=[];let html='';
-  order.forEach(k=>{const g=groups[k];if(!g)return;html+=`<h3>${k}（${g.length}）</h3>`;g.slice(0,5).forEach(h=>{const gi=flat.length;flat.push(h);html+=`<button class="gsitem" data-gi="${gi}"><span class="gsk">${k}</span>${esc(h.t).slice(0,80)}</button>`;if(h.ans)html+=`<div class="gsans" id="gsans-${gi}" hidden style="border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;padding:8px 10px;margin:-4px 0 6px;background:var(--card)"></div>`;});if(g.length>5)html+=`<div class="hint" style="margin:4px 2px;font-size:.7rem">他 ${g.length-5} 件…語を足すと絞れます</div>`;});
+  order.forEach(k=>{const g=groups[k];if(!g)return;html+=`<h3>${k}（${g.length}）</h3>`;g.slice(0,5).forEach(h=>{const gi=flat.length;flat.push(h);html+=`<button class="gsitem" data-gi="${gi}"><span class="gsk">${k}</span>${esc(String(h.t).slice(0,80))}</button>`;if(h.ans)html+=`<div class="gsans" id="gsans-${gi}" hidden style="border:1px solid var(--line);border-top:none;border-radius:0 0 10px 10px;padding:8px 10px;margin:-4px 0 6px;background:var(--card)"></div>`;});if(g.length>5)html+=`<div class="hint" style="margin:4px 2px;font-size:.7rem">他 ${g.length-5} 件…語を足すと絞れます</div>`;});
   res.innerHTML=html;
   res.querySelectorAll('.gsitem').forEach(btn=>btn.addEventListener('click',()=>{
     const gi=+btn.dataset.gi,h=flat[gi];if(!h)return;
@@ -1014,6 +1015,7 @@ function renderLookup(){
 
 //==================== QUIZ ====================
 let quizCat='all',quizMode=null,quizPool=[],quizIdx=0,sCorrect=0,sAnswered=0,sWrongIds=[],sStreak=0;
+let quizEphemeral=false; // true=セッション非保存の一時出題（検索からの1問プレビュー/間違い見直し）。showQ が store.session を読み書きしない＝中断中の本セッション（模試の続き等）を破壊しない
 function renderQuiz(){
   const el=document.getElementById('quiz');
   if(typeof stopMockTimer==='function')stopMockTimer();   // モード選択に戻る＝模試終了
@@ -1069,9 +1071,9 @@ function fmtSec(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%
 function startMockTimer(resumeSec){stopMockTimer();quizMockStart=Date.now()-(resumeSec||0)*1000;const t=document.createElement('div');t.id='mockTimer';t.setAttribute('role','timer');t.setAttribute('aria-label','経過時間');t.style.cssText='position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:60;background:var(--accent);color:#fff;padding:5px 12px;border-radius:20px;font-weight:700;font-size:.85rem;box-shadow:var(--shadow)';document.body.appendChild(t);const upd=()=>{t.textContent='⏱ '+fmtSec(Math.floor((Date.now()-quizMockStart)/1000));};upd();mockTimerId=setInterval(upd,1000);}
 // 背景化（OSのアプリ切替/タブ凍結）でも模試タイマーを一時停止＝go()のタブ離脱と対称（離脱中は加算しない／所要時間の水増しを防ぐ）
 function pauseMockForBg(){if(mockTimerId&&store.session&&store.session.mode==='mock'){store.session.mockElapsed=Math.floor((Date.now()-quizMockStart)/1000);save();stopMockTimer();}}
-function resumeMockFromBg(){const s=store.session;if(s&&s.mode==='mock'&&!mockTimerId){const qv=document.getElementById('quiz'),mp=document.getElementById('modePicker');if(qv&&qv.classList.contains('active')&&mp&&mp.style.display==='none')startMockTimer(s.mockElapsed||0);}} // 出題中(モード選択画面が隠れている＝enterQuizView済)のみ再開。qback後やモード選択での幽霊タイマーを防ぐ
+function resumeMockFromBg(){const s=store.session;if(s&&s.mode==='mock'&&quizMode==='mock'&&!mockTimerId){const qv=document.getElementById('quiz'),mp=document.getElementById('modePicker');if(qv&&qv.classList.contains('active')&&mp&&mp.style.display==='none')startMockTimer(s.mockElapsed||0);}} // 「実際に模試を出題中」(quizMode==='mock')のみ再開。qback後/モード選択/作成パネル/一時出題での幽霊タイマー＝経過時間の水増しを防ぐ
 function startQuiz(mode){
-  quizMode=mode;quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;
+  quizMode=mode;quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;quizEphemeral=false;
   enterQuizView();   // モードグリッド退避＋出題を画面先頭へ
   stopMockTimer();
   if(mode==='mock'){
@@ -1102,7 +1104,7 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
   go('quiz');                                        // #quizarea を用意（renderQuiz が quizMode=null にする）
   quizMode=s.mode;quizCat=s.cat||'all';
   quizPool=s.ids.map(id=>QUESTIONS.find(q=>q.id===id)).filter(Boolean);
-  quizIdx=Math.min(s.idx||0,quizPool.length);sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0; // 復帰は採点カウンタを全リセット（startQuizと対称・前回セッションの誤答/連続が残らないように）
+  quizIdx=Math.min(s.idx||0,quizPool.length);sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;quizEphemeral=false; // 復帰は採点カウンタを全リセット（startQuizと対称・前回セッションの誤答/連続が残らないように）
   enterQuizView();   // 復帰時もモードグリッドを退避して出題を前面に
   if(!quizPool.length){store.session=null;save();return;}
   if(quizMode==='mock')startMockTimer(s.mockElapsed||0);   // 模試はタイマーを保存済み経過から再開
@@ -1111,7 +1113,7 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
 function showQ(){
   const area=quizarea();
   if(quizIdx>=quizPool.length){
-    store.session=null;save();                       // セッション完走＝中断状態をクリア
+    if(!quizEphemeral){store.session=null;save();}   // セッション完走＝中断状態をクリア（一時出題は本セッションの「続きから」を消さない）
     const isMock=quizMode==='mock';const elapsed=isMock?Math.floor((Date.now()-quizMockStart)/1000):0;stopMockTimer();
     const pct=sAnswered?Math.round(sCorrect/sAnswered*100):0;
     const e=pct>=80?'🏆':pct>=50?'👍':'📚';
@@ -1131,13 +1133,13 @@ function showQ(){
     try{window.scrollTo(0,0);}catch(_){}
     renderHome();if(gSignedIn)cloudSync();return;
   }
-  if(store.session){store.session.idx=quizIdx;save();} // 中断復帰用に現在位置を保存
+  if(!quizEphemeral&&store.session){store.session.idx=quizIdx;save();} // 中断復帰用に現在位置を保存（一時出題は本セッションの idx を汚さない）
   const q=quizPool[quizIdx];
   const prog=`<div class="progressbar" role="progressbar" aria-valuemin="0" aria-valuemax="${quizPool.length}" aria-valuenow="${quizIdx+1}" aria-label="${quizPool.length}問中 ${quizIdx+1}問目"><i style="width:${quizIdx/quizPool.length*100}%"></i></div>
   <div id="sstat" style="display:flex;justify-content:flex-end;font-size:.72rem;color:var(--sub);margin:4px 2px 2px"><span class="sstreak">${sStreak>1?'🔥 '+sStreak+'連続正解':''}</span></div>`;
   let commBadge='';
   if(COMMUNITY_IDS.has(q.id)){
-    const up=q.up||0;
+    const up=+q.up||0;   // GAS応答由来＝validQuestion検証外のフィールドなので数値に強制（第三者由来をinnerHTMLへ出さない規約）
     const badge=q.v
       ?`<span class="badge" style="background:#16a34a;color:#fff">みんなの問題・✓検証済み</span>`
       :`<span class="badge" style="background:#f59e0b;color:#1a1a1a">みんなの問題・未検証</span>`;
@@ -1164,12 +1166,21 @@ function nextBtn(){return `<button class="btn wide qstick" style="margin-top:14p
 function bindNext(s){const n=s.querySelector('#nextQ');if(n)n.addEventListener('click',()=>{quizIdx++;showQ();});}
 // 採点の取り消し（MCの誤タップ救済）：採点前の状態を退避→復元して同じ問題を再描画
 function snapAnswer(id){return {card:store.cards[id]?JSON.parse(JSON.stringify(store.cards[id])):null,sA:sAnswered,sC:sCorrect,sS:sStreak,sW:sWrongIds.length,tA:store.totalAnswered||0,tC:store.totalCorrect||0,dd:(store.dailyDone&&store.dailyDone[todayStr()])||0,streak:store.streak,lastDate:store.lastDate};}
-function undoAnswer(snap,id){if(snap.card==null)delete store.cards[id];else store.cards[id]=snap.card;
+function undoAnswer(snap,id){
+  // 取り消した履歴の時刻を undone に記録＋ut(undo時刻)で勝者化＝同期済みクラウドとのマージで誤答が復活しない
+  const cur=store.cards[id];const remT=(cur&&Array.isArray(cur.hist)&&cur.hist.length)?cur.hist[cur.hist.length-1].t:0;
+  if(snap.card==null){
+    // 初回回答の取り消し：同期し得る状況ではカードを消さず「未学習相当のスタブ＋undone」を残す（クラウドからの丸ごと復活を防ぐ）
+    if(gSignedIn&&accessToken&&remT)store.cards[id]={box:1,reps:0,fails:0,due:0,last:null,hist:[],ef:EF_DEFAULT,ivl:0,undone:[remT],ut:Date.now()};
+    else delete store.cards[id];
+  }else{if(remT){snap.card.undone=[...(snap.card.undone||[]),remT].slice(-10);snap.card.ut=Date.now();}store.cards[id]=snap.card;}
   sAnswered=snap.sA;sCorrect=snap.sC;sStreak=snap.sS;sWrongIds=sWrongIds.slice(0,snap.sW);
   store.totalAnswered=snap.tA;store.totalCorrect=snap.tC;store.streak=snap.streak;store.lastDate=snap.lastDate;
-  store.dailyDone=store.dailyDone||{};store.dailyDone[todayStr()]=snap.dd;save();showQ();}
+  store.dailyDone=store.dailyDone||{};store.dailyDone[todayStr()]=snap.dd;save();
+  if(typeof gSignedIn!=='undefined'&&gSignedIn&&accessToken)cloudSync(true); // 取り消し状態を即push＝背景同期済みの誤答を上書き
+  showQ();}
 // 結果画面：間違えた問題だけをもう一周（最も学習効果が高い瞬間。Quizlet/UWorld流）
-function reviewWrong(){const ids=[...new Set(sWrongIds)];const pool=ids.map(id=>QUESTIONS.find(q=>q.id===id)).filter(Boolean);if(!pool.length)return;quizPool=pool;quizIdx=0;sCorrect=0;sAnswered=0;sStreak=0;sWrongIds=[];store.session=null;enterQuizView();showQ();}
+function reviewWrong(){const ids=[...new Set(sWrongIds)];const pool=ids.map(id=>QUESTIONS.find(q=>q.id===id)).filter(Boolean);if(!pool.length)return;quizPool=pool;quizIdx=0;sCorrect=0;sAnswered=0;sStreak=0;sWrongIds=[];quizMode='review';quizEphemeral=true;enterQuizView();showQ();} // quizMode='review'＝模試後の見直しに模試の経過時間がゴミ値で出ない（isMock誤判定の解消）。ephemeral＝session非保存
 // 出題中のキーボード操作（PC学習の定番：MC=1〜6 / 表示・採点=Space・1・0 / 次へ=Enter・→）
 document.addEventListener('keydown',e=>{
   const qv=document.getElementById('quiz');if(!qv||!qv.classList.contains('active'))return;
@@ -1269,8 +1280,13 @@ function renderCloze(q,meta,id,card){
   card.querySelector('#allrev').addEventListener('click',()=>{card.querySelectorAll('.blank').forEach(b=>{b.classList.add('show');setLbl(b);});enableGrade();});
   bindGrade3(card,id);
 }
+// 並べ替え出題用シャッフル：偶然「最初から正順」になった並びは出さない（items=3だと1/6の確率で
+// 無操作正解→SRSに誤った定着が記録されるため）。全要素同一などで正順以外が作れない場合は10回で諦める。
+function orderShuffle(items){let sh=shuffle(items.map((t,i)=>({t,i})));
+  if(items.length>1){let guard=0;while(sh.every((o,pos)=>o.i===pos)&&guard++<10)sh=shuffle(sh);}
+  return sh;}
 function renderOrder(q,meta,id,card){
-  const sh=shuffle(q.items.map((t,i)=>({t,i})));
+  const sh=orderShuffle(q.items);
   card.innerHTML=`<div class="quizcard">${meta}<div class="qtext">${esc(q.q)}</div>
     <ul class="orderlist" id="ol">${sh.map((o,pos)=>`<li draggable="true" data-i="${o.i}" aria-label="${pos+1}番目：${esc(o.t)}"><span class="num" aria-hidden="true">≡</span><span class="txt">${esc(o.t)}</span><span class="mv"><button class="up" aria-label="上へ">▲</button><button class="dn" aria-label="下へ">▼</button></span></li>`).join('')}</ul>
     <button class="btn wide" id="ck">答え合わせ</button><div class="reveal" id="R"></div></div>`;
@@ -1445,7 +1461,7 @@ function bindUserQ(el){
   q('#uqFile').addEventListener('change',e=>{
     const f=e.target.files[0];if(!f)return;const r=new FileReader();
     r.onload=()=>{try{const arr=JSON.parse(r.result);if(!Array.isArray(arr))throw 0;
-      store.userQuestions=store.userQuestions||[];const seen={};store.userQuestions.forEach(x=>seen[x.id]=1);let added=0;
+      store.userQuestions=store.userQuestions||[];const seen=Object.create(null);store.userQuestions.forEach(x=>seen[x.id]=1);let added=0;
       let skipped=0;arr.forEach(x=>{if(x&&x.id&&!seen[x.id]&&validQuestion(x)){seen[x.id]=1;if(typeof x.mtime!=='number')x.mtime=Date.now();store.userQuestions.push(x);added++;}else if(x&&x.id&&!validQuestion(x))skipped++;}); // mtime補完＝今インポートした版を同期で勝たせる
       save();rebuildQuestions();if(typeof gSignedIn!=='undefined'&&gSignedIn)cloudSync();renderCreatePanel(false);toast(added+'問インポートしました'+(skipped?`（不正 ${skipped}問は除外）`:''));
     }catch(err){toast('読み込めないファイル形式です');}};
@@ -1541,7 +1557,7 @@ function renderSettings(){
        if(!confirm('読み込んだ進捗を現在の進捗と統合します。よろしいですか？\n（新しい学習記録を優先し、付箋・自作問題・論文下書きも統合します）'))return;
        store=mergeStore(store,sanitizeImport(obj));save();if(typeof gSignedIn!=='undefined'&&gSignedIn&&accessToken)cloudSync(true);rerenderAll();renderSettings();toast('進捗を復元（統合）しました ✓');
      }catch(err){toast('読み込めないファイルです');}};rd.readAsText(f);e.target.value='';});}
-  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('学習の記録（正誤・定着・連続日数・統計）をすべて消去します。よろしいですか？\n※作成した問題と各種設定は残ります。')){const keep={theme:store.theme,examDate:store.examDate,examDateT:store.examDateT||0,userQuestions:store.userQuestions,fontScale:store.fontScale,dailyGoal:store.dailyGoal,ronbunDrafts:store.ronbunDrafts,ronbunChecks:store.ronbunChecks,bookmarks:store.bookmarks||[],recent:store.recent||[]};store=Object.assign({cards:{},streak:0,lastDate:null,dailyDate:null,totalAnswered:0,totalCorrect:0,dailyDone:{},session:null},keep);save();if(gSignedIn&&accessToken)driveSave(store).catch(()=>{});renderSettings();toast('学習の記録を消去しました');}});
+  el.querySelector('#resetBtn').addEventListener('click',()=>{if(confirm('学習の記録（正誤・定着・連続日数・統計）をすべて消去します。よろしいですか？\n※作成した問題と各種設定は残ります。')){const keep={theme:store.theme,examDate:store.examDate,examDateT:store.examDateT||0,userQuestions:store.userQuestions,fontScale:store.fontScale,dailyGoal:store.dailyGoal,ronbunDrafts:store.ronbunDrafts,ronbunChecks:store.ronbunChecks,bookmarks:store.bookmarks||[],recent:store.recent||[]};store=Object.assign({cards:{},streak:0,lastDate:null,dailyDate:null,totalAnswered:0,totalCorrect:0,dailyDone:{},session:null,resetT:Date.now()},keep);save();if(gSignedIn&&accessToken)cloudSync(true);renderSettings();toast('学習の記録を消去しました');}}); // resetT＝リセットのトゥームストーン（mergeStore がこれより古いカード/統計を復活させない＝他端末からの全復活を防ぐ）。クラウド反映は merge 経由の cloudSync（直 driveSave だと他端末の新しい学習まで消す）
   mountSync();
 }
 
@@ -1643,7 +1659,7 @@ async function fetchCommunity(retry){const url=getCommunityUrl();if(!url)return;
   try{j=await r.json();}
   catch(pe){elog({type:'community',msg:'共有問題の応答が不正（HTTP200だがJSON解析失敗）'});console.warn('[community] JSON解析失敗:',pe);return;} // ここだけは記録＝バックエンド不具合の手掛かり
   const arr=Array.isArray(j)?j:((j&&j.questions)||[]);
-  if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(validQuestion).slice(0,COMMUNITY_MAX);localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));rebuildQuestions();rerenderAll();}}
+  if(Array.isArray(arr)){COMMUNITY_QUESTIONS=arr.filter(validQuestion).slice(0,COMMUNITY_MAX);try{localStorage.setItem(COMMUNITY_CACHE,JSON.stringify(COMMUNITY_QUESTIONS));}catch(e){}rebuildQuestions();rerenderAll();}} // 容量超過でキャッシュ保存に失敗しても、今回取得分の出題反映(rebuild/rerender)は止めない
 // ===== 投稿の身元確認は「IDトークン(JWT)」を使う =====
 // アクセストークン(Drive権限を持つ資格情報)ではなく、身元のみを示すIDトークンを送る。
 // 漏えいしてもアクセス権を与えない。取得できない時は idtoken 空＝GAS側で審査(pending)へ安全に縮退。
@@ -1767,46 +1783,65 @@ async function driveSave(obj){const file=await driveFind();const meta=file?{}:{n
   const opts={method:file?'PATCH':'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'multipart/related; boundary='+b},body};
   if(typeof document!=='undefined'&&document.visibilityState==='hidden'){try{if(new TextEncoder().encode(body).length<60000)opts.keepalive=true;}catch(_){}} // 離脱直前のみ keepalive＝最終アップロードを生存させる（仕様上~64KB上限のため小サイズ時に限定。超過時は従来通りベストエフォート）
   const r=await fetch(url,opts);if(!r.ok)throw new Error('driveSave HTTP '+r.status);}
-function lastAct(c){if(!c||!Array.isArray(c.hist)||!c.hist.length)return 0;const t=(c.hist[c.hist.length-1]||{}).t;return (typeof t==='number'&&t<=Date.now()+864e5)?t:0;} // 最終操作時刻。未来ts(改竄/時計ズレ)は無視＝勝者判定を乗っ取らせない
+function lastAct(c){if(!c)return 0;const t=(Array.isArray(c.hist)&&c.hist.length)?(c.hist[c.hist.length-1]||{}).t:0;const ht=(typeof t==='number'&&t<=Date.now()+864e5)?t:0;const ut=(typeof c.ut==='number'&&c.ut<=Date.now()+864e5)?c.ut:0;return Math.max(ht,ut);} // 最終操作時刻＝hist末尾 or undo時刻(ut)の新しい方。未来ts(改竄/時計ズレ)は無視＝勝者判定を乗っ取らせない。ut を含めることで「取り消し」もマージの勝者になれる（クラウドの誤答が復活しない）
 // カードの数値フィールドをホワイトリスト＋範囲チェックで浄化（NaN/文字列/巨大値を排除）。import と cloud マージ双方で共用＝
 // 改竄/破損カードが ivl=NaN→due=NaN で dueList から静かに消える事故を防ぐ。hist は呼び出し側で別途和集合する場合がある。
 function sanitizeCard(c){const num=(v,d)=>Number.isFinite(v)?v:d;
   const hist=(Array.isArray(c.hist)?c.hist:[]).filter(h=>h&&typeof h.t==='number'&&h.t<=Date.now()+864e5).slice(-200); // 未来ts除去＋巨大hist上限
-  const card={box:Math.min(Math.max(Math.round(num(c.box,1))||1,1),5),reps:Math.max(num(c.reps,0),0),fails:Math.max(num(c.fails,0),0),due:num(c.due,0),ef:Math.min(Math.max(num(c.ef,EF_DEFAULT),EF_MIN),EF_MAX),ivl:Math.min(Math.max(num(c.ivl,0),0),IVL_MAX),hist};
-  if(Number.isFinite(c.pli))card.pli=c.pli;return card;}
+  const card={box:Math.min(Math.max(Math.round(num(c.box,1))||1,1),5),reps:Math.max(num(c.reps,0),0),fails:Math.max(num(c.fails,0),0),due:Math.min(num(c.due,0),Date.now()+(IVL_MAX+1)*DAY),ef:Math.min(Math.max(num(c.ef,EF_DEFAULT),EF_MIN),EF_MAX),ivl:Math.min(Math.max(num(c.ivl,0),0),IVL_MAX),hist}; // due は最長間隔+1日でキャップ（時計が未来にズレた端末の due が同期で伝播し、何年も出題されない死蔵を防ぐ）
+  if(Number.isFinite(c.pli))card.pli=c.pli;
+  if(Number.isFinite(c.ut))card.ut=c.ut;                                                                  // undo時刻（マージ勝者判定用）
+  if(Array.isArray(c.undone))card.undone=c.undone.filter(t=>typeof t==='number'&&t<=Date.now()+864e5).slice(-10); // 取り消した履歴の時刻（マージで復活させない）
+  return card;}
 function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));out.cards=out.cards||{};
+  // 学習リセットのトゥームストーン：resetT より新しい学習が無いカードは復活させない
+  // （端末Aでリセット→端末Bの旧カードが同期で全復活する問題への対処。リセット後に解いたカードだけ生き残る）
+  const rT=Math.max(a.resetT||0,b.resetT||0);if(rT)out.resetT=rT;
+  const dayEnd=ds=>{if(!ds||typeof ds!=='string')return 0;const p=ds.split('-');return new Date(+p[0],(+p[1]||1)-1,(+p[2]||1),23,59,59).getTime();}; // 'Y-M-D'→その日の終端ms（resetT比較用）
   const ids=new Set([...Object.keys(a.cards||{}),...Object.keys(b.cards||{})]);
-  ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];if(!ca){out.cards[id]=sanitizeCard(cb);return;}if(!cb){out.cards[id]=sanitizeCard(ca);return;} // 片側のみ＝そのカードを浄化して採用（cloud由来の破損数値を遮断）
+  ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];
+    if(rT&&Math.max(lastAct(ca),lastAct(cb))<=rT){delete out.cards[id];return;} // リセット以前の記録しか無いカードは破棄
+    if(!ca){out.cards[id]=sanitizeCard(cb);return;}if(!cb){out.cards[id]=sanitizeCard(ca);return;} // 片側のみ＝そのカードを浄化して採用（cloud由来の破損数値を遮断）
     const la=lastAct(ca),lb=lastAct(cb);
     // スケジュール状態は「より最近 or 進んでいる方」を採用。同値はreps多い方
     const chosen=(lb>la)?cb:((la>lb)?ca:(((cb.reps||0)>(ca.reps||0))?cb:ca));
     const m=sanitizeCard(chosen); // 採用カードを浄化（hist は直後に両者の和集合で上書き）
-    // hist は両者の和集合（重複排除・時刻順・直近30）＝履歴を取りこぼさない
+    // hist は両者の和集合（重複排除・時刻順・直近30）＝履歴を取りこぼさない。
+    // ただし undone（回答取り消し済みの時刻）に載った履歴は除外＝undo した誤答がクラウド側から和集合で復活しない
     const seen={},ha=Array.isArray(ca.hist)?ca.hist:[],hb=Array.isArray(cb.hist)?cb.hist:[]; // hist非配列(改竄/旧データ)でも例外を出さない
-    m.hist=[...ha,...hb].filter(h=>h&&typeof h.t==='number').sort((x,y)=>x.t-y.t).filter(h=>{const k=h.t+'|'+(h.ok?1:0);return seen[k]?false:(seen[k]=1,true);}).slice(-30);
+    const und=new Set([...(Array.isArray(ca.undone)?ca.undone:[]),...(Array.isArray(cb.undone)?cb.undone:[])].filter(t=>typeof t==='number'));
+    m.hist=[...ha,...hb].filter(h=>h&&typeof h.t==='number'&&!und.has(h.t)).sort((x,y)=>x.t-y.t).filter(h=>{const k=h.t+'|'+(h.ok?1:0);return seen[k]?false:(seen[k]=1,true);}).slice(-30);
+    if(und.size)m.undone=[...und].slice(-10);
     out.cards[id]=m;});
   // streak は「より最近学習した端末」のものを採用（max だと放置端末の旧値で誤継続する）。同日は max
-  {const aD=ymdNum(a.lastDate||''),bD=ymdNum(b.lastDate||'');
-   out.lastDate=(bD>aD)?b.lastDate:((aD>bD)?a.lastDate:(a.lastDate||b.lastDate||null));
-   out.streak=(bD>aD)?(b.streak||0):((aD>bD)?(a.streak||0):Math.max(a.streak||0,b.streak||0));}
+  {const aOk=!rT||dayEnd(a.lastDate)>rT,bOk=!rT||dayEnd(b.lastDate)>rT;  // リセット以降に学習が無い側の streak/lastDate は引き継がない
+   const aD=aOk?ymdNum(a.lastDate||''):0,bD=bOk?ymdNum(b.lastDate||''):0;
+   out.lastDate=(bD>aD)?b.lastDate:((aD>bD)?a.lastDate:((aOk&&a.lastDate)||(bOk&&b.lastDate)||null));
+   out.streak=(bD>aD)?(b.streak||0):((aD>bD)?(a.streak||0):Math.max(aOk?(a.streak||0):0,bOk?(b.streak||0):0));
+   if(!(typeof out.streak==='number'&&isFinite(out.streak)&&out.streak>=0&&out.streak<100000))out.streak=0; // 型検証（sanitizeImportと同水準）。streak は esc なしで innerHTML に出るため、改竄cloudの文字列を通さない＝描画XSS防止
+   if(typeof out.lastDate!=='string'&&out.lastDate!=null)out.lastDate=null;}
   // examDate は最後に変更した方を採用（設定も解除も端末間で伝播）
   if((b.examDateT||0)>(a.examDateT||0))out.examDate=b.examDate;
   out.examDateT=Math.max(a.examDateT||0,b.examDateT||0);
   if(out.examDate!=null&&!(typeof out.examDate==='string'&&/^\d{4}-\d{1,2}-\d{1,2}$/.test(out.examDate)))out.examDate=null; // 不正書式(改竄cloud等)は破棄＝描画XSS/日付計算破綻を防ぐ
-  // ユーザー作成問題は id で統合。同idは mtime（最終編集時刻）が新しい方を採用＝端末間の編集が巻き戻らない
-  {const by={};[...(a.userQuestions||[]),...(b.userQuestions||[])].forEach(q=>{if(q&&q.id){const ex=by[q.id];if(!ex||(q.mtime||0)>=(ex.mtime||0))by[q.id]=q;}});out.userQuestions=Object.values(by);}
+  // ユーザー作成問題は id で統合。同idは mtime（最終編集時刻）が新しい方を採用＝端末間の編集が巻き戻らない。
+  // validQuestion で型検証（cloud由来の不正問題が store に残留して uqLabel/エクスポートを壊すのを防ぐ＝import経路と対称）
+  {const by=Object.create(null);[...(a.userQuestions||[]),...(b.userQuestions||[])].forEach(q=>{if(q&&q.id&&validQuestion(q)){const ex=by[q.id];if(!ex||(q.mtime||0)>=(ex.mtime||0))by[q.id]=q;}});out.userQuestions=Object.values(by);}
   // 論文の下書きはタイトル毎に「長い方」を採用（端末間でより書き込んだ版を保持）
   {const dr=Object.assign({},a.ronbunDrafts||{});const bd=b.ronbunDrafts||{};Object.keys(bd).forEach(k=>{if(!dr[k]||String(bd[k]).length>String(dr[k]).length)dr[k]=bd[k];});out.ronbunDrafts=dr;}
-  // 累積統計：両端末値に加え、マージ後カードの履歴和集合からの集計も下限に採用（端末B単独の解答が Math.max に飲まれて欠落するのを緩和。値は単調増加のみ）
+  // 累積統計：両端末値に加え、マージ後カードの履歴和集合からの集計も下限に採用（端末B単独の解答が Math.max に飲まれて欠落するのを緩和。値は単調増加のみ）。
+  // リセット(rT)後は生き残ったカードの履歴からの再計算のみを正とする（Math.max だと旧端末の累積が即復活してリセットが無意味になる）
   {let ua=0,uc=0;Object.values(out.cards||{}).forEach(c=>(c.hist||[]).forEach(h=>{ua++;if(h&&h.ok)uc++;}));
-   out.totalAnswered=Math.max(a.totalAnswered||0,b.totalAnswered||0,ua);
-   out.totalCorrect=Math.max(a.totalCorrect||0,b.totalCorrect||0,uc);}
-  {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});out.dailyDone=pruneDailyDone(dd);} // 結合後に剪定
+   out.totalAnswered=rT?ua:Math.max(a.totalAnswered||0,b.totalAnswered||0,ua);
+   out.totalCorrect=rT?uc:Math.max(a.totalCorrect||0,b.totalCorrect||0,uc);}
+  {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});if(rT)Object.keys(dd).forEach(k=>{if(dayEnd(k)<=rT)delete dd[k];});out.dailyDone=pruneDailyDone(dd);} // 結合後に剪定。リセット以前の日次記録は復活させない
   {const ab=Array.isArray(a.bookmarks)?a.bookmarks:[],bb=Array.isArray(b.bookmarks)?b.bookmarks:[];out.bookmarks=[...new Set([...ab,...bb].filter(k=>typeof k==='string'))];} // 付箋は和集合（非配列/非文字列は無視）
   {const seen={},ar=Array.isArray(a.recent)?a.recent:[],br=Array.isArray(b.recent)?b.recent:[];out.recent=[...ar,...br].filter(it=>it&&typeof it==='object'&&it.t&&it.id!=null).sort((x,y)=>(y.ts||0)-(x.ts||0)).filter(it=>{const k=it.t+':'+it.id;return seen[k]?false:(seen[k]=1,true);}).slice(0,12);} // 最近見たは時刻順で結合・上位12（壊れ要素は除外）
   // 論文の自己チェックは深いOR（どちらかでチェック済みなら残す）。設定は「より最近学習した端末」を採用（lastDate勝者）
   {const oc=Object.assign({},a.ronbunChecks||{}),bc=b.ronbunChecks||{};Object.keys(bc).forEach(t=>{oc[t]=Object.assign({},oc[t]||{});Object.keys(bc[t]||{}).forEach(k=>{if(bc[t][k])oc[t][k]=true;});});out.ronbunChecks=oc;}
-  {const bWins=ymdNum(b.lastDate||'')>ymdNum(a.lastDate||'');const pick=(ka)=>{const bv=b[ka];if(bWins&&bv!=null)out[ka]=bv;};pick('dailyGoal');pick('theme');pick('fontScale');}
+  {const bWins=ymdNum(b.lastDate||'')>ymdNum(a.lastDate||'');const pick=(ka,valid)=>{const bv=b[ka];if(bWins&&bv!=null&&(!valid||valid(bv)))out[ka]=bv;};
+   pick('dailyGoal',v=>typeof v==='number'&&isFinite(v)&&v>0&&v<1000);pick('theme');pick('fontScale');} // dailyGoal は esc なしで innerHTML に出るため型検証してから採用（改竄cloud対策・sanitizeImportと同水準）
+  if(out.dailyGoal!=null&&!(typeof out.dailyGoal==='number'&&isFinite(out.dailyGoal)&&out.dailyGoal>0&&out.dailyGoal<1000))delete out.dailyGoal; // a側(ローカル)由来の不正値も最終ガード
   return out;}
 // ファイル復元(信頼できない入力)の浄化：累積統計は信用せずcards履歴から再計算、未来ts履歴を除去、不正フィールドを落とす（巨大値による正答率破綻・乗っ取りを防ぐ）
 function sanitizeImport(o){const s={};o=o||{};
@@ -1816,6 +1851,7 @@ function sanitizeImport(o){const s={};o=o||{};
   if(typeof o.lastDate==='string')s.lastDate=o.lastDate;
   if(typeof o.examDate==='string'&&/^\d{4}-\d{1,2}-\d{1,2}$/.test(o.examDate))s.examDate=o.examDate; // 書式厳格化（任意文字列の混入を遮断）
   if(typeof o.examDateT==='number'&&isFinite(o.examDateT))s.examDateT=o.examDateT;
+  if(typeof o.resetT==='number'&&isFinite(o.resetT)&&o.resetT>0&&o.resetT<=Date.now()+864e5)s.resetT=o.resetT; // リセットのトゥームストーンも引き継ぐ（未来tsは拒否＝全進捗の恒久ロックを防ぐ）
   if(Array.isArray(o.userQuestions))s.userQuestions=o.userQuestions.filter(validQuestion).map(x=>Object.assign({},x,{mtime:typeof x.mtime==='number'?x.mtime:Date.now()})); // 自作問題に mtime 補完
   if(o.ronbunDrafts&&typeof o.ronbunDrafts==='object'&&!Array.isArray(o.ronbunDrafts)){s.ronbunDrafts={};Object.keys(o.ronbunDrafts).slice(0,50).forEach(k=>{s.ronbunDrafts[String(k).slice(0,80)]=String(o.ronbunDrafts[k]||'').slice(0,8000);});} // 下書きはキー/値長をクランプ
   s.dailyDone=pruneDailyDone(o.dailyDone); // 取り込み時も剪定
@@ -1838,10 +1874,11 @@ async function _doSync(quiet){if(!accessToken)return;try{
   const f=await driveFind();const cloud=f?await driveGet(f.id):null;
   const merged=mergeStore(store,cloud);
   await driveSave(merged);          // 先にクラウドへ書込（失敗時は例外でローカル不変＝データ喪失を防ぐ）
-  store=merged;save();              // クラウド成功を確認してからローカルを確定
+  store=mergeStore(store,merged);save(); // driveSave待ちの間のローカル操作（解答・付箋等）を再マージで生かす＝store=mergedの上書きで進捗が巻き戻るロストアップデートを防ぐ。クラウドとの差分は次回pushで追いつく
   try{localStorage.setItem('oki_last_sync',String(Date.now()));}catch(e){} // 最終同期時刻（UIの安心材料）
   rebuildQuestions();               // 同期で増えた自作問題を即出題対象に（リロード不要・validQuestionで検証）
-  renderHome();mountSync();updateAuthBadge(); // 同期カード/ヘッダーバッジ/ホームの「最終同期」も更新
+  {const gs=document.getElementById('globalSearch');if(!(gs&&(gs.value||document.activeElement===gs)))renderHome();} // 横断検索の入力中/結果表示中はホームを作り直さない（背景同期で検索が消える問題）
+  mountSync();updateAuthBadge(); // 同期カード/ヘッダーバッジ/ホームの「最終同期」も更新
 }catch(e){console.warn(e);
   if(/HTTP 401/.test(String(e&&e.message||e))){accessToken=null;gSignedIn=false;clearGTok();mountSync();updateAuthBadge();trySilentSignIn();return;} // アクセストークン失効→保存トークンも破棄し無音で再取得（次回同期で自動復帰）
   if(!quiet)toast('同期に失敗しました');}}  // 背景同期(quiet)は失敗トーストを出さない
@@ -1934,7 +1971,7 @@ function srSay(m){const s=document.getElementById('srlive');if(!s)return;s.textC
 // 起動時に読み込み、ユーザー作成問題(store.userQuestions)を連結して QUESTIONS を構成。
 let BASE_QUESTIONS=[];
 // 重複idを除いて 公式(questions.json) > みんなの共有 > 自作 の優先で合成
-function rebuildQuestions(){const seen={},out=[];
+function rebuildQuestions(){const seen=Object.create(null),out=[];   // 素の{}だと継承プロパティ名のidが誤って「重複」扱いになる
   // 不正な問題（型別フィールド欠落）は除外し、描画/採点クラッシュを防ぐ。優先: 公式>共有>自作。
   [...BASE_QUESTIONS,...COMMUNITY_QUESTIONS,...(store.userQuestions||[])].forEach(q=>{if(q&&q.id&&!seen[q.id]&&validQuestion(q)){seen[q.id]=1;out.push(q);}});
   QUESTIONS=out;
@@ -1946,7 +1983,11 @@ let _staticRendered=false;
 function rerenderAll(){
   renderHome();
   if(!_staticRendered){renderMap();renderRef();renderLookup();_staticRendered=true;} // 静的ビュー(REF/LOOKUP由来)は初回のみ＝二重描画を回避
-  const quizBusy=quizMode!=null&&quizPool.length>0&&quizIdx<quizPool.length; // クイズ回答中は #quiz を壊さない
+  // クイズ画面が「出題・結果・作成パネル」で占有中（=モード選択が退避中）は #quiz を作り直さない。
+  // 旧判定（回答中のみ）だと、結果画面や作成フォーム入力中に共有問題の遅延到着/online復帰の再描画で
+  // 画面が破壊され入力が全損していた。
+  const mp=document.getElementById('modePicker');
+  const quizBusy=(quizMode!=null&&quizPool.length>0&&quizIdx<quizPool.length)||(mp&&mp.style.display==='none');
   if(!quizBusy)renderQuiz();
   if(document.getElementById('prog'))try{renderProg();}catch(e){}}
 const QJSON_CACHE='okinawa_qjson_cache';
