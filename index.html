@@ -1064,7 +1064,7 @@ function fmtSec(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%
 function startMockTimer(resumeSec){stopMockTimer();quizMockStart=Date.now()-(resumeSec||0)*1000;const t=document.createElement('div');t.id='mockTimer';t.setAttribute('role','timer');t.setAttribute('aria-label','経過時間');t.style.cssText='position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:60;background:var(--accent);color:#fff;padding:5px 12px;border-radius:20px;font-weight:700;font-size:.85rem;box-shadow:var(--shadow)';document.body.appendChild(t);const upd=()=>{t.textContent='⏱ '+fmtSec(Math.floor((Date.now()-quizMockStart)/1000));};upd();mockTimerId=setInterval(upd,1000);}
 // 背景化（OSのアプリ切替/タブ凍結）でも模試タイマーを一時停止＝go()のタブ離脱と対称（離脱中は加算しない／所要時間の水増しを防ぐ）
 function pauseMockForBg(){if(mockTimerId&&store.session&&store.session.mode==='mock'){store.session.mockElapsed=Math.floor((Date.now()-quizMockStart)/1000);save();stopMockTimer();}}
-function resumeMockFromBg(){const s=store.session;if(s&&s.mode==='mock'&&!mockTimerId){const qv=document.getElementById('quiz');if(qv&&qv.classList.contains('active'))startMockTimer(s.mockElapsed||0);}} // 復帰時にクイズ表示中なら保存済み経過から続行
+function resumeMockFromBg(){const s=store.session;if(s&&s.mode==='mock'&&!mockTimerId){const qv=document.getElementById('quiz'),mp=document.getElementById('modePicker');if(qv&&qv.classList.contains('active')&&mp&&mp.style.display==='none')startMockTimer(s.mockElapsed||0);}} // 出題中(モード選択画面が隠れている＝enterQuizView済)のみ再開。qback後やモード選択での幽霊タイマーを防ぐ
 function startQuiz(mode){
   quizMode=mode;quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;
   enterQuizView();   // モードグリッド退避＋出題を画面先頭へ
@@ -1665,13 +1665,16 @@ async function voteCommunity(id,btn){
     return;
   }
   if(btn){btn.disabled=true;btn.textContent='👍 ありがとう';btn.style.opacity=.7;}
+  const reEnable=()=>{if(btn){btn.disabled=false;btn.textContent='👍 役に立った';btn.style.opacity=1;}};
   try{
-    const body=JSON.stringify({action:'vote',id,idtoken:idt,device:deviceId()});
+    const body=JSON.stringify({action:'vote',id,idtoken:idt}); // device は送らない＝集計は検証済みsub基準（サーバは無視）
     const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
     let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
-    if(j&&j.error==='login required'){toast('投票にはGoogleログインが必要です');if(btn){btn.disabled=false;btn.textContent='👍 役に立った';btn.style.opacity=1;}return;}
-    toast('「役に立った」を送りました 🙏');
-  }catch(e){elog({type:'community',msg:'投票失敗:'+((e&&e.message)||e)});toast('送信に失敗しました');if(btn){btn.disabled=false;btn.textContent='👍 役に立った';btn.style.opacity=1;}}
+    if(!j||!j.ok){ // 失敗（login required / rate limited / busy / not found 等）＝偽の成功表示とボタン固着を防ぐ
+      toast(j&&j.error==='login required'?'投票にはGoogleログインが必要です':'送信できませんでした。時間をおいて再度お試しください');reEnable();return;
+    }
+    toast('「役に立った」を送りました 🙏'); // ok:true（status:'voted' / 'already'）のみ成功表示
+  }catch(e){elog({type:'community',msg:'投票失敗:'+((e&&e.message)||e)});toast('送信に失敗しました');reEnable();}
 }
 // 共有問題の通報。一定数集まると GAS 側が approved→pending に自動降格し運営が再確認する。
 async function reportCommunity(id,btn){
