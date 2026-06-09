@@ -54,6 +54,7 @@ const post = (env) => JSON.parse(GAS.doPost({ postData: { contents: JSON.stringi
 const get = () => JSON.parse(GAS.doGet({})._s);
 const validToken = () => { _tokeninfo = { sub: 'sub-default', aud: CLIENT_ID, azp: CLIENT_ID, iss: 'accounts.google.com', email_verified: 'true', exp: String(Math.floor(Date.now()/1000)+3600) }; };
 const voteAs = (id, sub) => { validToken(); _tokeninfo.sub = sub; return post({ action:'vote', id, idtoken:'tok' }); }; // 検証済み sub ごとに1票（端末ではなくGoogleアカウントで集計）
+const reportAs = (id, sub) => { validToken(); _tokeninfo.sub = sub; return post({ action:'report', id, idtoken:'tok' }); }; // 通報も sub 基準（端末ID偽装での良問降格を防ぐ）
 const Q = (id, src) => ({ id, type: 'qa', cat: '法規', q: '問' + id, a: '答', src: src || '学校教育法第37条' });
 
 // =========================== validate_ ===========================
@@ -149,24 +150,30 @@ ok('未ログイン投票は login required', post({ action:'vote', id:'p2' }).e
 ok('未ログイン投票は up を増やさない', get().questions.find(q => q.id === 'p2').up === 3);
 ok('未知idへの投票(ログイン済)は not found', voteAs('none', 'sq').error === 'not found');
 
-// =========================== 通報→自動降格 ===========================
-section('handleReport_: REPORT_LIMIT で approved→pending 自動降格');
+// =========================== 通報→自動降格（本人確認必須・3つの別アカウント） ===========================
+section('handleReport_: REPORT_LIMIT(別アカウント3名)で approved→pending 自動降格');
 reset(); validToken();
 post({ q:Q('rp','学校教育法第37条'), idtoken:'tok', device:'d1' });
 ok('降格前は配信される', get().questions.length === 1);
-['dx','dy','dz'].forEach(d => post({ action:'report', id:'rp', device:d }));  // 通報3
-ok('通報3件で非配信（pending降格）', get().questions.length === 0);
-ok('二重通報は already', post({ action:'report', id:'rp', device:'dx' }).status === 'already');
+ok('未ログイン通報は login required', post({ action:'report', id:'rp' }).error === 'login required');
+ok('未ログイン通報は降格させない', get().questions.length === 1);
+// #1対策：同一アカウントが3回通報しても reports=1（端末ID偽装での suppression 不可）→降格しない
+reportAs('rp','attacker'); reportAs('rp','attacker'); reportAs('rp','attacker');
+ok('同一アカウント連投では降格しない（偽造不可）', get().questions.length === 1);
+// 異なる3アカウントの通報が揃って初めて降格
+reportAs('rp','rA'); reportAs('rp','rB');   // attacker(1) + rA + rB = 別3アカウント
+ok('別3アカウントの通報で非配信（pending降格）', get().questions.length === 0);
+ok('同一アカウントの二重通報は already', reportAs('rp','rA').status === 'already');
 
 // =========================== 通報/投票：not found は枠を消費しない ===========================
 section('handleReport_/handleVote_: 未知idは枠を消費せず二重抑止キーも焼かない（成功時のみ確定）');
 reset(); validToken();
 post({ q:Q('real','学校教育法第37条'), idtoken:'tok', device:'dG' });   // approved な実在問題
 {
-  const r = post({ action:'report', id:'ghost', device:'dG' });
+  const r = reportAs('ghost', 'rZ');
   ok('未知idへの通報は not found', r.error === 'not found');
-  ok('未知id通報でレート枠を消費しない', _cache['rprl_dG'] === undefined || _cache['rprl_dG'] === null);
-  ok('未知id通報で二重抑止キーを焼かない', !_cache['rpd_dG_ghost']);
+  ok('未知id通報でレート枠を消費しない（sub基準）', !_cache['rprl_rZ']);
+  ok('未知id通報で二重抑止キーを焼かない（sub基準）', !_cache['rpd_rZ_ghost']);
   const v = voteAs('ghost', 'sZ');
   ok('未知idへの投票は not found', v.error === 'not found');
   ok('未知id投票でレート枠を消費しない（sub基準）', !_cache['vrl_sZ']);
@@ -174,9 +181,9 @@ post({ q:Q('real','学校教育法第37条'), idtoken:'tok', device:'dG' });   /
 }
 {
   // 回帰防止：実在idの記録成功時には枠と二重抑止キーが確定すること
-  post({ action:'report', id:'real', device:'dH' });
-  ok('通報成功でレート枠を消費(=1)', String(_cache['rprl_dH']) === '1');
-  ok('通報成功で二重抑止キーを確定', String(_cache['rpd_dH_real']) === '1');
+  reportAs('real', 'rH');
+  ok('通報成功でレート枠を消費(=1・sub基準)', String(_cache['rprl_rH']) === '1');
+  ok('通報成功で二重抑止キーを確定（sub基準）', String(_cache['rpd_rH_real']) === '1');
   voteAs('real', 'sI');
   ok('投票成功でレート枠を消費(=1・sub基準)', String(_cache['vrl_sI']) === '1');
   ok('投票成功で二重抑止キーを確定（sub基準）', String(_cache['vd_sI_real']) === '1');

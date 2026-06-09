@@ -1676,17 +1676,28 @@ async function voteCommunity(id,btn){
     toast('「役に立った」を送りました 🙏'); // ok:true（status:'voted' / 'already'）のみ成功表示
   }catch(e){elog({type:'community',msg:'投票失敗:'+((e&&e.message)||e)});toast('送信に失敗しました');reEnable();}
 }
-// 共有問題の通報。一定数集まると GAS 側が approved→pending に自動降格し運営が再確認する。
+// 共有問題の通報。一定数(別アカウント)集まると GAS 側が approved→pending に自動降格し運営が再確認する。
+// 通報は本人確認(Googleログイン)必須＝端末ID偽装による良問の不正降格(suppression)を防ぐ（投票と対称）。
 async function reportCommunity(id,btn){
   const url=getCommunityUrl();if(!url)return;
+  const idt=freshIdToken();
+  if(!idt){ // 通報も投票と同様に本人確認が必要
+    if(gIdReady())requestIdToken();
+    toast(gSignedIn?'本人確認の準備中です。数秒後にもう一度どうぞ':'通報はGoogleログインが必要です（⚙️設定から）');
+    return;
+  }
   if(!confirm('この問題に誤りや不適切な内容がある場合に通報します。\n一定数の通報が集まると自動で非公開になり、運営が再確認します。\n通報しますか？'))return;
   if(btn){btn.disabled=true;btn.textContent='通報済み';btn.style.opacity=.6;}
+  const reEnable=()=>{if(btn){btn.disabled=false;btn.textContent='⚠️通報';btn.style.opacity=1;}};
   try{
-    const body=JSON.stringify({action:'report',id,device:deviceId()});
+    const body=JSON.stringify({action:'report',id,idtoken:idt});
     const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
     let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
-    toast(j&&j.ok?'通報しました。ご協力ありがとうございます':'通報を受け付けました');
-  }catch(e){elog({type:'community',msg:'通報失敗:'+((e&&e.message)||e)});toast('通報の送信に失敗しました');if(btn){btn.disabled=false;btn.textContent='⚠️通報';btn.style.opacity=1;}}
+    if(!j||!j.ok){ // 失敗（login required / rate limited / busy / not found 等）＝ボタン復帰
+      toast(j&&j.error==='login required'?'通報はGoogleログインが必要です':'通報を送信できませんでした。時間をおいて再度お試しください');reEnable();return;
+    }
+    toast('通報しました。ご協力ありがとうございます');
+  }catch(e){elog({type:'community',msg:'通報失敗:'+((e&&e.message)||e)});toast('通報の送信に失敗しました');reEnable();}
 }
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
 let gSilent=false; // 起動時のサイレント再ログイン中はトーストを出さない

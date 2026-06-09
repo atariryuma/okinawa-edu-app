@@ -42,7 +42,7 @@ var BLOCKLIST       = ['<script', 'javascript:', 'onerror=', 'onload=', 'onclick
 // ── 自動承認（段階可視性）の門番パラメータ ──────────────────────────────────
 var REP_TRUST       = 2;     // この端末の「承認済み」実績がこの数以上なら、匿名でも自動公開の資格（段階信頼）
 var REPORT_LIMIT    = 3;     // 通報がこの数に達したら approved→pending へ自動降格（可逆）
-var REPORT_RATE_HR  = 30;    // 1端末あたり1時間の通報上限（通報の悪用対策）
+var REPORT_RATE_HR  = 30;    // 1アカウント(sub)あたり1時間の通報上限（通報は本人確認必須）
 var UP_VERIFY       = 3;     // 👍がこの数以上（かつ通報が限度未満）で「✓検証済み(コミュニティ)」に自動昇格
 var VOTE_RATE_HR    = 60;    // 1アカウント(sub)あたり1時間の👍上限（投票は本人確認必須）
 // 出典が公式ソースに解決するかの判定パターン（アプリの LAW_LINKS/DOC_LINKS の p を移植）。
@@ -141,9 +141,9 @@ function doPost(e) {
     } catch (parseErr) {
       return json_({ ok: false, error: 'invalid JSON' });
     }
-    // 通報アクション（共有問題の誤り報告→自動降格の起点）。問題投稿とは別経路で先に処理。
+    // 通報アクション（共有問題の誤り報告→自動降格の起点）。本人確認(IDトークン)必須＝良問の不正降格を防ぐ。
     if (env && typeof env === 'object' && env.action === 'report') {
-      return handleReport_(String(env.id || ''), String(env.device || ''));
+      return handleReport_(String(env.id || ''), String(env.idtoken || env.token || ''));
     }
     // 👍アクション（良問の浮上→検証済み昇格の起点）。投票は本人確認(IDトークン)必須＝1アカウント1票でバッジ偽造を防ぐ。
     if (env && typeof env === 'object' && env.action === 'vote') {
@@ -246,22 +246,25 @@ function srcResolves_(src) {
 }
 
 /* ============================================================================
- *  handleReport_(id, device): 共有問題の通報。一定数で approved→pending に自動降格。
- *   - 端末ごとの通報レート制限＋同一問題の二重通報抑止（CacheService）
+ *  handleReport_(id, idtoken): 共有問題の通報。一定数で approved→pending に自動降格。
+ *   - 通報は本人確認(IDトークン)必須＝1 Google アカウント1通報（端末ID偽装での良問 suppression を封じる）。
+ *     降格には REPORT_LIMIT 個の「異なる検証済みアカウント」の通報が必要（投票と対称）。
+ *   - 識別子は検証済み sub。sub ごとに通報レート制限＋同一問題の二重通報抑止（CacheService）
  *   - REPORT_LIMIT 到達かつ approved の時だけ pending へ降格（再審査）＋doGetキャッシュ破棄
  * ========================================================================== */
-function handleReport_(id, device) {
+function handleReport_(id, idtoken) {
   if (!ID_RE.test(String(id || ''))) return json_({ ok: false, error: 'bad id' });
-  if (!device) return json_({ ok: false, error: 'no device' });
+  var reporter = verifyTokenSub_(idtoken);                       // 検証済み Google アカウントID（sub）
+  if (!reporter) return json_({ ok: false, error: 'login required' }); // 未ログイン/検証失敗は通報不可（良問の不正降格を防ぐ）
   // レート制限＆重複通報の抑止：ここでは READ のみで判定。カウント加算と二重抑止キーの確定は
   // 「実際に通報を記録できた時」だけ行う（存在しない/未複製のidや not found で枠を消費・キーを焼かない）。
-  var rk = 'rprl_' + device, dk = 'rpd_' + device + '_' + id, rn = 0;
+  var rk = 'rprl_' + reporter, dk = 'rpd_' + reporter + '_' + id, rn = 0;
   try {
     var c = CacheService.getScriptCache();
     if (c) {
       rn = parseInt(c.get(rk) || '0', 10);
       if (rn >= REPORT_RATE_HR) return json_({ ok: false, error: 'rate limited' });
-      if (c.get(dk)) return json_({ ok: true, status: 'already' }); // 同端末×同一問題の二重通報は無視（成功扱い）
+      if (c.get(dk)) return json_({ ok: true, status: 'already' }); // 同一アカウント×同一問題の二重通報は無視（成功扱い）
     }
   } catch (e) { /* キャッシュ不可でも続行 */ }
 
@@ -276,7 +279,7 @@ function handleReport_(id, device) {
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) === id) {
         var rowNum = i + 2;
-        try { var cR = CacheService.getScriptCache(); if (cR) { if (cR.get(dk)) return json_({ ok: true, status: 'already' }); var rnL = parseInt(cR.get(rk) || '0', 10); if (rnL >= REPORT_RATE_HR) return json_({ ok: false, error: 'rate limited' }); rn = rnL; } } catch (_r) {} // ロック内で再確認＝read-modify-writeを直列化（同端末の同時押しによる二重加算/レート超過を遮断・TOCTOU封じ）
+        try { var cR = CacheService.getScriptCache(); if (cR) { if (cR.get(dk)) return json_({ ok: true, status: 'already' }); var rnL = parseInt(cR.get(rk) || '0', 10); if (rnL >= REPORT_RATE_HR) return json_({ ok: false, error: 'rate limited' }); rn = rnL; } } catch (_r) {} // ロック内で再確認＝read-modify-writeを直列化（同一アカウントの同時押しによる二重加算/レート超過を遮断・TOCTOU封じ）
         var rpCell = sh.getRange(rowNum, COL.reports + 1);
         var n = parseInt(rpCell.getValue() || '0', 10) + 1;
         rpCell.setValue(n);
