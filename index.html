@@ -689,6 +689,8 @@ applyTheme();
 const FONT_SIZES={s:'14px',m:'16px',l:'18px',xl:'20.5px'},FONT_ORDER=['m','l','xl','s'],FONT_LABEL={s:'小',m:'標準',l:'大',xl:'特大'};
 // sticky ヘッダー高さ分だけ scrollIntoView/アンカー位置を下げる＝設定の「Googleでログイン」等の対象がヘッダー裏に隠れるのを防ぐ（フォント拡大/タブ折返しで高さが変わるので実測）
 function setScrollPad(){try{const h=document.querySelector('header.top');if(h)document.documentElement.style.scrollPaddingTop=(Math.ceil(h.getBoundingClientRect().height)+10)+'px';}catch(_){}}
+// smooth スクロール＋sticky ヘッダー考慮。Chrome は scrollIntoView({behavior:'smooth'}) で scroll-padding-top を無視するバグがあるため、自前で位置計算する（block:'start'相当）。
+function smoothScrollTo(el){if(!el)return;try{const pad=parseInt(getComputedStyle(document.documentElement).scrollPaddingTop)||0;const y=Math.max(0, el.getBoundingClientRect().top+window.pageYOffset-pad);window.scrollTo({top:y,behavior:'smooth'});}catch(_){try{el.scrollIntoView({block:'start'});}catch(__){}}}
 function applyFontScale(){document.documentElement.style.fontSize=FONT_SIZES[store.fontScale]||FONT_SIZES.m;setScrollPad();}
 function setFont(scale){if(!FONT_SIZES[scale])return;store.fontScale=scale;save();applyFontScale();if(document.getElementById('settings')&&document.getElementById('settings').classList.contains('active'))renderSettings();}
 applyFontScale();window.addEventListener('resize',setScrollPad);setTimeout(setScrollPad,400); // 初期＋遅延レイアウト（Webフォント等）＋リサイズで再計算
@@ -751,13 +753,13 @@ function go(v,focusPanel){
 //==================== 横断検索（要点/逆引き/論文/問題） ====================
 let SEARCH_INDEX=null;
 function openRef(id){refFilter='all';go('ref');setTimeout(()=>{const d=document.getElementById('acc-'+id);if(d){d.open=true;d.scrollIntoView({behavior:'smooth',block:'center'});}},70);}
-function openSync(){go('settings');setTimeout(()=>{const m=document.getElementById('syncMount');if(m)m.scrollIntoView({behavior:'smooth',block:'start'});},70);} // 同期/アカウントは設定ビューの先頭セクション
+function openSync(){go('settings');setTimeout(()=>{const m=document.getElementById('syncMount');if(m)smoothScrollTo(m);},70);} // 同期/アカウントは設定ビューの先頭セクション（ヘッダー裏に隠れないよう自前scroll）
 function openExamSetting(){go('prog');setTimeout(()=>{const i=document.getElementById('examIn');if(i){i.scrollIntoView({behavior:'smooth',block:'center'});try{i.focus({preventScroll:true});}catch(_){}}},80);} // 試験日の恒常的な設定入口（進捗タブの日付欄へ誘導）
 function openLk(sit){go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);} // 逆引きの特定状況を開く（最近見た/横断検索から）
 function buildSearchIndex(){const idx=[];
   REF.forEach(r=>idx.push({k:'要点',t:r.name,b:(r.points||[]).join(' ')+' '+(r.tag||'')+' '+(r.cat||'')+' '+(r.src||''),go:()=>openRef(r.id)}));
   LOOKUP.forEach(l=>idx.push({k:'逆引き',t:l.sit,b:(l.kw||'')+' '+(l.based||[]).map(x=>x.join(' ')).join(' '),go:()=>{go('lookup');setTimeout(()=>{const i=document.querySelector('#lkin');if(i){i.value=l.sit;i.dispatchEvent(new Event('input'));i.scrollIntoView({block:'start'});}},70);}}));
-  RONBUN.forEach((r,i)=>idx.push({k:'論文',t:r.t,b:(r.q||'')+' '+(r.hon||[]).join(' ')+' '+(r.konkyo||[]).join(' '),go:()=>{go('ronbun');setTimeout(()=>{const ds=document.querySelectorAll('#ronbun details');if(ds[i]){ds[i].open=true;ds[i].scrollIntoView({behavior:'smooth',block:'start'});}},70);}}));
+  RONBUN.forEach((r,i)=>idx.push({k:'論文',t:r.t,b:(r.q||'')+' '+(r.hon||[]).join(' ')+' '+(r.konkyo||[]).join(' '),go:()=>{go('ronbun');setTimeout(()=>{const ds=document.querySelectorAll('#ronbun details');if(ds[i]){ds[i].open=true;smoothScrollTo(ds[i]);}},70);}}));
   QUESTIONS.forEach(q=>{const title=q.q||(q.parts?q.parts.map(p=>typeof p==='string'?p:'＿＿').join(''):'')||('['+(q.cat||'')+'の問題]');idx.push({k:'問題',t:title,b:(q.a||'')+' '+(q.exp||'')+' '+(q.cat||'')+' '+(q.src||'')+' '+(q.choices?q.choices.join(' '):''),_up:q.up||0,ans:()=>qPreviewHTML(q),go:()=>{quizPool=[q];quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;store.session=null;go('quiz');setTimeout(()=>{quizMode=q.type;enterQuizView();showQ();},50);}});});
   idx.forEach(it=>{it._hay=norm(it.t+' '+it.b);it._ht=norm(it.t);}); // 表記ゆれ吸収(norm)で事前計算（カタ/ひら・全半角を区別しない）
   return idx;}
@@ -1501,7 +1503,7 @@ function renderProg(){
       cell.title=(dt.getMonth()+1)+'/'+dt.getDate()+'：'+(future?'—':n+'問');cell.setAttribute('aria-label',(dt.getMonth()+1)+'月'+dt.getDate()+'日 '+(future?'':n+'問'));heat.appendChild(cell);}}
   const ex=el.querySelector('#examIn');if(ex)ex.addEventListener('change',e=>{store.examDate=e.target.value||null;store.examDateT=Date.now();save();if(gSignedIn)cloudSync();renderProg();toast(store.examDate?'試験日を設定しました':'試験日を解除しました');});
   const rv=el.querySelector('#revBtn');if(rv)rv.addEventListener('click',()=>{go('quiz');startQuiz('review');});
-  el.querySelectorAll('.statbox').forEach(b=>{const act=()=>{const a=b.dataset.act;if(a==='due'){go('quiz');startQuiz('daily');}else if(a==='weak'){go('quiz');startQuiz('review');}else{const s=el.querySelector('#catmaster');if(s)s.scrollIntoView({behavior:'smooth',block:'start'});}};b.addEventListener('click',act);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act();}});}); // スタットをドリルダウン導線に
+  el.querySelectorAll('.statbox').forEach(b=>{const act=()=>{const a=b.dataset.act;if(a==='due'){go('quiz');startQuiz('daily');}else if(a==='weak'){go('quiz');startQuiz('review');}else{const s=el.querySelector('#catmaster');if(s)smoothScrollTo(s);}};b.addEventListener('click',act);b.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();act();}});}); // スタットをドリルダウン導線に
   {const ts=el.querySelector('#toSettings');if(ts)ts.addEventListener('click',()=>go('settings'));}
 }
 //==================== 設定（アカウント・表示・自作問題・データ） ====================
