@@ -689,8 +689,9 @@ applyTheme();
 const FONT_SIZES={s:'14px',m:'16px',l:'18px',xl:'20.5px'},FONT_ORDER=['m','l','xl','s'],FONT_LABEL={s:'小',m:'標準',l:'大',xl:'特大'};
 // sticky ヘッダー高さ分だけ scrollIntoView/アンカー位置を下げる＝設定の「Googleでログイン」等の対象がヘッダー裏に隠れるのを防ぐ（フォント拡大/タブ折返しで高さが変わるので実測）
 function setScrollPad(){try{const h=document.querySelector('header.top');if(h)document.documentElement.style.scrollPaddingTop=(Math.ceil(h.getBoundingClientRect().height)+10)+'px';}catch(_){}}
-// smooth スクロール＋sticky ヘッダー考慮。Chrome は scrollIntoView({behavior:'smooth'}) で scroll-padding-top を無視するバグがあるため、自前で位置計算する（block:'start'相当）。
-function smoothScrollTo(el){if(!el)return;try{const pad=parseInt(getComputedStyle(document.documentElement).scrollPaddingTop)||0;const y=Math.max(0, el.getBoundingClientRect().top+window.pageYOffset-pad);window.scrollTo({top:y,behavior:'smooth'});}catch(_){try{el.scrollIntoView({block:'start'});}catch(__){}}}
+// sticky ヘッダー裏に隠れないスクロール。Chrome は scrollIntoView({behavior:'smooth'}) が scroll-padding-top を無視するバグがあるため、
+// block:'start' は instant（scroll-padding-top を尊重）で行う＝確実にヘッダー下へ着地。smooth アニメは捨て、正しい位置を優先。
+function smoothScrollTo(el){if(!el)return;try{el.scrollIntoView({block:'start'});}catch(_){}}
 function applyFontScale(){document.documentElement.style.fontSize=FONT_SIZES[store.fontScale]||FONT_SIZES.m;setScrollPad();}
 function setFont(scale){if(!FONT_SIZES[scale])return;store.fontScale=scale;save();applyFontScale();if(document.getElementById('settings')&&document.getElementById('settings').classList.contains('active'))renderSettings();}
 applyFontScale();window.addEventListener('resize',setScrollPad);setTimeout(setScrollPad,400); // 初期＋遅延レイアウト（Webフォント等）＋リサイズで再計算
