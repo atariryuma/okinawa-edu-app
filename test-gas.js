@@ -37,7 +37,7 @@ const UrlFetchApp = { fetch: () => ({ getResponseCode: () => (_tokeninfo ? 200 :
 const Utilities = { newBlob: (s) => ({ getBytes: () => Buffer.from(String(s), 'utf8') }) };
 
 // ---- 実コードを評価し、関数を取り出す ----
-const EXPORTS = ['doGet','doPost','validate_','srcResolves_','deformula_','pick_','hasUrl_','hasBlocked_','verifyToken_','summarize_','isNonEmptyStr_','okLen_','isInt_'];
+const EXPORTS = ['doGet','doPost','validate_','srcResolves_','deformula_','pick_','hasUrl_','hasBlocked_','verifyToken_','verifyTokenSub_','summarize_','isNonEmptyStr_','okLen_','isInt_'];
 let GAS;
 try {
   const factory = new Function('SpreadsheetApp','CacheService','LockService','ContentService','UrlFetchApp','Utilities','console',
@@ -52,7 +52,8 @@ function section(t) { console.log('\n— ' + t + ' —'); }
 function reset() { sheet.rows = []; for (const k in _cache) delete _cache[k]; _tokeninfo = null; }
 const post = (env) => JSON.parse(GAS.doPost({ postData: { contents: JSON.stringify(env) } })._s);
 const get = () => JSON.parse(GAS.doGet({})._s);
-const validToken = () => { _tokeninfo = { aud: CLIENT_ID, azp: CLIENT_ID, iss: 'accounts.google.com', email_verified: 'true', exp: String(Math.floor(Date.now()/1000)+3600) }; };
+const validToken = () => { _tokeninfo = { sub: 'sub-default', aud: CLIENT_ID, azp: CLIENT_ID, iss: 'accounts.google.com', email_verified: 'true', exp: String(Math.floor(Date.now()/1000)+3600) }; };
+const voteAs = (id, sub) => { validToken(); _tokeninfo.sub = sub; return post({ action:'vote', id, idtoken:'tok' }); }; // 検証済み sub ごとに1票（端末ではなくGoogleアカウントで集計）
 const Q = (id, src) => ({ id, type: 'qa', cat: '法規', q: '問' + id, a: '答', src: src || '学校教育法第37条' });
 
 // =========================== validate_ ===========================
@@ -99,6 +100,11 @@ section('verifyToken_: aud/azp/email_verified/iss/exp の全ゲート');
   validToken(); _tokeninfo.exp = String(Math.floor(Date.now()/1000) - 10); ok('失効→false', GAS.verifyToken_('tok') === false);
   validToken(); delete _tokeninfo.exp; ok('exp欠落→false（フェイルクローズ＝未失効を勝手に真としない）', GAS.verifyToken_('tok') === false);
   _tokeninfo = null; ok('tokeninfo 200以外→false', GAS.verifyToken_('tok') === false);
+  // verifyTokenSub_：検証OKなら sub を返す／NGなら空文字（投票の本人確認に使用）
+  validToken(); ok('verifyTokenSub_ 正常→subを返す', GAS.verifyTokenSub_('tok') === 'sub-default');
+  validToken(); _tokeninfo.sub = ''; ok('sub欠落→空（不可）', GAS.verifyTokenSub_('tok') === '');
+  validToken(); _tokeninfo.aud = 'other'; ok('aud不一致→空', GAS.verifyTokenSub_('tok') === '');
+  ok('idtoken空→空', GAS.verifyTokenSub_('') === '');
 }
 
 // =========================== 自動公開の判定マトリクス ===========================
@@ -130,16 +136,18 @@ reset(); validToken();
 post({ q:Q('p1','学校教育法第37条'), idtoken:'tok', device:'d1' });
 post({ q:Q('p2','地公法29条'), idtoken:'tok', device:'d2' });
 ok('approved 2件配信', get().questions.length === 2);
-['x','y','z'].forEach(d => post({ action:'vote', id:'p2', device:d }));   // p2に👍3
-post({ action:'vote', id:'p1', device:'w' });                              // p1に👍1
+['sa','sb','sc'].forEach(s => voteAs('p2', s));   // p2に👍3（3つの異なる Google アカウント）
+voteAs('p1', 'sw');                                // p1に👍1
 {
   const g = get().questions;
   ok('人気順：先頭が p2(👍3)', g[0].id === 'p2' && g[0].up === 3);
   ok('UP_VERIFY到達で v=1（検証済み）', g[0].v === 1);
   ok('👍不足の p1 は v=0', g.find(q => q.id === 'p1').v === 0);
 }
-ok('二重投票は already', post({ action:'vote', id:'p2', device:'x' }).status === 'already');
-ok('未知idへの投票は not found', post({ action:'vote', id:'none', device:'q' }).error === 'not found');
+ok('同一アカウントの二重投票は already', voteAs('p2', 'sa').status === 'already');
+ok('未ログイン投票は login required', post({ action:'vote', id:'p2' }).error === 'login required');
+ok('未ログイン投票は up を増やさない', get().questions.find(q => q.id === 'p2').up === 3);
+ok('未知idへの投票(ログイン済)は not found', voteAs('none', 'sq').error === 'not found');
 
 // =========================== 通報→自動降格 ===========================
 section('handleReport_: REPORT_LIMIT で approved→pending 自動降格');
@@ -159,19 +167,34 @@ post({ q:Q('real','学校教育法第37条'), idtoken:'tok', device:'dG' });   /
   ok('未知idへの通報は not found', r.error === 'not found');
   ok('未知id通報でレート枠を消費しない', _cache['rprl_dG'] === undefined || _cache['rprl_dG'] === null);
   ok('未知id通報で二重抑止キーを焼かない', !_cache['rpd_dG_ghost']);
-  const v = post({ action:'vote', id:'ghost', device:'dG' });
+  const v = voteAs('ghost', 'sZ');
   ok('未知idへの投票は not found', v.error === 'not found');
-  ok('未知id投票でレート枠を消費しない', _cache['vrl_dG'] === undefined || _cache['vrl_dG'] === null);
-  ok('未知id投票で二重抑止キーを焼かない', !_cache['vd_dG_ghost']);
+  ok('未知id投票でレート枠を消費しない（sub基準）', !_cache['vrl_sZ']);
+  ok('未知id投票で二重抑止キーを焼かない（sub基準）', !_cache['vd_sZ_ghost']);
 }
 {
   // 回帰防止：実在idの記録成功時には枠と二重抑止キーが確定すること
   post({ action:'report', id:'real', device:'dH' });
   ok('通報成功でレート枠を消費(=1)', String(_cache['rprl_dH']) === '1');
   ok('通報成功で二重抑止キーを確定', String(_cache['rpd_dH_real']) === '1');
-  post({ action:'vote', id:'real', device:'dI' });
-  ok('投票成功でレート枠を消費(=1)', String(_cache['vrl_dI']) === '1');
-  ok('投票成功で二重抑止キーを確定', String(_cache['vd_dI_real']) === '1');
+  voteAs('real', 'sI');
+  ok('投票成功でレート枠を消費(=1・sub基準)', String(_cache['vrl_sI']) === '1');
+  ok('投票成功で二重抑止キーを確定（sub基準）', String(_cache['vd_sI_real']) === '1');
+}
+
+// =========================== #7：投票バッジ偽造の防止（1アカウント1票） ===========================
+section('handleVote_: 本人確認必須＝端末ID偽装で👍を水増しできない');
+reset(); validToken();
+post({ q:Q('forge','学校教育法第37条'), idtoken:'tok', device:'d1' });   // approved
+{
+  // 同一アカウント(sub)が3回投票しても up は1（端末IDを変えても無関係＝sub基準）
+  voteAs('forge', 'attacker'); voteAs('forge', 'attacker'); voteAs('forge', 'attacker');
+  ok('同一アカウントの連投は up=1（偽造不可）', get().questions.find(q => q.id === 'forge').up === 1);
+  ok('1票では v=0（未検証）', get().questions.find(q => q.id === 'forge').v === 0);
+  // 異なる3アカウントなら正当に up=3 → 検証済み
+  voteAs('forge', 'realA'); voteAs('forge', 'realB');
+  ok('3つの別アカウントで up=3', get().questions.find(q => q.id === 'forge').up === 3);
+  ok('UP_VERIFY到達で v=1', get().questions.find(q => q.id === 'forge').v === 1);
 }
 
 // =========================== 結果 ===========================

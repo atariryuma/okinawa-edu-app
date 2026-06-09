@@ -145,9 +145,9 @@ function doPost(e) {
     if (env && typeof env === 'object' && env.action === 'report') {
       return handleReport_(String(env.id || ''), String(env.device || ''));
     }
-    // 👍アクション（良問の浮上→検証済み昇格の起点）。
+    // 👍アクション（良問の浮上→検証済み昇格の起点）。投票は本人確認(IDトークン)必須＝1アカウント1票でバッジ偽造を防ぐ。
     if (env && typeof env === 'object' && env.action === 'vote') {
-      return handleVote_(String(env.id || ''), String(env.device || ''));
+      return handleVote_(String(env.id || ''), String(env.idtoken || env.token || ''));
     }
     // 新形式 {q, idtoken, device}（旧 token はアクセストークンだったが廃止。両キー受けるが検証はIDトークンとして行う）
     var q, idtoken = '', device = '';
@@ -297,15 +297,17 @@ function handleReport_(id, device) {
 }
 
 /* ============================================================================
- *  handleVote_(id, device): 共有問題への👍。UP_VERIFY 到達で doGet が「✓検証済み」を返す。
- *   - 端末ごとのレート制限＋同一問題の二重投票抑止（CacheService）
+ *  handleVote_(id, idtoken): 共有問題への👍。UP_VERIFY 到達で doGet が「✓検証済み」を返す。
+ *   - 投票は本人確認(IDトークン)必須＝1 Google アカウント 1票（端末ID偽装でのバッジ偽造を封じる）
+ *   - 識別子は検証済み sub（不変のアカウントID）。sub ごとにレート制限＋同一問題の二重投票抑止
  *   - up を加算し doGet キャッシュを破棄（バッジ/人気順が変わるため即時反映）
  * ========================================================================== */
-function handleVote_(id, device) {
+function handleVote_(id, idtoken) {
   if (!ID_RE.test(String(id || ''))) return json_({ ok: false, error: 'bad id' });
-  if (!device) return json_({ ok: false, error: 'no device' });
+  var voter = verifyTokenSub_(idtoken);                          // 検証済み Google アカウントID（sub）
+  if (!voter) return json_({ ok: false, error: 'login required' }); // 未ログイン/検証失敗は投票不可
   // READ のみで判定。加算と二重抑止キーの確定は「実際に投票を記録できた時」だけ（not found で枠を消費しない）。
-  var rk = 'vrl_' + device, dk = 'vd_' + device + '_' + id, rn = 0;
+  var rk = 'vrl_' + voter, dk = 'vd_' + voter + '_' + id, rn = 0;
   try {
     var c = CacheService.getScriptCache();
     if (c) {
@@ -503,20 +505,25 @@ function isInt_(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v
 // 発行者 iss が Google、メール確認済み(email_verified)、かつ未失効なら true（=本人確認OK）。
 // それ以外/外部呼び出し失敗は false（=審査へ）。aud だけの検証は azp 偽装に弱いため azp/email も併せて見る。
 // ※IDトークンは身元アサーションのみでアクセス権を持たない（旧: アクセストークン送信を廃止）。
-function verifyToken_(idtoken) {
+// 身元を検証し、確認できれば sub（Google アカウントの不変・一意ID）を返す。失敗は ''（空）。
+// aud/azp=CLIENT_ID, iss=Google, email_verified, 未失効 を全て満たし sub があるときのみ sub を返す。
+function verifyTokenSub_(idtoken) {
   try {
+    if (!idtoken) return '';
     var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idtoken), { muteHttpExceptions: true });
-    if (resp.getResponseCode() !== 200) return false;
+    if (resp.getResponseCode() !== 200) return '';
     var info = JSON.parse(resp.getContentText());
     var iss = String(info.iss || '');
     var audOk = (String(info.aud || '') === CLIENT_ID);
     var azpOk = !info.azp || (String(info.azp) === CLIENT_ID);          // 認可された当事者(azp)も本アプリに限定（aud のみ検証の素通しを塞ぐ）
     var issOk = (iss === 'accounts.google.com' || iss === 'https://accounts.google.com');
-    var emailOk = (String(info.email_verified) === 'true');             // 確認済みメールの本人のみ自動公開（未確認/不明は審査へ）
-    var notExpired = !!info.exp && (parseInt(info.exp, 10) * 1000 > Date.now()); // exp 欠落はフェイルクローズ（未失効を勝手に真とせず審査へ）
-    return audOk && azpOk && issOk && emailOk && notExpired;
-  } catch (e) { return false; }
+    var emailOk = (String(info.email_verified) === 'true');             // 確認済みメールの本人のみ（未確認/不明は不可）
+    var notExpired = !!info.exp && (parseInt(info.exp, 10) * 1000 > Date.now()); // exp 欠落はフェイルクローズ
+    var sub = String(info.sub || '');
+    return (audOk && azpOk && issOk && emailOk && notExpired && sub) ? sub : '';
+  } catch (e) { return ''; }
 }
+function verifyToken_(idtoken) { return !!verifyTokenSub_(idtoken); } // 後方互換：真偽だけ要る投稿ゲート用
 // 検査対象の全文字列を連結
 function textOf_(q) {
   var parts = [q.id, q.cat, q.src, q.q, q.a, q.exp];

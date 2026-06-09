@@ -1658,11 +1658,18 @@ async function submitCommunity(qObj){const url=getCommunityUrl();if(!url)throw n
 // 共有問題への👍（良問の浮上）。一定数で GAS が「✓検証済み(コミュニティ)」を返すようになる。
 async function voteCommunity(id,btn){
   const url=getCommunityUrl();if(!url)return;
+  const idt=freshIdToken();
+  if(!idt){ // 投票は本人確認(Googleログイン)が必要＝1アカウント1票でバッジ偽造を防ぐ
+    if(gIdReady())requestIdToken();   // 身元トークンを取りに行く（ログイン済みブラウザなら最小操作で返る→次タップで成立）
+    toast(gSignedIn?'本人確認の準備中です。数秒後にもう一度どうぞ':'「役に立った」はGoogleログインが必要です（⚙️設定から）');
+    return;
+  }
   if(btn){btn.disabled=true;btn.textContent='👍 ありがとう';btn.style.opacity=.7;}
   try{
-    const body=JSON.stringify({action:'vote',id,device:deviceId()});
+    const body=JSON.stringify({action:'vote',id,idtoken:idt,device:deviceId()});
     const res=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body});
     let j;try{j=await res.json();}catch(e){j={ok:res.ok};}
+    if(j&&j.error==='login required'){toast('投票にはGoogleログインが必要です');if(btn){btn.disabled=false;btn.textContent='👍 役に立った';btn.style.opacity=1;}return;}
     toast('「役に立った」を送りました 🙏');
   }catch(e){elog({type:'community',msg:'投票失敗:'+((e&&e.message)||e)});toast('送信に失敗しました');if(btn){btn.disabled=false;btn.textContent='👍 役に立った';btn.style.opacity=1;}}
 }
