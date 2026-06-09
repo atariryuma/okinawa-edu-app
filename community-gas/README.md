@@ -9,7 +9,10 @@
 
 ## クライアントとの契約（変更不可）
 - `doGet()` → `{"ok":true,"questions":[ <問題オブジェクト>, ... ]}`（approved のみ）
-- `doPost()` → 本文は `Content-Type: text/plain` の JSON。新形式 `{"q":<問題>, "idtoken":"<IDトークン(JWT)|空>", "device":"<端末ID>"}`（旧 `token` キー／問題そのものも後方互換）。送るのは身元アサーションのみの**IDトークン**で、Drive 等へのアクセス権は持たない。成功 `{"ok":true,"status":"approved"|"pending"}` / 失敗 `{"ok":false,"error":"..."}`
+- `doPost()` → 本文は `Content-Type: text/plain` の JSON。
+  - **投稿**：`{"q":<問題>, "idtoken":"<IDトークン(JWT)|空>", "device":"<端末ID>"}`（旧 `token` キーも後方互換受理。**`device` は必須**＝省略すると `{"ok":false,"error":"no device"}`。素の問題オブジェクト単体は `device` を持たないため受理されない）。
+  - **👍/通報**：`{"action":"vote"|"report", "id":"<問題id>", "idtoken":"<IDトークン>"}`（**本人確認必須**＝未ログインは `{"ok":false,"error":"login required"}`）。
+  - 送るのは身元アサーションのみの**IDトークン**で、Drive 等へのアクセス権は持たない。成功 `{"ok":true,"status":"approved"|"pending"|"voted"|"reported"}` / 失敗 `{"ok":false,"error":"..."}`
 
 ## 自動公開モデル（段階可視性＋可逆）
 自動公開(`approved`)の条件は **`sourceOk && (trusted || rep>=REP_TRUST)`**。本人確認(identity)だけでなく「公式出典」を必須にして、誤った条文の即時拡散を防ぐ。
@@ -53,10 +56,10 @@ EXEC_URL='https://script.google.com/macros/s/XXXXXXXX/exec'
 curl -sL "$EXEC_URL"
 # → {"ok":true,"questions":[ ... ]}
 
-# 1問投稿（text/plain で CORS プリフライト回避）
+# 1問投稿（text/plain で CORS プリフライト回避）。device は必須。idtoken 省略時は pending（あなたが承認）。
 curl -sL -X POST "$EXEC_URL" -H 'Content-Type: text/plain' \
-  --data '{"id":"u_test_001","type":"mc","cat":"教育法規","src":"学校教育法第37条","q":"校長の職務は？","choices":["校務をつかさどり所属職員を監督","授業を担任","予算を編成"],"ans":0,"exp":"第37条第4項"}'
-# → {"ok":true}（シートで status を approved にすると doGet に出る）
+  --data '{"q":{"id":"u_test_001","type":"mc","cat":"教育法規","src":"学校教育法第37条","q":"校長の職務は？","choices":["校務をつかさどり所属職員を監督","授業を担任","予算を編成"],"ans":0,"exp":"第37条第4項"},"device":"dev_test"}'
+# → {"ok":true,"status":"pending"}（シートで status を approved にすると doGet に出る）
 ```
 
 ## 設計メモ
