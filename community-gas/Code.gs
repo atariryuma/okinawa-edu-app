@@ -276,6 +276,7 @@ function handleReport_(id, device) {
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) === id) {
         var rowNum = i + 2;
+        try { var cR = CacheService.getScriptCache(); if (cR) { if (cR.get(dk)) return json_({ ok: true, status: 'already' }); var rnL = parseInt(cR.get(rk) || '0', 10); if (rnL >= REPORT_RATE_HR) return json_({ ok: false, error: 'rate limited' }); rn = rnL; } } catch (_r) {} // ロック内で再確認＝read-modify-writeを直列化（同端末の同時押しによる二重加算/レート超過を遮断・TOCTOU封じ）
         var rpCell = sh.getRange(rowNum, COL.reports + 1);
         var n = parseInt(rpCell.getValue() || '0', 10) + 1;
         rpCell.setValue(n);
@@ -325,6 +326,7 @@ function handleVote_(id, device) {
     for (var i = 0; i < ids.length; i++) {
       if (String(ids[i][0]) === id) {
         var rowNum = i + 2;
+        try { var cR = CacheService.getScriptCache(); if (cR) { if (cR.get(dk)) return json_({ ok: true, status: 'already' }); var rnL = parseInt(cR.get(rk) || '0', 10); if (rnL >= VOTE_RATE_HR) return json_({ ok: false, error: 'rate limited' }); rn = rnL; } } catch (_r) {} // ロック内で再確認＝read-modify-writeを直列化（同端末の同時押しによる二重加算/レート超過を遮断・TOCTOU封じ）
         var upCell = sh.getRange(rowNum, COL.up + 1);
         var n = parseInt(upCell.getValue() || '0', 10) + 1;
         upCell.setValue(n);

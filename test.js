@@ -60,7 +60,7 @@ const EXPORTS = [
   'review','mergeStore','sanitizeImport','validQuestion','srcLink','clampIvl','boxFromIvl',
   'stateOf','isDue','isWeak','isMastered','getCard','dueList','bucketShuffle','dailyCount',
   'bmKey','isBM','toggleBM','bmCount','pushRecent','lastAct','ymdNum','esc','shuffle',
-  'examDaysLeft','todayISO','norm','pruneDailyDone','filterNetErr','saveGTok','loadGTok','clearGTok',
+  'examDaysLeft','todayISO','norm','pruneDailyDone','filterNetErr','saveGTok','loadGTok','clearGTok','load',
 ];
 const exposeSrc = '\n;return {' +
   EXPORTS.map(n => `${n}:(typeof ${n}!=='undefined'?${n}:undefined)`).join(',') +
@@ -98,11 +98,28 @@ ok('mc ans範囲外を拒否', APP.validQuestion({id:'q1',type:'mc',q:'a',choice
 ok('mc 7択を拒否', APP.validQuestion({id:'q1',type:'mc',q:'a',choices:['a','b','c','d','e','f','g'],ans:0}) === false);
 ok('cloze 空欄ありを受理', APP.validQuestion({id:'q1',type:'cloze',parts:['x',{b:'y'}]}) === true);
 ok('cloze 空欄なしを拒否', APP.validQuestion({id:'q1',type:'cloze',parts:['x','y']}) === false);
+ok('cloze null part を拒否（renderCloze クラッシュ防止）', APP.validQuestion({id:'q1',type:'cloze',parts:[null,{b:'y'}]}) === false);
+ok('cloze 不正object part を拒否', APP.validQuestion({id:'q1',type:'cloze',parts:[{b:''},{b:'y'}]}) === false);
+ok('cloze 配列 part を拒否', APP.validQuestion({id:'q1',type:'cloze',parts:[['x'],{b:'y'}]}) === false);
+ok('cloze 数値 part を拒否', APP.validQuestion({id:'q1',type:'cloze',parts:[5,{b:'y'}]}) === false);
 ok('order items<2を拒否', APP.validQuestion({id:'q1',type:'order',q:'a',items:['x']}) === false);
 ok('match pair形不正を拒否', APP.validQuestion({id:'q1',type:'match',q:'a',pairs:[['x']]}) === false);
 ok('id無しを拒否', APP.validQuestion({type:'qa',q:'a',a:'b'}) === false);
 ok('id形式違反を拒否', APP.validQuestion({id:'a b!<x>',type:'qa',q:'a',a:'b'}) === false);
 ok('未知typeを拒否', APP.validQuestion({id:'q1',type:'evil',q:'a'}) === false);
+
+// =========================== load: 改竄/非配列フィールドの正規化（起動クラッシュ防止） ===========================
+section('load: 改竄localStorageでも安全な形に正規化');
+if (APP.load) {
+  memStore['okinawa_edu_app_v3'] = JSON.stringify({ userQuestions:{}, dailyDone:[1,2], bookmarks:'x', recent:5, cards:[] });
+  const s = APP.load();
+  ok('userQuestions 非配列→[]（rebuildQuestionsのspread落ち防止）', Array.isArray(s.userQuestions) && s.userQuestions.length===0);
+  ok('dailyDone 配列→{}', s.dailyDone && typeof s.dailyDone==='object' && !Array.isArray(s.dailyDone));
+  ok('bookmarks 非配列→[]', Array.isArray(s.bookmarks) && s.bookmarks.length===0);
+  ok('recent 非配列→[]', Array.isArray(s.recent) && s.recent.length===0);
+  ok('cards 配列→{}', s.cards && typeof s.cards==='object' && !Array.isArray(s.cards));
+  delete memStore['okinawa_edu_app_v3'];
+} else { ok('load 露出（スキップ可）', true); }
 
 // =========================== norm（検索の表記ゆれ吸収）===========================
 section('norm: カタ→ひら・全半角NFKC・小文字を同一視');

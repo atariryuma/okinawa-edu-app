@@ -319,6 +319,7 @@
   footer{text-align:center;color:var(--sub);font-size:.66rem;margin-top:26px;padding:0 16px;line-height:1.7;}
   .toast{position:fixed;bottom:calc(24px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--bg);padding:12px 20px;border-radius:24px;font-size:.82rem;font-weight:700;opacity:0;transition:.3s;z-index:60;box-shadow:var(--shadow);pointer-events:none;max-width:90%;}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .swtoast{bottom:calc(80px + env(safe-area-inset-bottom));}  /* SW更新プロンプトは専用要素＝通常toastに上書き/誤タップされない。重なり回避で一段上に配置 */
   .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
   @media(prefers-reduced-motion:reduce){*{animation-duration:.001s!important;transition-duration:.001s!important;}}
 </style>
@@ -368,6 +369,7 @@
   </footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="toast swtoast" id="swToast" role="status" aria-live="polite"></div>
 <!-- 採点結果のSR通知用（#quizarea の外に置くことで次問への遷移で読み上げが途切れない） -->
 <div id="srlive" class="sr-only" role="status" aria-live="assertive"></div>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -574,6 +576,8 @@ function load(){const def={cards:{},streak:0,lastDate:null,theme:'light',dailyDa
   if(!Array.isArray(s.bookmarks))s.bookmarks=[];s.bookmarks=s.bookmarks.filter(k=>typeof k==='string');
   if(!Array.isArray(s.recent))s.recent=[];s.recent=s.recent.filter(r=>r&&typeof r==='object'&&r.t&&r.id!=null).slice(0,12);
   if(!s.cards||typeof s.cards!=='object'||Array.isArray(s.cards))s.cards={};
+  if(!Array.isArray(s.userQuestions))s.userQuestions=[];           // 非配列(改竄)だと rebuildQuestions の spread が落ちて起動不能になるのを防ぐ
+  if(!s.dailyDone||typeof s.dailyDone!=='object'||Array.isArray(s.dailyDone))s.dailyDone={}; // 集計の spread/Object操作を保護
   return s;}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){elog({type:'quota',msg:'進捗の保存に失敗（localStorage容量超過の可能性）: '+((e&&e.name)||e)});try{toast('保存できませんでした（容量超過）');}catch(_){}}}
 // ===== クライアントサイド診断（バグ先回り検知） =====================
@@ -668,7 +672,7 @@ function validQuestion(q){
   switch(q.type){
     case'qa':return typeof q.q==='string'&&typeof q.a==='string';
     case'mc':return typeof q.q==='string'&&Array.isArray(q.choices)&&q.choices.length>=2&&q.choices.length<=6&&typeof q.ans==='number'&&q.ans>=0&&q.ans<q.choices.length;
-    case'cloze':return Array.isArray(q.parts)&&q.parts.length>0&&q.parts.some(p=>p&&typeof p==='object'&&typeof p.b==='string'&&p.b);
+    case'cloze':return Array.isArray(q.parts)&&q.parts.length>0&&q.parts.every(p=>typeof p==='string'||(p&&typeof p==='object'&&!Array.isArray(p)&&typeof p.b==='string'&&!!p.b))&&q.parts.some(p=>p&&typeof p==='object'&&typeof p.b==='string'&&p.b); // 全partを検証（null等の不正partで renderCloze がクラッシュするのを防ぐ＝GAS validate_ と同水準）
     case'order':return typeof q.q==='string'&&Array.isArray(q.items)&&q.items.length>=2;
     case'match':return typeof q.q==='string'&&Array.isArray(q.pairs)&&q.pairs.length>=1&&q.pairs.every(p=>Array.isArray(p)&&p.length===2);
   }
@@ -1058,6 +1062,9 @@ let quizMockStart=0,mockTimerId=null;
 function stopMockTimer(){if(mockTimerId){clearInterval(mockTimerId);mockTimerId=null;}const t=document.getElementById('mockTimer');if(t)t.remove();}
 function fmtSec(s){return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');}
 function startMockTimer(resumeSec){stopMockTimer();quizMockStart=Date.now()-(resumeSec||0)*1000;const t=document.createElement('div');t.id='mockTimer';t.setAttribute('role','timer');t.setAttribute('aria-label','経過時間');t.style.cssText='position:fixed;top:calc(8px + env(safe-area-inset-top));right:10px;z-index:60;background:var(--accent);color:#fff;padding:5px 12px;border-radius:20px;font-weight:700;font-size:.85rem;box-shadow:var(--shadow)';document.body.appendChild(t);const upd=()=>{t.textContent='⏱ '+fmtSec(Math.floor((Date.now()-quizMockStart)/1000));};upd();mockTimerId=setInterval(upd,1000);}
+// 背景化（OSのアプリ切替/タブ凍結）でも模試タイマーを一時停止＝go()のタブ離脱と対称（離脱中は加算しない／所要時間の水増しを防ぐ）
+function pauseMockForBg(){if(mockTimerId&&store.session&&store.session.mode==='mock'){store.session.mockElapsed=Math.floor((Date.now()-quizMockStart)/1000);save();stopMockTimer();}}
+function resumeMockFromBg(){const s=store.session;if(s&&s.mode==='mock'&&!mockTimerId){const qv=document.getElementById('quiz');if(qv&&qv.classList.contains('active'))startMockTimer(s.mockElapsed||0);}} // 復帰時にクイズ表示中なら保存済み経過から続行
 function startQuiz(mode){
   quizMode=mode;quizIdx=0;sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;
   enterQuizView();   // モードグリッド退避＋出題を画面先頭へ
@@ -1114,6 +1121,8 @@ function showQ(){
     const rw=area.querySelector('#rewrong');if(rw)rw.addEventListener('click',reviewWrong);
     area.querySelector('#again').addEventListener('click',()=>startQuiz(quizMode));
     area.querySelector('#back').addEventListener('click',()=>renderQuiz());
+    const rc=area.querySelector('.result');if(rc){rc.setAttribute('role','status');rc.tabIndex=-1;try{rc.focus({preventScroll:true});}catch(_){}} // 完走画面もスクリーンリーダーに通知＋フォーカス移動（各採点面と同挙動・最重要画面の見落とし防止）
+    srSay('セット完了。'+sCorrect+'問中'+sAnswered+'問解答、正答率'+pct+'パーセント。');
     try{window.scrollTo(0,0);}catch(_){}
     renderHome();if(gSignedIn)cloudSync();return;
   }
@@ -1138,7 +1147,7 @@ function showQ(){
   area.innerHTML=prog;const card=document.createElement('div');area.appendChild(card);
   const r={qa:renderQA,mc:renderMC,cloze:renderCloze,order:renderOrder,match:renderMatch}[q.type];
   if(!r){quizIdx++;return showQ();}
-  r(q,meta,q.id,card);
+  try{r(q,meta,q.id,card);}catch(err){elog({type:'render',msg:'出題描画に失敗 id='+q.id+' type='+q.type+': '+((err&&err.message)||err)});console.warn('showQ render error',err);quizIdx++;return showQ();} // 1問の描画失敗でセッション全体を壊さない＝記録してスキップし次問へ
   const sb=card.querySelector('.qstar');if(sb)sb.addEventListener('click',()=>{const on=toggleBM('q',q.id);sb.textContent=on?'⭐':'☆';sb.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}); // 付箋トグル
   const vb=card.querySelector('.qvote');if(vb)vb.addEventListener('click',()=>voteCommunity(q.id,vb)); // 👍役に立った（良問の浮上→検証済み昇格の起点）
   const rep=card.querySelector('.qreport');if(rep)rep.addEventListener('click',()=>reportCommunity(q.id,rep)); // 共有問題の通報（誤り/不適切→自動降格の起点）
@@ -1720,8 +1729,10 @@ function signOutGoogle(){if(accessToken&&gReady())google.accounts.oauth2.revoke(
 // 画面を離れる/戻る時に自動同期（端末間の進捗ズレを抑制）。失敗は静かに無視。
 let _bgSyncT=0;
 function bgSync(){if(!gSignedIn||!accessToken)return;clearTimeout(_bgSyncT);_bgSyncT=setTimeout(()=>cloudSync(true),700);}
-document.addEventListener('visibilitychange',()=>{if(!gSignedIn||!accessToken)return;if(document.visibilityState==='hidden')cloudSync(true);else bgSync();});
-window.addEventListener('pagehide',()=>{if(gSignedIn&&accessToken)cloudSync(true);}); // モバイルの離脱/凍結は visibilitychange より pagehide が確実＝離脱直前の push 取りこぼしを減らす
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden')pauseMockForBg();else resumeMockFromBg(); // 模試タイマーの背景一時停止/再開はサインイン状態に関係なく行う（早期returnの前に置く）
+  if(!gSignedIn||!accessToken)return;if(document.visibilityState==='hidden')cloudSync(true);else bgSync();});
+window.addEventListener('pagehide',()=>{pauseMockForBg();if(gSignedIn&&accessToken)cloudSync(true);}); // モバイルの離脱/凍結は visibilitychange より pagehide が確実＝離脱直前の push 取りこぼし＋模試の加算を防ぐ
 async function driveFind(){const r=await fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name)&q="+encodeURIComponent("name='progress.json'"),{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)throw new Error('driveFind HTTP '+r.status);const j=await r.json();return j.files&&j.files[0];}
 async function driveGet(id){const r=await fetch('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media',{headers:{Authorization:'Bearer '+accessToken}});if(!r.ok)throw new Error('driveGet HTTP '+r.status);return await r.json();}
 async function driveSave(obj){const file=await driveFind();const meta=file?{}:{name:'progress.json',parents:['appDataFolder']};const b='----edu'+Date.now();
@@ -1843,7 +1854,7 @@ function mountSync(){
 let _swSkip=false;
 // 新しい版が待機中になったら、控えめなトーストで通知（タップで適用）。無視すれば現行のまま使い続けられる。
 function swUpdateReady(reg){
-  const t=document.getElementById('toast');if(!t||!reg.waiting)return;
+  const t=document.getElementById('swToast');if(!t||!reg.waiting)return;   // 専用要素＝通常toast()に上書きされず、誤タップでのリロードも起きない
   t.textContent='🆕 新しい版があります（タップで更新）';t.style.pointerEvents='auto';t.style.cursor='pointer';t.classList.add('show');
   const reset=()=>{t.style.pointerEvents='';t.style.cursor='';t.removeEventListener('click',apply);};
   function apply(){_swSkip=true;reset();t.classList.remove('show');if(reg.waiting)reg.waiting.postMessage({type:'SKIP_WAITING'});}
