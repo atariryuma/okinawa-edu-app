@@ -1615,7 +1615,7 @@ function getClientId(){return customClientId()||(hasDefaultClientId()?DEFAULT_CL
 // DEFAULT_COMMUNITY_URL に GAS の /exec を入れると、自作問題を承認制で全員に自動共有できる。
 //  受け取り＝全自動（起動時にGETして合成）／投稿＝ワンタップ（POST, text/plainでCORSプリフライト回避）。
 //  承認はあなたがスプレッドシートの status を approved にした問題だけがGETで配信される。
-const DEFAULT_COMMUNITY_URL='https://script.google.com/macros/s/AKfycbyUGWaoklT0PvPB-uhBvsoSquQHKRGxIsUjg9BuivheJhpxw-XE-TtFx-xh02FjR3Yy9g/exec';
+const DEFAULT_COMMUNITY_URL='https://script.google.com/macros/s/AKfycbyOVvvSAACN-EQKXwxCNrkyq4-4Jg56TbLSaYMwy6D48yCKlnnHPX1scBoTtrzl2oTxMA/exec';
 function getCommunityUrl(){return (typeof DEFAULT_COMMUNITY_URL!=='undefined'&&DEFAULT_COMMUNITY_URL)?DEFAULT_COMMUNITY_URL:(localStorage.getItem('community_url')||'');}
 const COMMUNITY_CACHE='okinawa_community_cache';
 let COMMUNITY_QUESTIONS=[],COMMUNITY_IDS=new Set();
