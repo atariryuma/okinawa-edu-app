@@ -687,9 +687,11 @@ function setTheme(t){store.theme=t;save();applyTheme();if(document.getElementByI
 applyTheme();
 // 文字サイズ（小/標準/大/特大）。ルート font-size を変えると rem 基準の全体が比例拡大。
 const FONT_SIZES={s:'14px',m:'16px',l:'18px',xl:'20.5px'},FONT_ORDER=['m','l','xl','s'],FONT_LABEL={s:'小',m:'標準',l:'大',xl:'特大'};
-function applyFontScale(){document.documentElement.style.fontSize=FONT_SIZES[store.fontScale]||FONT_SIZES.m;}
+// sticky ヘッダー高さ分だけ scrollIntoView/アンカー位置を下げる＝設定の「Googleでログイン」等の対象がヘッダー裏に隠れるのを防ぐ（フォント拡大/タブ折返しで高さが変わるので実測）
+function setScrollPad(){try{const h=document.querySelector('header.top');if(h)document.documentElement.style.scrollPaddingTop=(Math.ceil(h.getBoundingClientRect().height)+10)+'px';}catch(_){}}
+function applyFontScale(){document.documentElement.style.fontSize=FONT_SIZES[store.fontScale]||FONT_SIZES.m;setScrollPad();}
 function setFont(scale){if(!FONT_SIZES[scale])return;store.fontScale=scale;save();applyFontScale();if(document.getElementById('settings')&&document.getElementById('settings').classList.contains('active'))renderSettings();}
-applyFontScale();
+applyFontScale();window.addEventListener('resize',setScrollPad);setTimeout(setScrollPad,400); // 初期＋遅延レイアウト（Webフォント等）＋リサイズで再計算
 {const sb=document.getElementById('settingsBtn');if(sb)sb.addEventListener('click',()=>go('settings'));} // ⚙️→設定ビュー
 //==================== ログイン状態バッジ（ヘッダー常設） ====================
 function lastSyncMs(){const v=+localStorage.getItem('oki_last_sync');return Number.isFinite(v)&&v>0?v:0;} // 最終同期時刻（mountSync/home/バッジで共有）
