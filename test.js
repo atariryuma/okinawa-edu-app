@@ -245,6 +245,26 @@ section('mergeStore: 同期マージの安全性');
     {cards:{},lastDate:'2026-2-1',ronbunChecks:{t1:{1:true},t2:{0:true}},dailyGoal:20,bookmarks:[],recent:[]});
   ok('ronbunChecks 深いOR', r4.ronbunChecks.t1[0]===true && r4.ronbunChecks.t1[1]===true && r4.ronbunChecks.t2[0]===true);
   ok('dailyGoal は新しい端末(lastDate勝者)', r4.dailyGoal===20);
+  // 破損したcloudカード(ivl/ef/due/box が NaN/文字列)を採用しても数値は有限に浄化される（NaN dueでの静かな死蔵を防ぐ）
+  const rc = APP.mergeStore(
+    {cards:{},bookmarks:[],recent:[]},
+    {cards:{q9:{box:'evil',reps:'x',due:'NaN',ivl:'bad',ef:NaN,hist:[{t:1,ok:true}]}},bookmarks:[],recent:[]});
+  const c9 = rc.cards.q9;
+  ok('mergeStore: 破損カードの ivl を有限化(0..180)', Number.isFinite(c9.ivl) && c9.ivl>=0 && c9.ivl<=180);
+  ok('mergeStore: 破損カードの ef を有限化', Number.isFinite(c9.ef));
+  ok('mergeStore: 破損カードの due を有限化', Number.isFinite(c9.due));
+  ok('mergeStore: 破損カードの box を1..5に', c9.box>=1 && c9.box<=5);
+  // 両側に存在する場合も採用カードは浄化される
+  const rc2 = APP.mergeStore(
+    {cards:{q9:{box:2,reps:1,due:0,ivl:1,ef:2.5,hist:[{t:1,ok:true}]}},bookmarks:[],recent:[]},
+    {cards:{q9:{box:3,reps:2,due:5,ivl:'x',ef:NaN,hist:[{t:9,ok:true}]}},bookmarks:[],recent:[]});
+  ok('mergeStore: 両側ありでも勝者カードを浄化', Number.isFinite(rc2.cards.q9.ivl) && Number.isFinite(rc2.cards.q9.ef));
+  // 浄化済みの破損カードを review しても NaN due を生まない（dueListから静かに消えない）
+  freshStore({cards:{q9:c9}});
+  APP.review('q9', true);
+  const c9r = APP.__getStore().cards.q9;
+  ok('review後も due が有限（NaN死蔵しない）', Number.isFinite(c9r.due) && c9r.due>0);
+  ok('review後も ivl が有限', Number.isFinite(c9r.ivl));
 }
 
 // =========================== sanitizeImport ===========================

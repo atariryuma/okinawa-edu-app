@@ -97,6 +97,7 @@ section('verifyToken_: aud/azp/email_verified/iss/exp の全ゲート');
   validToken(); _tokeninfo.email_verified = 'false'; ok('email未確認→false', GAS.verifyToken_('tok') === false);
   validToken(); _tokeninfo.iss = 'evil.com'; ok('iss不正→false', GAS.verifyToken_('tok') === false);
   validToken(); _tokeninfo.exp = String(Math.floor(Date.now()/1000) - 10); ok('失効→false', GAS.verifyToken_('tok') === false);
+  validToken(); delete _tokeninfo.exp; ok('exp欠落→false（フェイルクローズ＝未失効を勝手に真としない）', GAS.verifyToken_('tok') === false);
   _tokeninfo = null; ok('tokeninfo 200以外→false', GAS.verifyToken_('tok') === false);
 }
 
@@ -148,6 +149,30 @@ ok('降格前は配信される', get().questions.length === 1);
 ['dx','dy','dz'].forEach(d => post({ action:'report', id:'rp', device:d }));  // 通報3
 ok('通報3件で非配信（pending降格）', get().questions.length === 0);
 ok('二重通報は already', post({ action:'report', id:'rp', device:'dx' }).status === 'already');
+
+// =========================== 通報/投票：not found は枠を消費しない ===========================
+section('handleReport_/handleVote_: 未知idは枠を消費せず二重抑止キーも焼かない（成功時のみ確定）');
+reset(); validToken();
+post({ q:Q('real','学校教育法第37条'), idtoken:'tok', device:'dG' });   // approved な実在問題
+{
+  const r = post({ action:'report', id:'ghost', device:'dG' });
+  ok('未知idへの通報は not found', r.error === 'not found');
+  ok('未知id通報でレート枠を消費しない', _cache['rprl_dG'] === undefined || _cache['rprl_dG'] === null);
+  ok('未知id通報で二重抑止キーを焼かない', !_cache['rpd_dG_ghost']);
+  const v = post({ action:'vote', id:'ghost', device:'dG' });
+  ok('未知idへの投票は not found', v.error === 'not found');
+  ok('未知id投票でレート枠を消費しない', _cache['vrl_dG'] === undefined || _cache['vrl_dG'] === null);
+  ok('未知id投票で二重抑止キーを焼かない', !_cache['vd_dG_ghost']);
+}
+{
+  // 回帰防止：実在idの記録成功時には枠と二重抑止キーが確定すること
+  post({ action:'report', id:'real', device:'dH' });
+  ok('通報成功でレート枠を消費(=1)', String(_cache['rprl_dH']) === '1');
+  ok('通報成功で二重抑止キーを確定', String(_cache['rpd_dH_real']) === '1');
+  post({ action:'vote', id:'real', device:'dI' });
+  ok('投票成功でレート枠を消費(=1)', String(_cache['vrl_dI']) === '1');
+  ok('投票成功で二重抑止キーを確定', String(_cache['vd_dI_real']) === '1');
+}
 
 // =========================== 結果 ===========================
 console.log('\n========================================');

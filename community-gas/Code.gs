@@ -253,16 +253,15 @@ function srcResolves_(src) {
 function handleReport_(id, device) {
   if (!ID_RE.test(String(id || ''))) return json_({ ok: false, error: 'bad id' });
   if (!device) return json_({ ok: false, error: 'no device' });
-  // レート制限＆重複通報の抑止
+  // レート制限＆重複通報の抑止：ここでは READ のみで判定。カウント加算と二重抑止キーの確定は
+  // 「実際に通報を記録できた時」だけ行う（存在しない/未複製のidや not found で枠を消費・キーを焼かない）。
+  var rk = 'rprl_' + device, dk = 'rpd_' + device + '_' + id, rn = 0;
   try {
     var c = CacheService.getScriptCache();
     if (c) {
-      var rk = 'rprl_' + device, rn = parseInt(c.get(rk) || '0', 10);
+      rn = parseInt(c.get(rk) || '0', 10);
       if (rn >= REPORT_RATE_HR) return json_({ ok: false, error: 'rate limited' });
-      var dk = 'rpd_' + device + '_' + id;
       if (c.get(dk)) return json_({ ok: true, status: 'already' }); // 同端末×同一問題の二重通報は無視（成功扱い）
-      c.put(rk, String(rn + 1), 3600);
-      c.put(dk, '1', 21600); // 6時間は同一問題の再通報を抑止
     }
   } catch (e) { /* キャッシュ不可でも続行 */ }
 
@@ -286,6 +285,7 @@ function handleReport_(id, device) {
           stCell.setValue('pending');   // 自動降格＝配信停止して再審査へ
           try { var c2 = CacheService.getScriptCache(); if (c2) c2.remove('doget'); } catch (_g) {}
         }
+        try { var c3 = CacheService.getScriptCache(); if (c3) { c3.put(rk, String(rn + 1), 3600); c3.put(dk, '1', 21600); } } catch (_p) {} // 記録成功時のみ：レート枠を消費＋6hの二重通報抑止キーを確定（not foundでは焼かない）
         return json_({ ok: true, status: 'reported', reports: n });
       }
     }
@@ -303,15 +303,14 @@ function handleReport_(id, device) {
 function handleVote_(id, device) {
   if (!ID_RE.test(String(id || ''))) return json_({ ok: false, error: 'bad id' });
   if (!device) return json_({ ok: false, error: 'no device' });
+  // READ のみで判定。加算と二重抑止キーの確定は「実際に投票を記録できた時」だけ（not found で枠を消費しない）。
+  var rk = 'vrl_' + device, dk = 'vd_' + device + '_' + id, rn = 0;
   try {
     var c = CacheService.getScriptCache();
     if (c) {
-      var rk = 'vrl_' + device, rn = parseInt(c.get(rk) || '0', 10);
+      rn = parseInt(c.get(rk) || '0', 10);
       if (rn >= VOTE_RATE_HR) return json_({ ok: false, error: 'rate limited' });
-      var dk = 'vd_' + device + '_' + id;
       if (c.get(dk)) return json_({ ok: true, status: 'already' }); // 同端末×同一問題の二重投票は無視（成功扱い）
-      c.put(rk, String(rn + 1), 3600);
-      c.put(dk, '1', 21600); // 6時間は同一問題の再投票を抑止
     }
   } catch (e) { /* キャッシュ不可でも続行 */ }
 
@@ -330,6 +329,7 @@ function handleVote_(id, device) {
         var n = parseInt(upCell.getValue() || '0', 10) + 1;
         upCell.setValue(n);
         try { var c2 = CacheService.getScriptCache(); if (c2) c2.remove('doget'); } catch (_g) {} // バッジ/順位が変わるので破棄
+        try { var c3 = CacheService.getScriptCache(); if (c3) { c3.put(rk, String(rn + 1), 3600); c3.put(dk, '1', 21600); } } catch (_p) {} // 記録成功時のみ：レート枠を消費＋6hの二重投票抑止キーを確定（not foundでは焼かない）
         return json_({ ok: true, status: 'voted', up: n });
       }
     }
@@ -511,7 +511,7 @@ function verifyToken_(idtoken) {
     var azpOk = !info.azp || (String(info.azp) === CLIENT_ID);          // 認可された当事者(azp)も本アプリに限定（aud のみ検証の素通しを塞ぐ）
     var issOk = (iss === 'accounts.google.com' || iss === 'https://accounts.google.com');
     var emailOk = (String(info.email_verified) === 'true');             // 確認済みメールの本人のみ自動公開（未確認/不明は審査へ）
-    var notExpired = !info.exp || (parseInt(info.exp, 10) * 1000 > Date.now());
+    var notExpired = !!info.exp && (parseInt(info.exp, 10) * 1000 > Date.now()); // exp 欠落はフェイルクローズ（未失効を勝手に真とせず審査へ）
     return audOk && azpOk && issOk && emailOk && notExpired;
   } catch (e) { return false; }
 }
