@@ -405,6 +405,47 @@ section('mergeStore: resetT より古い学習記録は復活しない');
   ok('sanitizeImport: resetT 引き継ぎ', APP.sanitizeImport({cards:{},resetT:rT}).resetT===rT);
   ok('sanitizeImport: 未来の resetT は拒否（恒久ロック防止）', APP.sanitizeImport({cards:{},resetT:Date.now()+10*86400000}).resetT===undefined);
 }
+section('mergeStore: resetT は恒久フラグでない（5巡目#中-1/中-2/低-3/低-5 回帰）');
+{
+  const rT=Date.now()-100000;
+  // #中-1: 両端末が同じ resetT を持てば通常マージ（単調増加）に戻る＝hist30件キャップ越しに累積が縮まない
+  const big=Array.from({length:40},(_,i)=>({t:rT+1000+i,ok:true}));   // 40件（30キャップ超）
+  const A={cards:{c1:{box:3,reps:5,due:Date.now(),ivl:3,ef:2.5,hist:big.slice()}},bookmarks:[],recent:[],totalAnswered:40,totalCorrect:40,resetT:rT};
+  const B={cards:{c1:{box:3,reps:5,due:Date.now(),ivl:3,ef:2.5,hist:big.slice()}},bookmarks:[],recent:[],totalAnswered:40,totalCorrect:40,resetT:rT};
+  const r=APP.mergeStore(A,B);
+  ok('合意後(同resetT)は累積が30件キャップに縮まない', r.totalAnswered===40);
+  // #低-3: クラウド由来の未来 resetT はクランプされ、リセット後の学習を消さない
+  const futureCloud={cards:{},bookmarks:[],recent:[],resetT:Date.now()+30*86400000};
+  const local={cards:{q9:{box:2,reps:1,due:Date.now(),ivl:1,ef:2.5,hist:[{t:Date.now()-500,ok:true}]}},bookmarks:[],recent:[]};
+  const rf=APP.mergeStore(local,futureCloud);
+  ok('未来resetTでも現在学習中のカードは消えない（恒久ワイプ防止）', !!rf.cards.q9);
+  ok('未来resetTは採用されない（無効化）', !rf.resetT);
+  // #中-2: 同日リセット（rT=今日の途中）でクラウドの当日 streak/dailyDone が復活しない
+  const todayStrLocal=()=>{const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();};
+  const today=todayStrLocal();
+  const wiped={cards:{},bookmarks:[],recent:[],streak:0,lastDate:null,dailyDone:{},totalAnswered:0,totalCorrect:0,resetT:Date.now()-1000};
+  const cloudSameDay={cards:{cx:{box:3,reps:2,due:Date.now(),ivl:3,ef:2.5,hist:[{t:Date.now()-3600000,ok:true}]}},bookmarks:[],recent:[],streak:7,lastDate:today,dailyDone:{[today]:7}};
+  const rs=APP.mergeStore(wiped,cloudSameDay);
+  ok('同日リセットで streak が復活しない', rs.streak===0);
+  ok('同日リセットで当日 dailyDone が復活しない', !rs.dailyDone[today]);
+  ok('同日リセットでリセット前カードも消える', !rs.cards.cx);
+  // #低-5: リセット後に再学習したカードに、リセット前の履歴が和集合で混入しない
+  const localPost={cards:{cy:{box:2,reps:1,due:Date.now(),ivl:1,ef:2.5,hist:[{t:rT+5000,ok:true}]}},bookmarks:[],recent:[],resetT:rT};
+  const cloudOld={cards:{cy:{box:4,reps:9,due:Date.now(),ivl:16,ef:2.6,hist:[{t:rT-99999,ok:true},{t:rT-88888,ok:false},{t:rT+5000,ok:true}]}},bookmarks:[],recent:[]};
+  const r5=APP.mergeStore(localPost,cloudOld);
+  ok('リセット後カードの履歴はリセット以前を含まない', r5.cards.cy.hist.every(h=>h.t>rT));
+}
+section('mergeStore: undo初回スタブが未pullクラウドの既習カードを新規化しない（5巡目#低-4 回帰）');
+{
+  const tOld=Date.now()-100000, tBad=Date.now()-1000;
+  // 端末B: 初回回答→undoのスタブ（実効hist空・undoneにtBad・ut最新）
+  const stub={cards:{z1:{box:1,reps:0,fails:0,due:0,ivl:0,ef:2.5,hist:[],undone:[tBad],ut:Date.now()}},bookmarks:[],recent:[]};
+  // クラウド: 既に box4 まで育った同カード
+  const cloud={cards:{z1:{box:4,reps:6,due:Date.now()+10*86400000,ivl:16,ef:2.6,hist:[{t:tOld,ok:true}]}},bookmarks:[],recent:[]};
+  const r=APP.mergeStore(stub,cloud);
+  ok('スケジュールは既習カード由来（box1に巻き戻らない）', r.cards.z1.box>=4 && r.cards.z1.reps>=6 && r.cards.z1.ivl>=16);
+  ok('undo時刻(ut)とundoneは維持される', r.cards.z1.ut>0 && r.cards.z1.undone.indexOf(tBad)>=0);
+}
 
 // =========================== 投票/通報済み表示の永続化（communityVoted/Reported） ===========================
 section('mergeStore/sanitizeImport: 投票・通報済みidは和集合で同期され型不正は除外');

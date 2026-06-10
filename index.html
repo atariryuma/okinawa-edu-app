@@ -601,7 +601,10 @@ function elogMailUrl(log){
   const head='アプリ：沖縄 教育法規ナビ（不具合報告）\n端末：'+((typeof navigator!=='undefined'&&navigator.userAgent)||'')+'\n--- 以下、アプリが端末内に記録したエラーログ ---\n';
   const lines=(Array.isArray(log)?log:[]).map(e=>new Date(e&&e.t||0).toLocaleString()+' ['+((e&&e.type)||'?')+'] '+String((e&&e.msg)||'')).join('\n');
   let body=head+(lines||'（記録なし）');
-  if(body.length>1800)body=body.slice(0,1800)+'\n…（長いため省略。全文はアプリの「コピー」から）';
+  // mailto実用上限はエンコード後のURL長で決まる（日本語はUTF-8で3バイト→%XX%XX%XXに膨張）。本文を切り詰めてエンコード後でも収める。
+  const tail='\n…（長いため省略。全文はアプリの「コピー」から）';
+  while(body.length>200&&encodeURIComponent(body).length>1500)body=body.slice(0,Math.floor(body.length*0.8));
+  if(body!==head+(lines||'（記録なし）'))body+=tail;
   return 'mailto:'+DEV_MAIL+'?subject='+encodeURIComponent('【沖縄教育法規ナビ】不具合報告')+'&body='+encodeURIComponent(body);}
 function clearElog(){try{localStorage.removeItem(ELOG_KEY);}catch(e){}}
 window.addEventListener('error',e=>{elog({type:'error',msg:String((e&&(e.message||e.error))||e),at:(e&&e.filename?e.filename.split('/').pop():'')+':'+((e&&e.lineno)||'')});});
@@ -1118,8 +1121,8 @@ function resumeSession(){const s=store.session;if(!s||!Array.isArray(s.ids)){ret
   quizMode=s.mode;quizCat=s.cat||'all';
   quizPool=s.ids.map(id=>QUESTIONS.find(q=>q.id===id)).filter(Boolean);
   quizIdx=Math.min(s.idx||0,quizPool.length);sCorrect=0;sAnswered=0;sWrongIds=[];sStreak=0;quizEphemeral=false; // 復帰は採点カウンタを全リセット（startQuizと対称・前回セッションの誤答/連続が残らないように）
+  if(!quizPool.length){store.session=null;save();renderQuiz();return;} // 復帰対象が見つからない（🌐共有問題が未到着/キャッシュ消失等）＝白画面でなくモード選択へ戻す
   enterQuizView();   // 復帰時もモードグリッドを退避して出題を前面に
-  if(!quizPool.length){store.session=null;save();return;}
   if(quizMode==='mock')startMockTimer(s.mockElapsed||0);   // 模試はタイマーを保存済み経過から再開
   showQ();
 }
@@ -1817,30 +1820,43 @@ function sanitizeCard(c){const num=(v,d)=>Number.isFinite(v)?v:d;
   if(Array.isArray(c.undone))card.undone=c.undone.filter(t=>typeof t==='number'&&t<=Date.now()+864e5).slice(-10); // 取り消した履歴の時刻（マージで復活させない）
   return card;}
 function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));out.cards=out.cards||{};
-  // 学習リセットのトゥームストーン：resetT より新しい学習が無いカードは復活させない
-  // （端末Aでリセット→端末Bの旧カードが同期で全復活する問題への対処。リセット後に解いたカードだけ生き残る）
-  const rT=Math.max(a.resetT||0,b.resetT||0);if(rT)out.resetT=rT;
-  const dayEnd=ds=>{if(!ds||typeof ds!=='string')return 0;const p=ds.split('-');return new Date(+p[0],(+p[1]||1)-1,(+p[2]||1),23,59,59).getTime();}; // 'Y-M-D'→その日の終端ms（resetT比較用）
+  const dayEnd=ds=>{if(!ds||typeof ds!=='string')return 0;const p=ds.split('-');return new Date(+p[0],(+p[1]||1)-1,(+p[2]||1),23,59,59).getTime();}; // 'Y-M-D'→その日の終端ms
+  // 学習リセットのトゥームストーン：resetT より新しい学習が無いカードは復活させない（他端末からの全復活防止）。
+  // 未来ts（時計ズレ/改竄cloud）の resetT は無効＝0 とする（「リセットは過去の出来事」の不変条件）。
+  // クランプ(min(t,now))だと now 直前の正当な学習まで巻き込んで消えるため、未来は採用せず無視する（sanitizeImportの未来拒否と同水準・恒久ワイプ防止）。
+  const vT=t=>(typeof t==='number'&&isFinite(t)&&t>0&&t<=Date.now())?t:0;
+  const rT=Math.max(vT(a.resetT),vT(b.resetT));if(rT)out.resetT=rT;
+  // fresh＝リセットがまだ両端末で一致していない「刈り込みフェーズ」だけ統計を切り詰める。両者が同じ resetT を持てば通常マージ（単調増加）に戻す
+  // ＝リセット経験者の累積が hist 30件キャップ越しに毎同期で縮む問題を防ぐ（恒久フラグにしない）。
+  const fresh=!!rT&&((a.resetT||0)!==(b.resetT||0));
+  // 「リセットを認知済み or リセット後に学習がある」側の統計だけ有効＝リセット前の残骸 streak/dailyDone の復活を防ぐ（同日リセットでも）。
+  const hasPost=c=>{for(const k in (c||{})){if(lastAct(c[k])>rT)return true;}return false;};
+  const aStat=!rT||(a.resetT||0)>=rT||hasPost(a.cards),bStat=!rT||(b.resetT||0)>=rT||hasPost(b.cards);
   const ids=new Set([...Object.keys(a.cards||{}),...Object.keys(b.cards||{})]);
   ids.forEach(id=>{const ca=(a.cards||{})[id],cb=(b.cards||{})[id];
     if(rT&&Math.max(lastAct(ca),lastAct(cb))<=rT){delete out.cards[id];return;} // リセット以前の記録しか無いカードは破棄
     if(!ca){out.cards[id]=sanitizeCard(cb);return;}if(!cb){out.cards[id]=sanitizeCard(ca);return;} // 片側のみ＝そのカードを浄化して採用（cloud由来の破損数値を遮断）
     const la=lastAct(ca),lb=lastAct(cb);
-    // スケジュール状態は「より最近 or 進んでいる方」を採用。同値はreps多い方
-    const chosen=(lb>la)?cb:((la>lb)?ca:(((cb.reps||0)>(ca.reps||0))?cb:ca));
-    const m=sanitizeCard(chosen); // 採用カードを浄化（hist は直後に両者の和集合で上書き）
-    // hist は両者の和集合（重複排除・時刻順・直近30）＝履歴を取りこぼさない。
-    // ただし undone（回答取り消し済みの時刻）に載った履歴は除外＝undo した誤答がクラウド側から和集合で復活しない
-    const seen={},ha=Array.isArray(ca.hist)?ca.hist:[],hb=Array.isArray(cb.hist)?cb.hist:[]; // hist非配列(改竄/旧データ)でも例外を出さない
+    const chosen=(lb>la)?cb:((la>lb)?ca:(((cb.reps||0)>(ca.reps||0))?cb:ca)); // より最近 or 進んでいる方。同値はreps多い方
+    // undone（取り消し済み時刻）を集約。hist 和集合はこれと「rT以前」を除外する
     const und=new Set([...(Array.isArray(ca.undone)?ca.undone:[]),...(Array.isArray(cb.undone)?cb.undone:[])].filter(t=>typeof t==='number'));
-    m.hist=[...ha,...hb].filter(h=>h&&typeof h.t==='number'&&!und.has(h.t)).sort((x,y)=>x.t-y.t).filter(h=>{const k=h.t+'|'+(h.ok?1:0);return seen[k]?false:(seen[k]=1,true);}).slice(-30);
+    const eff=c=>(Array.isArray(c.hist)?c.hist:[]).filter(h=>h&&typeof h.t==='number'&&!und.has(h.t)); // 取り消しを除いた実効履歴
+    // 初回回答のundoスタブ（実効hist空・ut最新）が未pullのクラウド既習カードを「新規」に巻き戻すのを防ぐ：
+    // 採用側の実効histが空で相手が非空なら、スケジュール(box/ivl/ef/reps/due)は相手から採る（ut/undoneは下で維持）。
+    const other=chosen===ca?cb:ca;
+    const schedCard=(eff(chosen).length===0&&eff(other).length>0)?other:chosen;
+    const m=sanitizeCard(schedCard); // 採用カードを浄化（hist は直後に両者の和集合で上書き）
+    // hist は両者の和集合（重複排除・時刻順・直近30）。undo済み＋リセット以前(rT)を除外＝取り消した誤答や旧履歴が復活しない
+    const seen={},ha=Array.isArray(ca.hist)?ca.hist:[],hb=Array.isArray(cb.hist)?cb.hist:[]; // hist非配列(改竄/旧データ)でも例外を出さない
+    m.hist=[...ha,...hb].filter(h=>h&&typeof h.t==='number'&&!und.has(h.t)&&(!rT||h.t>rT)).sort((x,y)=>x.t-y.t).filter(h=>{const k=h.t+'|'+(h.ok?1:0);return seen[k]?false:(seen[k]=1,true);}).slice(-30);
+    const ut=Math.max(Number.isFinite(ca.ut)?ca.ut:0,Number.isFinite(cb.ut)?cb.ut:0);if(ut)m.ut=ut; // undo時刻は両者の新しい方を維持（スタブが勝者でもscheduleは相手・undoは効かせる）
     if(und.size)m.undone=[...und].slice(-10);
     out.cards[id]=m;});
-  // streak は「より最近学習した端末」のものを採用（max だと放置端末の旧値で誤継続する）。同日は max
-  {const aOk=!rT||dayEnd(a.lastDate)>rT,bOk=!rT||dayEnd(b.lastDate)>rT;  // リセット以降に学習が無い側の streak/lastDate は引き継がない
-   const aD=aOk?ymdNum(a.lastDate||''):0,bD=bOk?ymdNum(b.lastDate||''):0;
-   out.lastDate=(bD>aD)?b.lastDate:((aD>bD)?a.lastDate:((aOk&&a.lastDate)||(bOk&&b.lastDate)||null));
-   out.streak=(bD>aD)?(b.streak||0):((aD>bD)?(a.streak||0):Math.max(aOk?(a.streak||0):0,bOk?(b.streak||0):0));
+  // streak は「より最近学習した端末」のものを採用（max だと放置端末の旧値で誤継続する）。同日は max。
+  // aStat/bStat＝リセット前の残骸統計を持つ側を無効化（同日リセットでクラウドの当日streak/dailyDoneが復活する穴を塞ぐ）
+  {const aD=aStat?ymdNum(a.lastDate||''):0,bD=bStat?ymdNum(b.lastDate||''):0;
+   out.lastDate=(bD>aD)?b.lastDate:((aD>bD)?a.lastDate:((aStat&&a.lastDate)||(bStat&&b.lastDate)||null));
+   out.streak=(bD>aD)?(b.streak||0):((aD>bD)?(a.streak||0):Math.max(aStat?(a.streak||0):0,bStat?(b.streak||0):0));
    if(!(typeof out.streak==='number'&&isFinite(out.streak)&&out.streak>=0&&out.streak<100000))out.streak=0; // 型検証（sanitizeImportと同水準）。streak は esc なしで innerHTML に出るため、改竄cloudの文字列を通さない＝描画XSS防止
    if(typeof out.lastDate!=='string'&&out.lastDate!=null)out.lastDate=null;}
   // examDate は最後に変更した方を採用（設定も解除も端末間で伝播）
@@ -1853,13 +1869,14 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
   // 論文の下書きはタイトル毎に「長い方」を採用（端末間でより書き込んだ版を保持）
   {const dr=Object.assign({},a.ronbunDrafts||{});const bd=b.ronbunDrafts||{};Object.keys(bd).forEach(k=>{if(!dr[k]||String(bd[k]).length>String(dr[k]).length)dr[k]=bd[k];});out.ronbunDrafts=dr;}
   // 累積統計：両端末値に加え、マージ後カードの履歴和集合からの集計も下限に採用（端末B単独の解答が Math.max に飲まれて欠落するのを緩和。値は単調増加のみ）。
-  // リセット(rT)後は生き残ったカードの履歴からの再計算のみを正とする（Math.max だと旧端末の累積が即復活してリセットが無意味になる）
+  // fresh（リセット伝播中）だけは生き残ったカードの履歴からの再計算のみを正とする（Math.max だと旧端末の累積が即復活）。
+  // 合意後(fresh=false)は通常の単調増加に戻す＝hist 30件キャップ越しに毎同期で累積が縮む問題を防ぐ。
   {let ua=0,uc=0;Object.values(out.cards||{}).forEach(c=>(c.hist||[]).forEach(h=>{ua++;if(h&&h.ok)uc++;}));
-   out.totalAnswered=rT?ua:Math.max(a.totalAnswered||0,b.totalAnswered||0,ua);
-   out.totalCorrect=rT?uc:Math.max(a.totalCorrect||0,b.totalCorrect||0,uc);}
-  {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});if(rT)Object.keys(dd).forEach(k=>{if(dayEnd(k)<=rT)delete dd[k];});out.dailyDone=pruneDailyDone(dd);} // 結合後に剪定。リセット以前の日次記録は復活させない
+   out.totalAnswered=fresh?ua:Math.max(a.totalAnswered||0,b.totalAnswered||0,ua);
+   out.totalCorrect=fresh?uc:Math.max(a.totalCorrect||0,b.totalCorrect||0,uc);}
+  {const dd={};if(aStat)Object.assign(dd,a.dailyDone||{});const bd=bStat?(b.dailyDone||{}):{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});if(rT)Object.keys(dd).forEach(k=>{if(dayEnd(k)<=rT)delete dd[k];});out.dailyDone=pruneDailyDone(dd);} // リセット前の残骸を持つ側(aStat/bStat=false)の日次記録は混ぜない＋リセット以前のキーは剪定
   {const ab=Array.isArray(a.bookmarks)?a.bookmarks:[],bb=Array.isArray(b.bookmarks)?b.bookmarks:[];out.bookmarks=[...new Set([...ab,...bb].filter(k=>typeof k==='string'))];} // 付箋は和集合（非配列/非文字列は無視）
-  {const u=x=>Array.isArray(x)?x.filter(k=>typeof k==='string'):[];
+  {const u=x=>Array.isArray(x)?x.filter(k=>typeof k==='string'&&k.length<=64):[];   // 要素長もクランプ（改竄cloud/インポートのlocalStorage肥大DoSを防ぐ。正規idは最大64字）
    out.communityVoted=[...new Set([...u(a.communityVoted),...u(b.communityVoted)])].slice(0,1000);
    out.communityReported=[...new Set([...u(a.communityReported),...u(b.communityReported)])].slice(0,1000);} // 投票/通報済み表示は和集合（一度押したら戻らない単調増加。サーバの正は voters/reporters 列＝これはUI表示用）
   {const seen={},ar=Array.isArray(a.recent)?a.recent:[],br=Array.isArray(b.recent)?b.recent:[];out.recent=[...ar,...br].filter(it=>it&&typeof it==='object'&&it.t&&it.id!=null).sort((x,y)=>(y.ts||0)-(x.ts||0)).filter(it=>{const k=it.t+':'+it.id;return seen[k]?false:(seen[k]=1,true);}).slice(0,12);} // 最近見たは時刻順で結合・上位12（壊れ要素は除外）
@@ -1882,8 +1899,8 @@ function sanitizeImport(o){const s={};o=o||{};
   if(o.ronbunDrafts&&typeof o.ronbunDrafts==='object'&&!Array.isArray(o.ronbunDrafts)){s.ronbunDrafts={};Object.keys(o.ronbunDrafts).slice(0,50).forEach(k=>{s.ronbunDrafts[String(k).slice(0,80)]=String(o.ronbunDrafts[k]||'').slice(0,8000);});} // 下書きはキー/値長をクランプ
   s.dailyDone=pruneDailyDone(o.dailyDone); // 取り込み時も剪定
   if(Array.isArray(o.bookmarks))s.bookmarks=o.bookmarks.filter(k=>typeof k==='string');
-  if(Array.isArray(o.communityVoted))s.communityVoted=o.communityVoted.filter(k=>typeof k==='string').slice(0,1000);
-  if(Array.isArray(o.communityReported))s.communityReported=o.communityReported.filter(k=>typeof k==='string').slice(0,1000);
+  if(Array.isArray(o.communityVoted))s.communityVoted=o.communityVoted.filter(k=>typeof k==='string'&&k.length<=64).slice(0,1000);
+  if(Array.isArray(o.communityReported))s.communityReported=o.communityReported.filter(k=>typeof k==='string'&&k.length<=64).slice(0,1000);
   if(Array.isArray(o.recent))s.recent=o.recent.filter(r=>r&&typeof r==='object'&&r.t&&r.id!=null).slice(0,12).map(r=>({t:String(r.t).slice(0,8),id:String(r.id).slice(0,80),label:String(r.label||'').slice(0,40),ts:Number(r.ts)||0})); // 型/長さを正規化
   if(typeof o.dailyGoal==='number'&&o.dailyGoal>0&&o.dailyGoal<1000)s.dailyGoal=o.dailyGoal;
   return s;}

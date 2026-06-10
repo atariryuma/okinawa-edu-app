@@ -208,7 +208,7 @@ function doPost(e) {
 
       // レート制限は「実際に追記する直前」に判定＝ロック未取得/重複id/満杯/pending過多で弾かれた時に枠を無駄消費しない。
       // キー＝本人確認済みは sub（偽装不能）、匿名は device。匿名はさらに端末非依存の全体クォータも通す
-      if (!rateOk_(sub ? 's_' + sub : 'd_' + device)) return json_({ ok: false, error: 'rate limited' });
+      if (!rateOk_(sub ? 's_' + sub : 'd_' + devH)) return json_({ ok: false, error: 'rate limited' });
       if (!trusted && !anonOk_()) return json_({ ok: false, error: 'rate limited' });
 
       // 未知キー/プロトタイプ汚染を物理的に落としてから保存（ホワイトリスト再構築）
@@ -548,12 +548,17 @@ function isInt_(v) { return typeof v === 'number' && isFinite(v) && Math.floor(v
 function verifyTokenSub_(idtoken) {
   try {
     if (!idtoken) return '';
+    // JWT形式（header.payload.signature）でないものは tokeninfo を叩く前に弾く＝ランダムなゴミ文字列の連打で
+    // fetch予算(下記)を安価に枯渇させ「本人確認の静かな死」を誘発する攻撃の主経路を断つ（fetch も予算も消費しない）。
+    if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(idtoken)) return '';
     // 検証結果をトークン単位でキャッシュ（'!'=検証失敗のネガティブキャッシュ）。同一トークンの連打が
     // 毎回 UrlFetchApp を叩いてクォータを消費する攻撃（→本人確認の全停止）を1回分に畳む。
     var c = null; try { c = CacheService.getScriptCache(); } catch (_c) {}
     var ck = 'tok_' + hash_(idtoken);
     if (c) { var hit = c.get(ck); if (hit != null) return hit === '!' ? '' : hit; }
-    if (!fetchBudgetOk_()) return '';   // 予算超過はフェイルクローズ（投稿は審査へ・投票/通報は login required）
+    // 予算超過はフェイルクローズ（投稿は審査へ・投票/通報は login required）。形式チェック＋トークン単位キャッシュ後なので
+    // ここに到達するのは「形式は正しいが未検証の新規トークン」のみ＝正規利用ではほぼ消費されない。
+    if (!fetchBudgetOk_()) return '';
     var resp = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(idtoken), { muteHttpExceptions: true });
     if (resp.getResponseCode() !== 200) { if (c) { try { c.put(ck, '!', 300); } catch (_n) {} } return ''; }
     var info = JSON.parse(resp.getContentText());
@@ -565,7 +570,10 @@ function verifyTokenSub_(idtoken) {
     var notExpired = !!info.exp && (parseInt(info.exp, 10) * 1000 > Date.now()); // exp 欠落はフェイルクローズ
     var sub = String(info.sub || '');
     var out = (audOk && azpOk && issOk && emailOk && notExpired && sub) ? sub : '';
-    if (c) { try { var ttl = out ? Math.max(60, Math.min(600, parseInt(info.exp, 10) - Math.floor(Date.now() / 1000))) : 300; c.put(ck, out || '!', ttl); } catch (_p) {} } // TTLはexpを越えない
+    if (c) { try {
+      if (out) { var ttl = Math.min(600, parseInt(info.exp, 10) - Math.floor(Date.now() / 1000)); if (ttl > 0) c.put(ck, out, ttl); } // 成功：exp残>0のときだけキャッシュ（TTLはexpを越えない・失効間際はキャッシュせず失効後のreplayを防ぐ）
+      else c.put(ck, '!', 300); // 失敗：300秒のネガティブキャッシュ
+    } catch (_p) {} }
     return out;
   } catch (e) { return ''; }
 }
