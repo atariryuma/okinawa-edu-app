@@ -1005,25 +1005,34 @@ function renderLookup(){
   const el=document.getElementById('lookup');
   el.innerHTML=`<div class="searchwrap"><span class="mag" aria-hidden="true">🔎</span>
     <input class="search" id="lkin" placeholder="状況・キーワードで検索（例：不登校、ICT、研修）" aria-label="逆引き検索"></div>
+    <div id="lkres"></div>
+    <div id="lkmenu">
     ${(()=>{const rec=(store.recent||[]).filter(r=>r.t==='lk').slice(0,6);return rec.length?`<div style="margin:12px 2px 8px"><div class="recenthd">🕘 最近見た</div><div class="recentrow">${rec.map(r=>`<button class="lkrecent chip" data-sit="${esc(String(r.id))}">🔎 ${esc(r.label)}</button>`).join('')}</div></div>`:'';})()}
-    <div class="chips" id="lkchips"></div><div id="lkres"></div>`;
-  const chips=el.querySelector('#lkchips');
-  el.querySelectorAll('.lkrecent').forEach(b=>b.addEventListener('click',()=>{const l=LOOKUP.find(x=>x.sit===b.dataset.sit);if(l){el.querySelector('#lkin').value='';show([l]);}})); // 最近見た→再オープン
+    <p class="hint" style="margin:10px 2px 6px">状況のボタンを選ぶ、または上で検索すると、根拠条文が表示されます（${LOOKUP.length}件）。</p>
+    <div class="chips" id="lkchips"></div></div>`;
+  const menu=el.querySelector('#lkmenu'),box=el.querySelector('#lkres'),input=el.querySelector('#lkin'),chips=el.querySelector('#lkchips');
+  const showMenu=v=>{menu.style.display=v?'':'none';};            // 結果表示中はチップ一覧を畳む＝結果が画面外に押し出されない
+  const toTop=()=>{try{window.scrollTo(0,0);}catch(_){}};
+  el.querySelectorAll('.lkrecent').forEach(b=>b.addEventListener('click',()=>{const l=LOOKUP.find(x=>x.sit===b.dataset.sit);if(l){input.value='';show([l]);}})); // 最近見た→再オープン
   const lkSorted=LOOKUP.slice().sort((a,b)=>(isBM('lk',b.sit)?1:0)-(isBM('lk',a.sit)?1:0)); // 付箋を先頭に
   lkSorted.forEach(l=>{const b=document.createElement('button');b.textContent=(isBM('lk',l.sit)?'⭐ ':'')+l.sit;
-    b.addEventListener('click',()=>{el.querySelector('#lkin').value='';show([l]);[...chips.children].forEach(c=>c.classList.remove('on'));b.classList.add('on');});chips.appendChild(b);});
-  const LKHINT=`<p class="hint" style="margin:10px 2px">↑ 状況のボタンを選ぶ、または検索すると、根拠条文が表示されます（${LOOKUP.length}件）。</p>`;
-  el.querySelector('#lkin').addEventListener('input',e=>{const terms=norm(e.target.value.trim()).split(/\s+/).filter(Boolean);[...chips.children].forEach(c=>c.classList.remove('on'));
-    if(!terms.length){el.querySelector('#lkres').innerHTML=LKHINT;return;}
-    show(LOOKUP.filter(l=>{const hay=norm(l.sit+' '+l.kw+' '+l.based.map(b=>b.join(' ')).join(' '));return terms.every(t=>hay.indexOf(t)>=0);}));}); // 表記ゆれ吸収＋複数語AND
-  el.querySelector('#lkres').innerHTML=LKHINT;   // 初期＝メニュー（全カード展開でなくボタンから選ぶFAQ型）
-  function show(list){const box=el.querySelector('#lkres');
+    b.addEventListener('click',()=>{input.value='';show([l]);});chips.appendChild(b);});
+  input.addEventListener('input',e=>{const terms=norm(e.target.value.trim()).split(/\s+/).filter(Boolean);
+    if(!terms.length){showMenu(true);box.innerHTML='';toTop();return;}   // 空欄＝状況メニューに戻す
+    show(LOOKUP.filter(l=>{const hay=norm(l.sit+' '+l.kw+' '+l.based.map(b=>b.join(' ')).join(' '));return terms.every(t=>hay.indexOf(t)>=0);}),true);}); // 表記ゆれ吸収＋複数語AND（検索中はキー入力ごとにスクロールしない）
+  showMenu(true);box.innerHTML='';   // 初期＝状況メニュー（ヒントはメニュー内に表示）
+  function show(list,fromSearch){
+    showMenu(false);                 // 結果を検索欄の直下＝画面先頭に出す
     if(list.length===1)pushRecent('lk',list[0].sit,list[0].sit); // 特定状況を開いたら「最近見た」に記録
-    box.innerHTML=list.length?list.map(l=>`<div class="lk"><h4 style="display:flex;align-items:center;gap:6px">${l.sit}<button class="lkstar" data-sit="${esc(l.sit)}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('lk',l.sit)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;padding:0">${isBM('lk',l.sit)?'⭐':'☆'}</button></h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}${srcChk(b[0])}</div>`).join('')}<div style="margin-top:8px"><button class="btn ghost lkcopy" data-sit="${esc(l.sit)}" style="padding:4px 11px;min-height:auto">📋 根拠をコピー</button></div></div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`;
+    const back=`<button class="btn ghost lkback" style="padding:4px 12px;min-height:auto;margin-bottom:10px">← 状況の一覧にもどる</button>`;
+    box.innerHTML=back+(list.length?list.map(l=>`<div class="lk"><h4 style="display:flex;align-items:center;gap:6px">${l.sit}<button class="lkstar" data-sit="${esc(l.sit)}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('lk',l.sit)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;padding:0">${isBM('lk',l.sit)?'⭐':'☆'}</button></h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}${srcChk(b[0])}</div>`).join('')}<div style="margin-top:8px"><button class="btn ghost lkcopy" data-sit="${esc(l.sit)}" style="padding:4px 11px;min-height:auto">📋 根拠をコピー</button></div></div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`);
+    box.querySelector('.lkback').addEventListener('click',()=>{input.value='';showMenu(true);box.innerHTML='';toTop();}); // 一覧へ戻る
     box.querySelectorAll('.lkstar').forEach(btn=>btn.addEventListener('click',()=>{const on=toggleBM('lk',btn.dataset.sit);btn.textContent=on?'⭐':'☆';btn.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}));
     box.querySelectorAll('.lkcopy').forEach(btn=>btn.addEventListener('click',()=>{const l=LOOKUP.find(x=>x.sit===btn.dataset.sit);if(!l)return;
       const txt=`【${l.sit}】\n`+l.based.map(b=>`・${b[0]}：${String(b[1]).replace(/<[^>]+>/g,'')}`).join('\n');
-      copyText(txt,'根拠をコピーしました 📋');}));}
+      copyText(txt,'根拠をコピーしました 📋');}));
+    if(!fromSearch)toTop();          // チップ/最近見たから開いた時は先頭へスクロール（検索はキー入力ごとのスクロールを避ける）
+  }
 }
 
 //==================== QUIZ ====================
