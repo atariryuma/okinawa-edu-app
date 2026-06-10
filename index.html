@@ -252,6 +252,7 @@
   .gsitem:active{transform:scale(.99);}
   .gsk{display:inline-block;font-size:.66rem;color:#fff;background:var(--sub);border-radius:5px;padding:1px 6px;margin-right:7px;vertical-align:middle;}
   .btn.ghost{background:var(--card);color:var(--accent);border:1px solid var(--accent);box-shadow:var(--shadow-sm);}
+  .backlink{display:block;background:none;border:none;color:var(--sub);cursor:pointer;font:inherit;font-size:.82rem;padding:8px 4px;margin:6px 0;text-align:left;} /* 戻る導線の統一スタイル（控えめなテキストリンク調・逆引き/クイズ共通） */
   .btn.wide{width:100%;}
   .btn.ok{background:var(--ok-btn);color:#fff;box-shadow:0 4px 12px rgba(21,128,61,.28);}
   .btn.ng{background:var(--ng-btn);color:#fff;box-shadow:0 4px 12px rgba(194,37,59,.28);}
@@ -1024,7 +1025,7 @@ function renderLookup(){
   function show(list,fromSearch){
     showMenu(false);                 // 結果を検索欄の直下＝画面先頭に出す
     if(list.length===1)pushRecent('lk',list[0].sit,list[0].sit); // 特定状況を開いたら「最近見た」に記録
-    const back=`<button class="lkback" style="background:none;border:none;color:var(--sub);cursor:pointer;font:inherit;font-size:.82rem;padding:8px 4px;margin:6px 0">← 状況の一覧にもどる</button>`;
+    const back=`<button class="lkback backlink">← 状況の一覧にもどる</button>`;
     box.innerHTML=back+(list.length?list.map(l=>`<div class="lk"><h4 style="display:flex;align-items:center;gap:6px">${l.sit}<button class="lkstar" data-sit="${esc(l.sit)}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('lk',l.sit)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;padding:0">${isBM('lk',l.sit)?'⭐':'☆'}</button></h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}${srcChk(b[0])}</div>`).join('')}<div style="margin-top:8px"><button class="btn ghost lkcopy" data-sit="${esc(l.sit)}" style="padding:4px 11px;min-height:auto">📋 根拠をコピー</button></div></div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`);
     box.querySelector('.lkback').addEventListener('click',()=>{input.value='';showMenu(true);box.innerHTML='';toTop();}); // 一覧へ戻る
     box.querySelectorAll('.lkstar').forEach(btn=>btn.addEventListener('click',()=>{const on=toggleBM('lk',btn.dataset.sit);btn.textContent=on?'⭐':'☆';btn.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}));
@@ -1067,7 +1068,7 @@ function renderQuiz(){
        <button class="mode" data-m="__create"><span class="ic">✍️</span><b>問題を作る・共有</b><span>自作／みんなの問題</span></button>
      </div>
    </div>
-   <button class="btn ghost" id="qback" hidden style="margin:0 0 10px;padding:4px 12px;min-height:auto">← モード選択へ戻る</button>
+   <button class="backlink" id="qback" hidden style="margin:0 0 10px">← モード選択へ戻る</button>
    <div id="quizarea"></div>`;
   const cats=['all',...new Set(QUESTIONS.map(q=>q.cat))];
   const cb=el.querySelector('#cats');
