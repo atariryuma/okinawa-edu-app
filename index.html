@@ -1041,6 +1041,7 @@ function renderQuiz(){
      <h3 class="sec">その他</h3>
      <div class="modegrid" id="modesUtil">
        <button class="mode" data-m="bookmark"><span class="ic">⭐</span><b>付箋（${bmCount('q')}）</b><span>あとで見返す問題</span></button>
+       ${COMMUNITY_IDS.size?`<button class="mode" data-m="community"><span class="ic">🌐</span><b>みんなの問題（${COMMUNITY_IDS.size}）</b><span>共有された問題だけ解く</span></button>`:''}
        <button class="mode" data-m="__create"><span class="ic">✍️</span><b>問題を作る・共有</b><span>自作／みんなの問題</span></button>
      </div>
    </div>
@@ -1095,6 +1096,8 @@ function startQuiz(mode){
     if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard result"><div class="emoji">✨</div><div class="msg">弱点はありません。「今日の学習」で新しい問題に挑戦しましょう。</div></div>`;return;}}
   else if(mode==='bookmark'){const ids=new Set((store.bookmarks||[]).filter(k=>k.indexOf('q:')===0).map(k=>k.slice(2)));quizPool=shuffle(QUESTIONS.filter(q=>ids.has(q.id)));
     if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard"><p class="hint">付箋はまだありません。問題の上の ☆ を押すと、ここに集まります。</p></div>`;return;}}
+  else if(mode==='community'){quizPool=shuffle(QUESTIONS.filter(q=>COMMUNITY_IDS.has(q.id)));   // 共有問題だけを選んで解くモード（👍/⚠️で品質に参加しやすくする入口）
+    if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard"><p class="hint">共有された問題はまだ届いていません。オンラインになると自動で受信します。</p></div>`;return;}}
   else{quizPool=shuffle(QUESTIONS.filter(q=>q.type===mode&&(quizCat==='all'||q.cat===quizCat)));
     if(!quizPool.length){quizarea().innerHTML=`<div class="quizcard"><p class="hint">この分野×形式の問題はありません。分野を「全分野」に。</p></div>`;return;}}
   store.session={mode,ids:quizPool.map(q=>q.id),idx:0,cat:quizCat};save(); // 中断復帰用にセッションを保存
