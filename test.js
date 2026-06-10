@@ -65,7 +65,7 @@ const EXPORTS = [
   'stateOf','isDue','isWeak','isMastered','getCard','dueList','bucketShuffle','dailyCount',
   'bmKey','isBM','toggleBM','bmCount','pushRecent','lastAct','ymdNum','esc','shuffle','orderShuffle',
   'examDaysLeft','todayISO','norm','pruneDailyDone','filterNetErr','saveGTok','loadGTok','clearGTok','load',
-  'touchStreak','rebuildQuestions',
+  'touchStreak','rebuildQuestions','elogMailUrl',
 ];
 const exposeSrc = '\n;return {' +
   EXPORTS.map(n => `${n}:(typeof ${n}!=='undefined'?${n}:undefined)`).join(',') +
@@ -423,6 +423,20 @@ section('mergeStore/sanitizeImport: 投票・通報済みidは和集合で同期
     ok('load: 非配列は[]に正規化（showQのindexOf保護）', Array.isArray(ld.communityVoted)&&Array.isArray(ld.communityReported));
     delete memStore['okinawa_edu_app_v3'];
   } else ok('load 露出（スキップ可）', true);
+}
+
+// =========================== elogMailUrl（📮メールで報告） ===========================
+section('elogMailUrl: mailto生成・本文の切り詰め・壊れた入力耐性');
+{
+  const url=APP.elogMailUrl([{t:1717900000000,type:'error',msg:'TypeError: x is null'}]);
+  ok('mailto:宛先から始まる', url.indexOf('mailto:ryuma.atari@gmail.com?')===0);
+  ok('件名がエンコード済みで入る', url.includes('subject='+encodeURIComponent('【沖縄教育法規ナビ】不具合報告')));
+  ok('本文にエラー内容が入る', decodeURIComponent(url.split('&body=')[1]).includes('TypeError: x is null'));
+  const huge=Array.from({length:50},(_,i)=>({t:1717900000000,type:'error',msg:'M'.repeat(200)+i}));
+  const big=APP.elogMailUrl(huge);
+  ok('長大ログは切り詰め（mailto実用上限対策）', decodeURIComponent(big.split('&body=')[1]).length<2000 && decodeURIComponent(big.split('&body=')[1]).includes('省略'));
+  ok('空/非配列でも落ちない', APP.elogMailUrl([]).indexOf('mailto:')===0 && APP.elogMailUrl(null).indexOf('mailto:')===0);
+  ok('壊れたエントリ(null)でも落ちない', APP.elogMailUrl([null,{msg:'x'}]).indexOf('mailto:')===0);
 }
 
 // =========================== esc / validQuestion 予約名id ===========================
