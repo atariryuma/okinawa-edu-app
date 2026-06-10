@@ -1024,7 +1024,7 @@ function renderLookup(){
   function show(list,fromSearch){
     showMenu(false);                 // 結果を検索欄の直下＝画面先頭に出す
     if(list.length===1)pushRecent('lk',list[0].sit,list[0].sit); // 特定状況を開いたら「最近見た」に記録
-    const back=`<button class="btn ghost lkback" style="padding:4px 12px;min-height:auto;margin-bottom:10px">← 状況の一覧にもどる</button>`;
+    const back=`<button class="btn ghost lkback" style="padding:7px 15px;min-height:auto;margin:4px 0 14px;font-size:.82rem">← 状況の一覧にもどる</button>`;
     box.innerHTML=back+(list.length?list.map(l=>`<div class="lk"><h4 style="display:flex;align-items:center;gap:6px">${l.sit}<button class="lkstar" data-sit="${esc(l.sit)}" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('lk',l.sit)}" style="border:none;background:none;cursor:pointer;font-size:.95rem;padding:0">${isBM('lk',l.sit)?'⭐':'☆'}</button></h4>${l.based.map(b=>`<div class="based"><b>${b[0]}</b>：${b[1]}${srcChk(b[0])}</div>`).join('')}<div style="margin-top:8px"><button class="btn ghost lkcopy" data-sit="${esc(l.sit)}" style="padding:4px 11px;min-height:auto">📋 根拠をコピー</button></div></div>`).join(''):`<p class="hint">該当なし。別の語で試してください。</p>`);
     box.querySelector('.lkback').addEventListener('click',()=>{input.value='';showMenu(true);box.innerHTML='';toTop();}); // 一覧へ戻る
     box.querySelectorAll('.lkstar').forEach(btn=>btn.addEventListener('click',()=>{const on=toggleBM('lk',btn.dataset.sit);btn.textContent=on?'⭐':'☆';btn.setAttribute('aria-pressed',on);toast(on?'付箋をつけました ⭐':'付箋を外しました');}));
