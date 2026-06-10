@@ -406,6 +406,25 @@ section('mergeStore: resetT より古い学習記録は復活しない');
   ok('sanitizeImport: 未来の resetT は拒否（恒久ロック防止）', APP.sanitizeImport({cards:{},resetT:Date.now()+10*86400000}).resetT===undefined);
 }
 
+// =========================== 投票/通報済み表示の永続化（communityVoted/Reported） ===========================
+section('mergeStore/sanitizeImport: 投票・通報済みidは和集合で同期され型不正は除外');
+{
+  const r=APP.mergeStore(
+    {cards:{},bookmarks:[],recent:[],communityVoted:['a','b'],communityReported:['x']},
+    {cards:{},bookmarks:[],recent:[],communityVoted:['b','c',123,null],communityReported:'broken'});
+  ok('communityVoted は和集合（重複なし・非文字列除外）', eq([...r.communityVoted].sort(),['a','b','c']));
+  ok('communityReported は片側破損でも残る', eq(r.communityReported,['x']));
+  const s=APP.sanitizeImport({cards:{},communityVoted:['v1',5,'v2'],communityReported:{evil:1}});
+  ok('sanitizeImport: voted 文字列のみ通す', eq(s.communityVoted,['v1','v2']));
+  ok('sanitizeImport: reported 非配列は捨てる', s.communityReported===undefined);
+  if(APP.load){
+    memStore['okinawa_edu_app_v3']=JSON.stringify({communityVoted:'x',communityReported:9});
+    const ld=APP.load();
+    ok('load: 非配列は[]に正規化（showQのindexOf保護）', Array.isArray(ld.communityVoted)&&Array.isArray(ld.communityReported));
+    delete memStore['okinawa_edu_app_v3'];
+  } else ok('load 露出（スキップ可）', true);
+}
+
 // =========================== esc / validQuestion 予約名id ===========================
 section('esc: XSS規約の要を直接検証');
 ok('esc: 5種の危険文字を実体化', APP.esc(`<img src="x" onerror='a'>&`)==='&lt;img src=&quot;x&quot; onerror=&#39;a&#39;&gt;&amp;');

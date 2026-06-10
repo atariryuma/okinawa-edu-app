@@ -578,6 +578,7 @@ function load(){const def={cards:{},streak:0,lastDate:null,theme:'light',dailyDa
   if(!s.cards||typeof s.cards!=='object'||Array.isArray(s.cards))s.cards={};
   if(!Array.isArray(s.userQuestions))s.userQuestions=[];           // 非配列(改竄)だと rebuildQuestions の spread が落ちて起動不能になるのを防ぐ
   if(!s.dailyDone||typeof s.dailyDone!=='object'||Array.isArray(s.dailyDone))s.dailyDone={}; // 集計の spread/Object操作を保護
+  if(!Array.isArray(s.communityVoted))s.communityVoted=[];if(!Array.isArray(s.communityReported))s.communityReported=[]; // 投票/通報済み表示（showQのindexOfを保護）
   return s;}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(store));}catch(e){elog({type:'quota',msg:'進捗の保存に失敗（localStorage容量超過の可能性）: '+((e&&e.name)||e)});try{toast('保存できませんでした（容量超過）');}catch(_){}}}
 // ===== クライアントサイド診断（バグ先回り検知） =====================
@@ -1148,8 +1149,13 @@ function showQ(){
       :`<span class="badge" style="background:#f59e0b;color:#1a1a1a">みんなの問題・未検証</span>`;
     const cnt=up>0?`<span style="font-size:.7rem;color:var(--sub)">👍${up}</span>`:'';
     const bst='font-size:.68rem;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:1px 8px;min-height:auto;cursor:pointer';
-    const vote=`<button type="button" class="qvote" data-id="${esc(q.id)}" aria-label="この問題は役に立った" style="${bst};color:var(--accent)">👍 役に立った</button>`;
-    const rep=`<button type="button" class="qreport" data-id="${esc(q.id)}" aria-label="この問題を通報する" style="${bst};color:var(--sub)">⚠️通報</button>`;
+    // 投票/通報済みは store に永続化して表示を保持（再描画/リロードで「役に立った」に戻らない）。
+    // サーバの正は voters/reporters 列（sub基準）。これはUI表示用のローカル記録で、Drive同期により同一アカウントの他端末へも伝播＝sub基準の実態とほぼ一致する
+    const voted=(store.communityVoted||[]).indexOf(q.id)>=0,reported=(store.communityReported||[]).indexOf(q.id)>=0;
+    const vote=voted?`<span style="font-size:.7rem;color:var(--sub)">👍 済み</span>`
+      :`<button type="button" class="qvote" data-id="${esc(q.id)}" aria-label="この問題は役に立った" style="${bst};color:var(--accent)">👍 役に立った</button>`;
+    const rep=reported?`<span style="font-size:.7rem;color:var(--sub)">⚠️通報済み</span>`
+      :`<button type="button" class="qreport" data-id="${esc(q.id)}" aria-label="この問題を通報する" style="${bst};color:var(--sub)">⚠️通報</button>`;
     commBadge=`${badge}${cnt}${vote}${rep}`;
   }
   const star=`<button type="button" class="qstar" aria-label="付箋（あとで見返す）" aria-pressed="${isBM('q',q.id)}" style="border:none;background:none;cursor:pointer;font-size:1rem;padding:0 2px;line-height:1">${isBM('q',q.id)?'⭐':'☆'}</button>`;
@@ -1698,6 +1704,8 @@ async function voteCommunity(id,btn){
       toast(j&&j.error==='login required'?'投票にはGoogleログインが必要です':'送信できませんでした。時間をおいて再度お試しください');reEnable();return;
     }
     toast('「役に立った」を送りました 🙏'); // ok:true（status:'voted' / 'already'）のみ成功表示
+    if(!Array.isArray(store.communityVoted))store.communityVoted=[];
+    if(store.communityVoted.indexOf(id)<0){store.communityVoted.push(id);save();if(gSignedIn&&accessToken)cloudSync(true);} // 投票済みを永続化（'already'＝サーバが投票済みと言った場合も記録）
   }catch(e){elog({type:'community',msg:'投票失敗:'+((e&&e.message)||e)});toast('送信に失敗しました');reEnable();}
 }
 // 共有問題の通報。一定数(別アカウント)集まると GAS 側が approved→pending に自動降格し運営が再確認する。
@@ -1721,6 +1729,8 @@ async function reportCommunity(id,btn){
       toast(j&&j.error==='login required'?'通報はGoogleログインが必要です':'通報を送信できませんでした。時間をおいて再度お試しください');reEnable();return;
     }
     toast('通報しました。ご協力ありがとうございます');
+    if(!Array.isArray(store.communityReported))store.communityReported=[];
+    if(store.communityReported.indexOf(id)<0){store.communityReported.push(id);save();if(gSignedIn&&accessToken)cloudSync(true);} // 通報済みを永続化（投票と対称）
   }catch(e){elog({type:'community',msg:'通報失敗:'+((e&&e.message)||e)});toast('通報の送信に失敗しました');reEnable();}
 }
 function gReady(){return window.google&&google.accounts&&google.accounts.oauth2;}
@@ -1839,6 +1849,9 @@ function mergeStore(a,b){if(!b)return a;const out=JSON.parse(JSON.stringify(a));
    out.totalCorrect=rT?uc:Math.max(a.totalCorrect||0,b.totalCorrect||0,uc);}
   {const dd=Object.assign({},a.dailyDone||{});const bd=b.dailyDone||{};Object.keys(bd).forEach(k=>{dd[k]=Math.max(dd[k]||0,bd[k]||0);});if(rT)Object.keys(dd).forEach(k=>{if(dayEnd(k)<=rT)delete dd[k];});out.dailyDone=pruneDailyDone(dd);} // 結合後に剪定。リセット以前の日次記録は復活させない
   {const ab=Array.isArray(a.bookmarks)?a.bookmarks:[],bb=Array.isArray(b.bookmarks)?b.bookmarks:[];out.bookmarks=[...new Set([...ab,...bb].filter(k=>typeof k==='string'))];} // 付箋は和集合（非配列/非文字列は無視）
+  {const u=x=>Array.isArray(x)?x.filter(k=>typeof k==='string'):[];
+   out.communityVoted=[...new Set([...u(a.communityVoted),...u(b.communityVoted)])].slice(0,1000);
+   out.communityReported=[...new Set([...u(a.communityReported),...u(b.communityReported)])].slice(0,1000);} // 投票/通報済み表示は和集合（一度押したら戻らない単調増加。サーバの正は voters/reporters 列＝これはUI表示用）
   {const seen={},ar=Array.isArray(a.recent)?a.recent:[],br=Array.isArray(b.recent)?b.recent:[];out.recent=[...ar,...br].filter(it=>it&&typeof it==='object'&&it.t&&it.id!=null).sort((x,y)=>(y.ts||0)-(x.ts||0)).filter(it=>{const k=it.t+':'+it.id;return seen[k]?false:(seen[k]=1,true);}).slice(0,12);} // 最近見たは時刻順で結合・上位12（壊れ要素は除外）
   // 論文の自己チェックは深いOR（どちらかでチェック済みなら残す）。設定は「より最近学習した端末」を採用（lastDate勝者）
   {const oc=Object.assign({},a.ronbunChecks||{}),bc=b.ronbunChecks||{};Object.keys(bc).forEach(t=>{oc[t]=Object.assign({},oc[t]||{});Object.keys(bc[t]||{}).forEach(k=>{if(bc[t][k])oc[t][k]=true;});});out.ronbunChecks=oc;}
@@ -1859,6 +1872,8 @@ function sanitizeImport(o){const s={};o=o||{};
   if(o.ronbunDrafts&&typeof o.ronbunDrafts==='object'&&!Array.isArray(o.ronbunDrafts)){s.ronbunDrafts={};Object.keys(o.ronbunDrafts).slice(0,50).forEach(k=>{s.ronbunDrafts[String(k).slice(0,80)]=String(o.ronbunDrafts[k]||'').slice(0,8000);});} // 下書きはキー/値長をクランプ
   s.dailyDone=pruneDailyDone(o.dailyDone); // 取り込み時も剪定
   if(Array.isArray(o.bookmarks))s.bookmarks=o.bookmarks.filter(k=>typeof k==='string');
+  if(Array.isArray(o.communityVoted))s.communityVoted=o.communityVoted.filter(k=>typeof k==='string').slice(0,1000);
+  if(Array.isArray(o.communityReported))s.communityReported=o.communityReported.filter(k=>typeof k==='string').slice(0,1000);
   if(Array.isArray(o.recent))s.recent=o.recent.filter(r=>r&&typeof r==='object'&&r.t&&r.id!=null).slice(0,12).map(r=>({t:String(r.t).slice(0,8),id:String(r.id).slice(0,80),label:String(r.label||'').slice(0,40),ts:Number(r.ts)||0})); // 型/長さを正規化
   if(typeof o.dailyGoal==='number'&&o.dailyGoal>0&&o.dailyGoal<1000)s.dailyGoal=o.dailyGoal;
   return s;}
